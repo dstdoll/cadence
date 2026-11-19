@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- Start screen: the launcher icon itself, the same gradient and mark at the same size, on a disc
+         that fills the circle the system shows (the inner 72 of 108). Drawn here rather than left to the
+         system's icon background, which some launchers show as a square. -->
+    <path android:pathData="M18,54a36,36 0 1,1 72,0a36,36 0 1,1 -72,0z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear"
+                android:startX="0" android:startY="0"
+                android:endX="108" android:endY="108"
+                android:startColor="#7F67BE"
+                android:endColor="#4F378B" />
+        </aapt:attr>
+    </path>
+    <path android:fillColor="#FFFFFF" android:fillType="nonZero"
+        android:pathData="M32,63.3A22,22 0 0,1 76,63.3L71.46,63.3A19,19 0 0,0 36.54,63.3Z M32,63.3a2.27,2.27 0 1,1 4.54,0a2.27,2.27 0 1,1 -4.54,0Z M71.46,63.3a2.27,2.27 0 1,1 4.54,0a2.27,2.27 0 1,1 -4.54,0Z M48.2,60.9a5.8,5.8 0 1,1 11.6,0a5.8,5.8 0 1,1 -11.6,0Z" />
+</vector>

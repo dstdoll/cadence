@@ -1,0 +1,9 @@
+[workspace]
+
+[package]
+name = "cadence-container"
+version = "0.2.0"
+edition = "2021"
+description = "Fragmented-MP4 (HLS, cbcs) parser and progressive M4A muxer for ALAC, used by cadence-android-drm."
+
+[dependencies]

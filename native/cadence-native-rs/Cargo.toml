@@ -1,0 +1,24 @@
+[workspace]
+
+[package]
+name = "cadence-native-rs"
+version = "0.1.0"
+edition = "2021"
+
+# The shim's JNI + (incrementally) its orchestration in Rust. Builds libcadence-native.so, the
+# library NativeWrapper loads, replacing the C++ native_wrapper.cpp JNI. The StoreServices C++ glue
+# (native_core.c + the bridges + a small support TU) is compiled in via cc and called through the
+# flat-C core_wrapper_* boundary; the closed Apple blobs are linked as before.
+[lib]
+name = "cadence_native"
+crate-type = ["cdylib"]
+
+[dependencies]
+jni = "0.21"
+libc = "0.2"
+
+[profile.release]
+strip = "symbols"
+lto = "thin"
+codegen-units = 1
+panic = "abort"

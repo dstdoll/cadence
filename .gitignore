@@ -1,0 +1,30 @@
+# Build output
+.gradle/
+build/
+.kotlin/
+.cxx/
+*.apk
+*.aab
+local.properties
+
+# IDE
+.idea/
+*.iml
+
+# Rust build output
+native/*/target/
+
+# Logs, screenshots and reports
+*.log
+.shots/
+
+# Developer tooling and notes stay on the machine they were made on
+tools/
+docs/
+
+# Signing keys and account data never live in the repository
+*.jks
+*.keystore
+keystore.properties
+backend/src/main/assets/native-data/
+backend/src/main/assets/session.json

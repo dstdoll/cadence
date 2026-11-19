@@ -1,0 +1,3 @@
+[target.aarch64-linux-android]
+# Linker: set CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER to the NDK's aarch64-linux-android31-clang.
+rustflags = ["-C", "link-arg=-Wl,-z,max-page-size=16384"]

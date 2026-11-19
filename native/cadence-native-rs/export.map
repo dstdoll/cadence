@@ -1,0 +1,5 @@
+{
+  global:
+    core_wrapper_decrypt_sample;
+    JNI_OnLoad;
+};

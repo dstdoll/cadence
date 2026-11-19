@@ -1,0 +1,672 @@
+<resources>
+    <string name="app_name" translatable="false">Cadence</string>
+
+    <!-- Settings · Appearance · Language -->
+    <string name="settings_language">Language</string>
+    <string name="language_system">System</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">Home</string>
+    <string name="nav_browse">Browse</string>
+    <string name="nav_radio">Radio</string>
+    <string name="nav_library">Library</string>
+    <string name="nav_search">Search</string>
+
+    <!-- Common actions / content descriptions -->
+    <string name="cd_play">Play</string>
+    <string name="cd_pause">Pause</string>
+    <string name="cd_next">Next</string>
+    <string name="cd_previous">Previous</string>
+    <string name="cd_downloads">Downloads</string>
+
+    <!-- Home -->
+    <string name="home_greeting_morning">Good morning</string>
+    <string name="home_greeting_afternoon">Good afternoon</string>
+    <string name="home_greeting_evening">Good evening</string>
+    <string name="ctx_recently_played">Recently played</string>
+    <string name="home_top_picks">Top picks for you</string>
+    <string name="home_made_for_you">Made for you</string>
+
+    <!-- Now playing -->
+    <string name="player_playing_from">PLAYING FROM</string>
+    <string name="player_sleep_off">Turn off</string>
+    <string name="player_sleep_end_of_song">End of song</string>
+    <string name="player_sleep_countdown">Pausing in %1$d:%2$02d</string>
+    <plurals name="minutes">
+        <item quantity="one">%d minute</item>
+        <item quantity="other">%d minutes</item>
+    </plurals>
+
+    <!-- Audio quality -->
+    <string name="quality_details">Audio quality details</string>
+    <string name="quality_codec_audio">%s audio</string>
+    <string name="quality_format">Format</string>
+    <string name="quality_lossless">(lossless)</string>
+    <string name="quality_bit_depth">Bit depth</string>
+    <string name="quality_bits">%d-bit</string>
+    <string name="quality_sample_rate">Sample rate</string>
+    <string name="quality_channels">Channels</string>
+    <string name="quality_bitrate">Bitrate</string>
+    <string name="quality_kbps">%d kbps</string>
+    <string name="quality_resample_note">Android may resample to your output device\'s native rate. Connected USB DACs can receive higher rates.</string>
+
+    <!-- Sign in -->
+    <string name="auth_welcome">Welcome to Cadence</string>
+    <string name="auth_subtitle">Sign in with your email and password, then confirm with a 6-digit code we send you.</string>
+    <string name="auth_email">Email</string>
+    <string name="auth_password">Password</string>
+    <string name="auth_show_password">Show password</string>
+    <string name="auth_hide_password">Hide password</string>
+    <string name="action_continue">Continue</string>
+    <string name="auth_import_session">Import session</string>
+    <string name="auth_different_email">Use a different email</string>
+    <string name="auth_enter_code">Enter your code</string>
+    <string name="auth_code_sent">We sent a %1$d-digit code to %2$s</string>
+    <string name="action_try_again">Try again</string>
+    <string name="auth_resend">Resend code</string>
+    <string name="auth_resend_in">Resend code in 0:%1$02d</string>
+    <string name="auth_codes_expire">Codes expire after 5 minutes and work once.</string>
+    <plurals name="auth_wrong_code">
+        <item quantity="one">That code isn\'t right. %d try left.</item>
+        <item quantity="other">That code isn\'t right. %d tries left.</item>
+    </plurals>
+
+    <!-- Common -->
+    <string name="action_clear">Clear</string>
+    <string name="nav_settings">Settings</string>
+    <string name="cd_more_options">More options</string>
+    <string name="filter_all">All</string>
+    <string name="filter_reversed">Reversed</string>
+
+    <!-- Library -->
+    <string name="library_new_playlist">New playlist</string>
+    <string name="library_edit_categories">Edit categories</string>
+    <string name="library_edit_title">Edit library</string>
+    <string name="library_edit_hint">Choose what shows in Library, and drag to change the order.</string>
+    <string name="library_empty_favorites">Tap the heart on any song to keep it here.</string>
+    <string name="library_empty_default">Use “Add to Library” on any song.</string>
+    <string name="library_recently_added">Recently added</string>
+    <string name="library_empty_playlists">Create a playlist with the + button in Library.</string>
+    <string name="library_artist_in_library">In your library</string>
+    <string name="library_empty_artists">Artists of songs you add to your library show up here.</string>
+    <string name="library_empty_albums">Add albums to your library from any album page.</string>
+    <string name="sort_title">Title</string>
+    <string name="sort_artist">Artist</string>
+    <string name="sort_album">Album</string>
+    <string name="sort_year">Year</string>
+    <string name="sort_duration">Duration</string>
+
+    <!-- Search -->
+    <string name="search_scope_all">All music</string>
+    <string name="search_scope_library">Your library</string>
+    <string name="search_placeholder">Songs, artists, albums, lyrics…</string>
+    <string name="cd_clear_search">Clear search</string>
+    <string name="search_browse_categories">Browse categories</string>
+    <string name="search_empty_hint">Search the whole catalog or just your library. Lyrics count too: try a line you remember.</string>
+    <string name="search_recent">Recent searches</string>
+    <string name="cd_use_suggestion">Use suggestion</string>
+    <string name="search_no_matches_yet">No matches yet. Press search to look through lyrics too.</string>
+    <string name="search_nothing_matches">Nothing matches. Try fewer words, or switch scope.</string>
+    <string name="search_top_results">Top results</string>
+    <string name="cd_back">Back</string>
+    <string name="search_type_songs">Songs</string>
+    <string name="search_type_artists">Artists</string>
+    <string name="search_type_albums">Albums</string>
+    <string name="search_type_playlists">Playlists</string>
+    <string name="search_type_lyrics">Lyrics</string>
+    <string name="search_in">in %1$s</string>
+
+    <!-- Browse -->
+    <string name="browse_subtitle">New and noteworthy</string>
+
+    <!-- Queue -->
+    <string name="queue_history">History</string>
+    <string name="queue_up_next">Up next</string>
+    <string name="queue_empty_autoplay">Nothing queued. Autoplay will keep similar music going.</string>
+    <string name="queue_empty_default">Nothing queued. Use “Play Next” on any song.</string>
+    <string name="queue_reorder_hint">Hold a song to move it</string>
+
+    <!-- Lyrics -->
+    <string name="lyrics_none">No lyrics for this one.\nJust enjoy the music.</string>
+    <string name="lyrics_unsynced">Unsynced lyrics</string>
+
+    <!-- Player controls / toolbar -->
+    <string name="cd_collapse">Collapse</string>
+    <string name="cd_shuffle">Shuffle</string>
+    <string name="player_lyrics">Lyrics</string>
+    <string name="player_output_device">Output device</string>
+    <string name="player_sleep_timer">Sleep timer</string>
+    <string name="player_queue">Queue</string>
+    <string name="home_albums_you_might_like">Albums you might like</string>
+
+    <!-- Common actions -->
+    <string name="action_cancel">Cancel</string>
+    <string name="action_create">Create</string>
+    <string name="action_copy">Copy</string>
+
+    <!-- Track action sheet -->
+    <string name="track_add_to_library">Add to Library</string>
+    <string name="track_remove_from_library">Remove from Library</string>
+    <string name="track_add_to_playlist">Add to a Playlist…</string>
+    <string name="track_download">Download</string>
+    <string name="track_downloaded">Downloaded</string>
+    <string name="track_downloading">Downloading…</string>
+    <string name="track_play_next">Play Next</string>
+    <string name="track_play_last">Play Last</string>
+    <string name="track_share_song">Share Song</string>
+    <string name="track_share_lyrics">Share Lyrics…</string>
+    <string name="track_view_credits">View Credits</string>
+    <string name="track_create_station">Create Station</string>
+    <string name="track_pin">Pin Song</string>
+    <string name="track_unpin">Unpin</string>
+    <string name="track_favorite">Favorite</string>
+    <string name="track_undo_favorite">Undo Favorite</string>
+    <string name="track_sleep_timer">Sleep Timer…</string>
+    <string name="sleep_1_hour">1 hour</string>
+
+    <!-- Components / dialogs -->
+    <string name="cd_download_song">Download song</string>
+    <string name="cd_favorited">Favorited</string>
+    <string name="components_add_to_playlist">Add to playlist</string>
+    <string name="components_playlist_fallback">Playlist</string>
+
+    <!-- Share lyrics -->
+    <string name="share_no_lines">No lines selected</string>
+    <string name="share_max_lines">That\'s the most a card can fit</string>
+    <string name="share_tap_lines">Tap lines to add them to the card</string>
+    <string name="share_card">Share card</string>
+    <plurals name="lines_selected">
+        <item quantity="one">%d line selected</item>
+        <item quantity="other">%d lines selected</item>
+    </plurals>
+
+    <!-- Counts -->
+    <plurals name="songs">
+        <item quantity="one">%d song</item>
+        <item quantity="other">%d songs</item>
+    </plurals>
+    <plurals name="albums">
+        <item quantity="one">%d album</item>
+        <item quantity="other">%d albums</item>
+    </plurals>
+    <plurals name="artists">
+        <item quantity="one">%d artist</item>
+        <item quantity="other">%d artists</item>
+    </plurals>
+    <plurals name="genres">
+        <item quantity="one">%d genre</item>
+        <item quantity="other">%d genres</item>
+    </plurals>
+    <plurals name="playlists">
+        <item quantity="one">%d playlist</item>
+        <item quantity="other">%d playlists</item>
+    </plurals>
+    <plurals name="hours">
+        <item quantity="one">%d hour</item>
+        <item quantity="other">%d hours</item>
+    </plurals>
+
+    <!-- Album / Artist / Playlist detail -->
+    <string name="detail_subtitle_album">Album</string>
+    <string name="detail_subtitle_artist">Artist</string>
+    <string name="detail_your_playlist">Your playlist</string>
+    <string name="detail_curated">Curated</string>
+    <string name="detail_remove_album">Remove album from library</string>
+    <string name="detail_add_album">Add album to library</string>
+    <string name="detail_no_tracks">No tracks available for this album</string>
+    <string name="cd_download_album">Download album</string>
+    <string name="detail_unpin_album">Unpin album</string>
+    <string name="detail_pin_album">Pin album</string>
+    <string name="detail_other_versions">Other versions</string>
+    <string name="detail_you_might_like">You might also like</string>
+    <string name="detail_no_biography">No biography available.</string>
+    <string name="cd_follow">Follow</string>
+    <string name="cd_following">Following</string>
+    <string name="cd_play_station">Play %1$s station</string>
+    <string name="cd_download_playlist">Download playlist</string>
+    <string name="detail_unpin_playlist">Unpin playlist</string>
+    <string name="detail_pin_playlist">Pin playlist</string>
+    <string name="cd_add_songs">Add songs</string>
+    <string name="cd_rename">Rename</string>
+    <string name="cd_delete_playlist">Delete playlist</string>
+    <string name="detail_add_some_songs">Add some songs</string>
+    <string name="detail_remove_from_playlist">Remove from Playlist</string>
+    <string name="detail_rename_playlist">Rename playlist</string>
+
+    <!-- Credits / more info -->
+    <string name="credits_title">Credits</string>
+    <string name="credits_none">No credits are available for this song.</string>
+    <string name="moreinfo_audio_quality">Audio quality</string>
+
+    <!-- Downloads window -->
+    <string name="downloads_empty_sub">Start one from any album or song</string>
+    <string name="downloads_none">No downloads yet</string>
+    <string name="downloads_none_sub">Tracks download one at a time and appear here for offline play.</string>
+    <string name="downloads_decrypting">Decrypting</string>
+    <string name="downloads_retry_pending">Retry pending</string>
+
+    <!-- Radio -->
+    <string name="radio_card_title">Cadence Radio</string>
+    <string name="radio_subtitle">Nonstop music, picked for you</string>
+    <string name="radio_stations_by_genre">Stations by Genre</string>
+    <string name="radio_station">Station</string>
+
+    <!-- Profile -->
+    <string name="profile_title">Profile</string>
+    <string name="profile_history_empty">Songs you play show up here.</string>
+    <string name="profile_clear_history">Clear history</string>
+    <string name="profile_subscription">Subscription</string>
+    <string name="profile_notifications">Notifications</string>
+    <string name="profile_notifications_sub">New music, shows &amp; activity</string>
+
+    <!-- More common actions + detail extras -->
+    <string name="action_less">Less</string>
+    <string name="action_more">More</string>
+    <string name="action_save">Save</string>
+    <string name="action_delete">Delete</string>
+    <string name="detail_single_ep">Single · EP</string>
+    <string name="detail_singles_eps">Singles &amp; EPs</string>
+    <string name="detail_delete_hint">The songs stay in your library.</string>
+    <string name="detail_delete_confirm">Delete “%1$s”?</string>
+
+    <!-- Detail, profile, credits, downloads, radio -->
+    <string name="detail_reorder_hint">Hold a song to move it</string>
+    <string name="detail_move_up">Move Up</string>
+    <string name="detail_move_down">Move Down</string>
+    <string name="detail_more_by">More by %1$s</string>
+    <string name="detail_latest_release">Latest Release</string>
+    <string name="detail_top_songs">Top Songs</string>
+    <string name="detail_albums">Albums</string>
+    <string name="detail_featured_playlists">Featured Playlists</string>
+    <string name="detail_similar_artists">Similar Artists</string>
+    <string name="detail_about">About</string>
+    <string name="profile_you">You</string>
+    <string name="profile_stat_playlists">Playlists</string>
+    <string name="profile_stat_minutes">Minutes</string>
+    <string name="profile_replay">Your Replay · Top Artists</string>
+    <string name="profile_history">Listening History</string>
+    <string name="ctx_history">History</string>
+    <string name="profile_account">Account</string>
+    <string name="profile_subscription_plan">Apple Music · Individual</string>
+    <string name="credits_performers">Performers</string>
+    <string name="credits_writing">Writing</string>
+    <string name="credits_production">Production &amp; engineering</string>
+    <string name="downloads_now_queue">Downloading now · %1$d in queue</string>
+    <string name="downloads_in_progress">Downloading · decrypts automatically</string>
+    <string name="downloads_queued_starting">%1$d queued · starting</string>
+    <string name="downloads_done_failed">%1$d complete · %2$d failed</string>
+    <string name="downloads_queued">Queued</string>
+    <string name="cd_downloaded">Downloaded</string>
+    <string name="radio_yours">Your Stations</string>
+    <string name="radio_discovery">Discovery Station</string>
+    <string name="radio_mine">My Station</string>
+    <string name="radio_artist_stations">Artist Stations</string>
+    <plurals name="downloads_ready_offline">
+        <item quantity="one">%d track ready offline</item>
+        <item quantity="other">%d tracks ready offline</item>
+    </plurals>
+
+    <!-- Settings / Ajustes -->
+    <string name="set_sign_out">Sign out</string>
+    <string name="set_export_session">Export session</string>
+    <string name="set_import_session">Import session</string>
+    <string name="set_color_source">Color source</string>
+    <string name="set_seed_color">Seed color</string>
+    <string name="set_theme">Theme</string>
+    <string name="set_contrast">Contrast</string>
+    <string name="set_pure_black">Pure black</string>
+    <string name="set_grayscale_artwork">Grayscale artwork</string>
+    <string name="set_motion_covers">Motion covers</string>
+    <string name="set_show_quality">Show audio quality</string>
+    <string name="set_reduce_motion">Reduce motion</string>
+    <string name="set_seek_bar">Seek bar</string>
+    <string name="set_autoplay">Autoplay</string>
+    <string name="set_skip_silence">Skip silence</string>
+    <string name="set_resume">Resume where you left off</string>
+    <string name="set_haptics">Haptics</string>
+    <string name="set_equalizer">Equalizer</string>
+    <string name="set_tone_controls">Tone controls</string>
+    <string name="set_auto_headroom">Auto headroom</string>
+    <string name="set_replay_gain">Replay gain</string>
+    <string name="set_balance_width">Balance &amp; width</string>
+    <string name="set_streaming_quality">Streaming quality</string>
+    <string name="set_hires_output">Hi-res output</string>
+    <string name="set_bit_perfect">Bit-perfect USB (Android 14+)</string>
+    <string name="set_dolby_atmos">Dolby Atmos</string>
+    <string name="set_dither">Dither</string>
+    <string name="set_preload_next">Preload next song</string>
+    <string name="set_keep_previous">Keep previous song ready</string>
+    <string name="set_songs_ahead">Songs ready ahead</string>
+    <string name="set_songs_behind">Songs ready behind</string>
+    <string name="set_fill_mobile">Fill on mobile data</string>
+    <string name="set_streaming_cache">Streaming cache</string>
+    <string name="set_clear_cache">Clear streaming cache</string>
+    <string name="set_text_size">Text size</string>
+    <string name="set_alignment">Alignment</string>
+    <string name="set_active_line">Active line position</string>
+    <string name="set_word_highlight">Word-by-word highlight</string>
+    <string name="set_depth_blur">Depth blur</string>
+    <string name="set_files_folders">Files &amp; folders</string>
+    <string name="set_naming_dates">Naming &amp; dates</string>
+    <string name="set_audio_quality">Audio quality</string>
+    <string name="set_tags_artwork">Tags &amp; artwork</string>
+    <string name="set_default_location">Default location</string>
+    <string name="set_albums">Albums</string>
+    <string name="set_playlists">Playlists</string>
+    <string name="set_singles">Singles</string>
+    <string name="set_album_folder">Album folder</string>
+    <string name="set_track_file">Track file</string>
+    <string name="set_playlist_folder">Playlist folder</string>
+    <string name="set_playlist_track_file">Playlist track file</string>
+    <string name="set_album_date_tag">Album date tag</string>
+    <string name="set_format">Format</string>
+    <string name="set_bit_depth">Bit depth</string>
+    <string name="set_max_rate">Maximum sample rate</string>
+    <string name="set_reuse_cache">Reuse playback cache</string>
+    <string name="set_download_as_you_go">Download as you go</string>
+    <string name="set_write_tags">Write tags</string>
+    <string name="set_embed_cover">Embed cover art</string>
+    <string name="set_cover_size">Cover size</string>
+    <string name="set_cover_format">Cover format</string>
+    <string name="set_embed_lyrics">Embed lyrics</string>
+    <string name="set_lyrics_format">Lyrics format</string>
+    <string name="set_add_favorites">Add favorites to library</string>
+    <string name="set_add_playlist_songs">Add playlist songs to library</string>
+    <string name="set_listening_history">Use listening history</string>
+    <string name="set_edit_categories">Edit library categories</string>
+    <string name="set_about_cadence">About Cadence</string>
+    <string name="set_diagnostics">Diagnostics</string>
+    <string name="set_export_logs">Export logs</string>
+    <string name="set_share_logs">Share logs</string>
+    <string name="set_licenses">Licenses</string>
+    <string name="set_session">Session</string>
+    <string name="set_page_root">Settings</string>
+    <string name="set_page_appearance">Appearance</string>
+    <string name="set_page_playback">Playback</string>
+    <string name="set_page_sound">Sound quality</string>
+    <string name="set_page_streaming">Streaming &amp; cache</string>
+    <string name="set_page_lyrics">Lyrics</string>
+    <string name="set_page_downloads">Downloads</string>
+    <string name="set_page_download_files">Downloads · Files &amp; folders</string>
+    <string name="set_page_download_naming">Downloads · Naming &amp; dates</string>
+    <string name="set_page_download_audio">Downloads · Audio quality</string>
+    <string name="set_page_download_tags">Downloads · Tags &amp; artwork</string>
+    <string name="set_page_library">Library</string>
+    <string name="set_page_about">About Cadence</string>
+    <string name="set_no_match">No settings match \"%1$s\".</string>
+    <string name="set_preferences">Preferences</string>
+    <string name="set_theme_system">System</string>
+    <string name="set_theme_light">Light</string>
+    <string name="set_theme_dark">Dark</string>
+    <string name="set_on">on</string>
+    <string name="set_off">off</string>
+    <string name="set_sum_playback">Autoplay %1$s · Equalizer %2$s</string>
+    <string name="set_sum_sound">%1$s · Hi-res %2$s · Bit-perfect %3$s</string>
+    <string name="set_sum_streaming">Next song %1$s · Cache %2$s</string>
+    <string name="set_sum_lyrics">%1$s · %2$d%% · Karaoke %3$s</string>
+    <string name="set_align_centered">Centered</string>
+    <string name="set_align_left">Left</string>
+    <string name="set_sum_about">Version %1$s · diagnostics · licenses</string>
+    <string name="set_source_wallpaper">Wallpaper</string>
+    <string name="set_source_album">Album</string>
+    <string name="set_source_custom">Custom</string>
+    <string name="set_source_mono">Mono</string>
+    <string name="set_custom_folder">Custom folder</string>
+    <string name="set_color_purple">Purple</string>
+    <string name="set_color_red">Red</string>
+    <string name="set_color_amber">Amber</string>
+    <string name="set_color_green">Green</string>
+    <string name="set_color_teal">Teal</string>
+    <string name="set_color_blue">Blue</string>
+    <string name="set_color_magenta">Magenta</string>
+    <string name="set_color_gray">Gray</string>
+    <string name="set_session_desc">Move this account to another install with a session file. Anyone with the file can use the account.</string>
+    <string name="set_export">Export</string>
+    <string name="set_import">Import</string>
+    <string name="set_export_title">Export session?</string>
+    <string name="set_export_warning">The file signs in to your Apple Music account on any install. Share it only with someone you trust.</string>
+    <string name="set_session_saved">Session saved (%1$d files). Keep the file private.</string>
+    <string name="set_export_failed">Could not export: %1$s</string>
+    <string name="set_import_failed">Could not import: %1$s</string>
+    <string name="set_sign_out_title">Sign out?</string>
+    <string name="set_sign_out_desc">Your library and settings stay on this device. You\'ll need a new code to sign back in.</string>
+    <string name="set_source_hint_wallpaper">Material You colors from your wallpaper.</string>
+    <string name="set_source_hint_album">The whole app re-tints to the playing album\'s cover.</string>
+    <string name="set_source_hint_mono">Pure black and white. Artwork turns grayscale too.</string>
+    <string name="set_contrast_standard">Standard</string>
+    <string name="set_contrast_medium">Medium</string>
+    <string name="set_contrast_high">High</string>
+    <string name="set_contrast_hint">Contrast applies to custom and artwork palettes; the wallpaper already carries its own.</string>
+    <string name="set_pure_black_sub">Use true black surfaces in dark theme (great on OLED).</string>
+    <string name="set_motion_covers_sub">Let album art move: looping videos where available, animated artwork otherwise.</string>
+    <string name="set_show_quality_sub">Badge lossless and hi-res tracks in the player and on albums.</string>
+    <string name="set_reduce_motion_sub">Calmer transitions, no blur, no drifting backgrounds.</string>
+    <string name="set_wave_material">Material</string>
+    <string name="set_wave_bars">Bars</string>
+    <string name="set_wave_mirror">Mirror</string>
+    <string name="set_wave_line">Line</string>
+    <string name="set_wave_neon">Neon</string>
+    <string name="set_wave_hint_material">The Material wavy progress line.</string>
+    <string name="set_wave_hint_bars">The track\'s real waveform, drawn as it plays.</string>
+    <string name="set_wave_hint_mirror">The waveform mirrored around the centre line.</string>
+    <string name="set_wave_hint_line">The waveform as one filled outline.</string>
+    <string name="set_wave_hint_neon">Glowing waveform that pulses with level and bass hits.</string>
+    <string name="set_autoplay_sub">When your queue ends, keep similar music playing.</string>
+    <string name="set_skip_silence_sub_hires">Turns hi-res output off while on.</string>
+    <string name="set_state_on">On</string>
+    <string name="set_state_off">Off</string>
+    <string name="set_streaming_quality_hint">AAC uses about a fifth of the data and starts faster. Applies from the next song.</string>
+    <string name="set_atmos_hint_atmos">Songs mixed in Dolby Atmos play that mix (E-AC-3, about 768 kbps), decoded by the phone\'s Dolby decoder when it has one. Other songs keep the quality above. Applies from the next song.</string>
+    <string name="set_atmos_hint_spatial">Songs mixed in Dolby Atmos play a headphone render of that mix (AAC 256 kbps), spatial on any headphones. Other songs keep the quality above. Applies from the next song.</string>
+    <string name="set_atmos_hint_off">Songs always play in the quality above, even when they have a Dolby Atmos mix.</string>
+    <string name="set_hires_sub_skip">Off while Skip silence is on: trimming silence needs 16-bit processing.</string>
+    <string name="set_info_about">More about %1$s</string>
+    <string name="set_hires_sub">Decode to 32-bit float so 24-bit audio is not reduced to 16-bit. Applies the next time playback starts.</string>
+    <string name="set_bit_perfect_sub">For USB DACs only: each song plays at its own rate and bit depth, untouched by the system. While a USB DAC is connected the DAC controls the volume, and the equalizer and the other effects are off. Stereo only: Dolby Atmos plays through the system as usual, effects included. Applies from the next song.</string>
+    <string name="set_dither_off_sub">Off · for 16-bit output</string>
+    <string name="set_preload_hint">How much of the upcoming song is downloaded and decrypted ahead of time, so it starts without a gap.</string>
+    <string name="set_keep_previous_hint">Lets “back” start at once instead of loading.</string>
+    <string name="set_window_hint">Whole songs of the queue downloaded and decrypted around the one playing, so skipping either way is instant.</string>
+    <string name="set_fill_mobile_sub">Off keeps those songs for Wi-Fi; the preload above always works.</string>
+    <string name="set_cache_hint">The most decrypted audio kept on this device; the songs ahead and behind never go past it. The song that is playing is always downloaded in full.</string>
+    <string name="set_lossless">Lossless</string>
+    <string name="set_atmos_spatial">Spatial</string>
+    <string name="set_off_short">Off</string>
+    <string name="set_whole">Whole</string>
+    <string name="set_cache_in_use">%1$d MB in use</string>
+    <string name="set_measuring">Measuring…</string>
+    <string name="set_align_start">Start</string>
+    <string name="set_align_center">Center</string>
+    <string name="set_from_top">%1$d%% from top</string>
+    <string name="set_word_highlight_sub">Sweep each word as it\'s sung, when timing is available.</string>
+    <string name="set_depth_blur_sub">Soften lines further from the one being sung.</string>
+    <string name="set_listening_history_sub">Remember what you play for History and Recently Played.</string>
+    <string name="set_logs_failed">Could not export logs</string>
+    <string name="set_logs_saved">Saved to %1$s</string>
+    <string name="set_about_desc">A Material 3 Expressive player with an in-process lossless downloader.</string>
+    <string name="set_about_version">Version %1$s</string>
+    <string name="set_diag_sub">Engine log: %1$s</string>
+    <string name="set_export_logs_sub">Save engine logs to %1$s</string>
+    <string name="set_search_placeholder">Search settings</string>
+    <plurals name="set_sum_library">
+        <item quantity="one">%d automation on · Categories</item>
+        <item quantity="other">%d automations on · Categories</item>
+    </plurals>
+    <plurals name="set_custom_folders">
+        <item quantity="one">%d custom folder</item>
+        <item quantity="other">%d custom folders</item>
+    </plurals>
+
+    <!-- Settings enums / Enumeraciones de ajustes -->
+    <string name="set_date_full">Full date</string>
+    <string name="set_date_year">Year only</string>
+    <string name="set_none">None</string>
+    <string name="set_dither_rect">Rectangular (RPDF)</string>
+    <string name="set_dither_tri">Triangular (TPDF)</string>
+    <string name="set_dither_shaped">Noise-shaped</string>
+
+    <!-- Download settings / Ajustes de descargas -->
+    <string name="set_dl_as_you_go_sub">Each segment is fetched, decrypted and muxed as it arrives (the same path playback uses) instead of downloading the whole file and then decrypting it.</string>
+    <string name="set_reuse_cache_sub">Download straight from what playback already decrypted, so a track you just played saves almost instantly. Off keeps a separate download cache.</string>
+    <string name="set_dl_templates_hint">Folder and file templates use tokens like {artist}, {album}, {year}, {track:02d} and {title}. A custom folder keeps the decrypted masters there; otherwise they are published to Music/Cadence.</string>
+    <string name="set_dl_default_hint">Where albums, playlists and singles go unless a type overrides it.</string>
+    <string name="set_same_as_default">Same as default</string>
+    <string name="set_dl_folder_hint">Pick a folder with the system picker. The folder name is fixed; sub-folders still come from the naming template.</string>
+    <string name="set_choose">Choose</string>
+    <string name="set_change">Change</string>
+    <string name="set_use_default">Use default</string>
+    <string name="set_internal_storage">Internal storage</string>
+    <string name="set_selected_folder">Selected folder</string>
+    <string name="set_dl_preview_hint">Previews use \"Daft Punk — Random Access Memories\", track 7 \"Touch\", 2013-05-17.</string>
+    <string name="set_edit">Edit</string>
+    <string name="set_tokens_hint">Tokens are replaced at download time.</string>
+    <string name="set_folder_template">Folder template</string>
+    <string name="set_file_template">File template</string>
+    <string name="set_presets">Presets</string>
+    <string name="set_tokens">Tokens</string>
+    <string name="set_preview">Preview</string>
+    <string name="set_reset_default">Reset default</string>
+    <string name="set_dl_format_hint">Lossless is ALAC; AAC is 256 kbps and about a fifth of the size. Both are written as .m4a.</string>
+    <string name="set_dl_atmos_hint_atmos">Songs mixed in Dolby Atmos are saved as that mix (E-AC-3, about 768 kbps, in an .m4a). It needs a player with a Dolby decoder; other songs keep the format above.</string>
+    <string name="set_dl_atmos_hint_spatial">Songs mixed in Dolby Atmos are saved as their headphone render (AAC 256 kbps), spatial on any headphones and any player. Other songs keep the format above.</string>
+    <string name="set_dl_atmos_hint_off">Songs are always saved in the format above, even when they have a Dolby Atmos mix.</string>
+    <string name="set_dl_depth_hint">Preferred depth when Apple publishes more than one lossless variant.</string>
+    <string name="set_dl_rate_hint">Auto takes the best variant the track offers.</string>
+    <string name="set_write_tags_sub">Title, artist, album, track, disc, date and genre into the file.</string>
+    <string name="set_auto_rate">Auto rate</string>
+    <string name="set_digest_tags">Tags</string>
+    <string name="set_digest_cover">Cover %1$s</string>
+    <string name="set_digest_lyrics">Lyrics %1$s</string>
+    <string name="set_digest_none">No metadata</string>
+    <string name="set_preset_playlist">Playlist</string>
+    <string name="set_preset_playlist_album">Playlist / Album</string>
+    <string name="set_preset_artist_album">Artist / Album</string>
+    <string name="set_preset_year">… (Year)</string>
+    <string name="set_preset_year_quality">… (Year) [Quality]</string>
+    <string name="set_preset_codec">… [Codec]</string>
+    <string name="set_preset_num_artist_title">## Artist - Title</string>
+    <string name="set_preset_artist_title">Artist - Title</string>
+    <string name="set_preset_num_title">## Title</string>
+    <string name="set_preset_num_title_quality">## Title [Quality]</string>
+    <string name="set_preset_disc_track_title">Disc-Track Title</string>
+    <plurals name="set_digest_overrides">
+        <item quantity="one">%1$s · %2$d override</item>
+        <item quantity="other">%1$s · %2$d overrides</item>
+    </plurals>
+
+    <!-- Audio settings and quality tiers / Ajustes de audio y niveles de calidad -->
+    <string name="set_rg_sub">Even out the volume between songs, applied to every output.</string>
+    <string name="set_rg_reference">Reference</string>
+    <string name="set_rg_per_track">Per track</string>
+    <string name="set_rg_per_album">Per album</string>
+    <string name="set_preamp">Preamp</string>
+    <string name="set_preamp_sub">applied in every mode</string>
+    <string name="set_preamp_missing">Preamp when info is missing</string>
+    <string name="set_preamp_missing_sub">used until a song\'s loudness has been measured</string>
+    <string name="set_prevent_clipping">Prevent clipping</string>
+    <string name="set_prevent_clipping_sub">A limiter keeps any boost (replay gain, equalizer, tone) from clipping, without the distortion of a hard clip.</string>
+    <string name="set_rg_note">Apple\'s stream ships no loudness data, so Cadence measures each song (EBU R128) the first time it plays through and levels it to -18 LUFS from then on. Until a song is measured, the \"info missing\" preamp applies. Album mode uses the album\'s measured songs.</string>
+    <string name="set_balance_sub">Pan and stereo width, applied to every output, hi-res included. Stereo only.</string>
+    <string name="set_stereo_field">Stereo field</string>
+    <string name="set_reset">Reset</string>
+    <string name="set_balance">Balance</string>
+    <string name="set_width">Width</string>
+    <string name="set_balance_note">Width is mid/side: 0 is mono, 1 is the original stereo, 2 widens it. Balance keeps the side you turn toward at full level and lowers the other.</string>
+    <string name="set_centre">Centre</string>
+    <string name="set_pct_left">%1$d%% left</string>
+    <string name="set_pct_right">%1$d%% right</string>
+    <string name="set_mono">Mono</string>
+    <string name="set_normal_stereo">Normal stereo</string>
+    <string name="set_tone_sub">Bass and treble shelves, applied to every output, hi-res included.</string>
+    <string name="set_shelves">Shelves</string>
+    <string name="set_bass">Bass</string>
+    <string name="set_bass_sub">below 100 Hz</string>
+    <string name="set_treble">Treble</string>
+    <string name="set_treble_sub">above 10 kHz</string>
+    <string name="set_tone_note">Gains are in dB (±%1$s). Tone shelves run before the equalizer.</string>
+    <string name="set_eq_sub">A 10-band equalizer applied to every output, hi-res included.</string>
+    <string name="set_auto_headroom_sub">Lowers the level by the curve\'s largest boost, so boosting never clips. A limiter still catches what is left.</string>
+    <string name="set_autoeq">Headphone correction</string>
+    <string name="set_autoeq_info">Loads an AutoEQ profile: the ParametricEQ.txt file for your headphone model, from autoeq.app or the AutoEq repository. It runs before the bands, so they stay free for your taste. With auto headroom on, the level drops by the profile\'s largest boost; with it off, the file\'s preamp applies.</string>
+    <string name="set_autoeq_none">None</string>
+    <string name="set_autoeq_load">Load file</string>
+    <string name="set_autoeq_change">Change</string>
+    <string name="set_autoeq_remove">Remove correction</string>
+    <plurals name="set_autoeq_summary">
+        <item quantity="one">%1$s · %2$d filter</item>
+        <item quantity="other">%1$s · %2$d filters</item>
+    </plurals>
+    <string name="set_autoeq_err_nofilters">No filters found. Load the ParametricEQ.txt file from AutoEQ.</string>
+    <string name="set_autoeq_err_unsupported">Unsupported filter: %1$s</string>
+    <string name="set_autoeq_err_range">A filter is out of range: %1$s</string>
+    <string name="set_autoeq_err_toomany">Too many filters (%1$s; up to 32).</string>
+    <string name="set_autoeq_err_read">The file could not be read.</string>
+    <string name="set_bands">Bands</string>
+    <string name="set_eq_note">Gains are in dB (±%1$s). If boosts distort, lower the preamp to make room.</string>
+    <string name="set_dither_sub">Smooth 16-bit quantization. Only active on a 16-bit output.</string>
+    <string name="set_dither_note">Triangular (TPDF) is the safe default: it decouples both the level and the loudness of the noise from the music. Noise-shaped pushes that noise up where the ear is least sensitive.</string>
+    <string name="set_dither_desc_rect">One uniform noise step. Decorrelates error.</string>
+    <string name="set_dither_desc_tri">Two-step triangular noise. The standard choice.</string>
+    <string name="set_dither_desc_shaped">Triangular plus noise shaping toward high frequencies.</string>
+    <string name="quality_tier_hires">Hi-Res Lossless</string>
+    <string name="quality_tier_lossless">Lossless</string>
+    <string name="quality_tier_standard">Standard</string>
+    <string name="quality_desc_hires">Bit-for-bit identical to the studio master, sampled above CD and streaming rates.</string>
+    <string name="quality_desc_lossless">Bit-for-bit identical to the original recording. Nothing is thrown away.</string>
+    <string name="quality_desc_lossy">Compressed to save space. Some detail is discarded, usually inaudibly.</string>
+
+    <!-- Remaining screens / Pantallas restantes -->
+    <string name="cd_options_for">Options for %1$s</string>
+    <string name="cd_play_named">Play %1$s</string>
+    <string name="cd_downloading_named">Downloading %1$s</string>
+    <string name="cd_remove">Remove</string>
+    <string name="cd_reorder">Reorder</string>
+    <string name="cd_reorder_named">Reorder %1$s</string>
+    <string name="cd_repeat">Repeat</string>
+    <string name="cd_favorite">Favorite</string>
+    <string name="cd_unfavorite">Unfavorite</string>
+    <string name="browse_new_releases">New releases</string>
+    <string name="browse_artists_to_know">Artists to know</string>
+    <string name="more_artists">Artists</string>
+    <string name="more_songs">Songs</string>
+    <string name="detail_add">Add</string>
+    <string name="detail_add_n">Add %1$d</string>
+    <string name="library_pinned">Pinned</string>
+    <string name="queue_shuffle">Shuffle</string>
+    <string name="queue_repeat">Repeat</string>
+    <string name="queue_repeat_one">Repeat 1</string>
+    <string name="queue_autoplay">Autoplay</string>
+    <string name="track_suggest_less">Suggest Less</string>
+    <string name="track_undo_suggest_less">Undo Suggest Less</string>
+    <string name="ctx_browse">Browse</string>
+    <string name="ctx_pinned">Pinned</string>
+    <string name="ctx_search">Search</string>
+    <string name="search_hit_artist">Artist</string>
+    <string name="search_hit_album">Album · %1$s</string>
+    <string name="search_hit_song">Song · %1$s</string>
+    <string name="search_hit_playlist">Playlist · %1$s</string>
+    <string name="search_hit_yours">Yours</string>
+    <string name="search_hit_lyrics">Lyrics · %1$s · %2$s</string>
+    <string name="kind_playlists">Playlists</string>
+    <string name="kind_artists">Artists</string>
+    <string name="kind_albums">Albums</string>
+    <string name="kind_songs">Songs</string>
+    <string name="kind_favorites">Favorites</string>
+    <string name="kind_made_for_you">Made For You</string>
+    <string name="kind_genres">Genres</string>
+
+    <!-- Settings · account token -->
+    <string name="set_token_title">Account token</string>
+    <string name="set_token_active">Active: Home and your library are personalised for your account.</string>
+    <string name="set_token_missing">Not available yet: Home shows general picks instead of your recommendations. Try again, or add the token by hand.</string>
+    <string name="set_token_retry">Try again</string>
+    <string name="set_token_trying">Trying…</string>
+    <string name="set_token_add">Add manually</string>
+    <string name="set_token_dialog_title">Add account token</string>
+    <string name="set_token_dialog_desc">Paste the media-user-token of your Apple Music account if it can\'t be obtained automatically. It is stored encrypted on this device.</string>
+    <string name="set_token_field">Media user token</string>
+    <string name="set_token_obtained">Account token added. Your recommendations will load now.</string>
+    <string name="set_token_failed">Couldn\'t get the account token. Try again later, or add it by hand.</string>
+    <string name="set_token_rejected">That token wasn\'t accepted. Check that you copied all of it.</string>
+    <string name="set_token_network">Couldn\'t reach Apple. Check your connection and try again.</string>
+</resources>

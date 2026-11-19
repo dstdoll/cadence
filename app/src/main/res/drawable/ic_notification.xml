@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="48" android:viewportHeight="48">
+    <!-- Status bar and notification icon: the launcher's fermata, cropped to its own width (the
+         system tints it; only the shape counts). -->
+    <group android:translateX="-30" android:translateY="-30">
+        <path android:fillColor="#FFFFFF" android:fillType="nonZero"
+            android:pathData="M32,63.3A22,22 0 0,1 76,63.3L71.46,63.3A19,19 0 0,0 36.54,63.3Z M32,63.3a2.27,2.27 0 1,1 4.54,0a2.27,2.27 0 1,1 -4.54,0Z M71.46,63.3a2.27,2.27 0 1,1 4.54,0a2.27,2.27 0 1,1 -4.54,0Z M48.2,60.9a5.8,5.8 0 1,1 11.6,0a5.8,5.8 0 1,1 -11.6,0Z" />
+    </group>
+</vector>

@@ -1,0 +1,5 @@
+<resources>
+    <!-- Start screen: the app's own surface (black in dark mode, see values-night) under the launcher
+         icon's purple disc, so it matches the app in either mode. -->
+    <color name="splash_background">#FEF7FF</color>
+</resources>

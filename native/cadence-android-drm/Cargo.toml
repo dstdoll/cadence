@@ -1,0 +1,25 @@
+[workspace]
+
+[package]
+name = "cadence-android-drm"
+version = "0.1.0"
+edition = "2021"
+
+# Built from source so the JNI entry points carry Cadence's package name
+# (`app.cadence.backend.engine.media`); a library built for another package would
+# throw UnsatisfiedLinkError on NativeDrm.
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+jni = "0.21"
+# Parser and muxer live in this repository, so the build needs no other checkout.
+cadence-container = { path = "../cadence-container" }
+serde_json = "1"
+libc = "0.2"
+
+[profile.release]
+strip = "symbols"
+lto = "thin"
+codegen-units = 1
+panic = "abort"
