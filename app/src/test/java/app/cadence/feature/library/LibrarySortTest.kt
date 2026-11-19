@@ -75,4 +75,35 @@ class LibrarySortTest {
             sortsFor(LibraryKind.Songs),
         )
     }
+
+    @Test
+    fun artistTieBreaksByAlbumThenTrackNumberThenTitle() {
+        val t1 = TrackInfo(
+            Track("1", "Z", "ar1", "al-b", 2, 1000, ""),
+            Album("al-b", "Beta", "ar1", 2020, "Pop", emptyList()),
+            Artist("ar1", "Same"),
+        )
+        val t2 = TrackInfo(
+            Track("2", "A", "ar1", "al-a", 3, 1000, ""),
+            Album("al-a", "Alpha", "ar1", 2020, "Pop", emptyList()),
+            Artist("ar1", "Same"),
+        )
+        val t3 = TrackInfo(
+            Track("3", "B", "ar1", "al-a", 1, 1000, ""),
+            Album("al-a", "Alpha", "ar1", 2020, "Pop", emptyList()),
+            Artist("ar1", "Same"),
+        )
+        val sorted = listOf(t1, t2, t3).sortedWith(trackComparator(Sort.Artist)).map { it.id }
+        assertEquals(listOf("3", "2", "1"), sorted)
+    }
+
+    @Test
+    fun albumComparatorOrdersByArtistYearAndTitle() {
+        val a1 = Album("1", "Zeta", "ar-b", 2020, "Pop", emptyList())
+        val a2 = Album("2", "Beta", "ar-a", 2021, "Pop", emptyList())
+        val a3 = Album("3", "Alpha", "ar-a", 2019, "Pop", emptyList())
+        val artists = mapOf("ar-a" to "Alpha", "ar-b" to "Beta")
+        val sorted = listOf(a1, a2, a3).sortedWith(albumComparator(Sort.Artist) { artists[it].orEmpty() }).map { it.id }
+        assertEquals(listOf("3", "2", "1"), sorted)
+    }
 }

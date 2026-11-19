@@ -325,10 +325,17 @@ private fun StreamCacheRow() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var bytes by remember { mutableStateOf<Long?>(null) }
-    LaunchedEffect(Unit) { bytes = withContext(Dispatchers.IO) { StreamPlayback.cache(context).sizeOnDisk() } }
+    LaunchedEffect(Unit) {
+        bytes = withContext(Dispatchers.IO) {
+            StreamPlayback.cache(context).sizeOnDisk() + app.cadence.backend.engine.stream.WebPlayback.aacCache(context).sizeOnDisk()
+        }
+    }
     ChevronRow(stringResource(R.string.set_clear_cache), subtitle = bytes?.let { stringResource(R.string.set_cache_in_use, it / (1024 * 1024)) } ?: stringResource(R.string.set_measuring)) {
         scope.launch {
-            withContext(Dispatchers.IO) { StreamPlayback.cache(context).clear() }
+            withContext(Dispatchers.IO) {
+                StreamPlayback.cache(context).clear()
+                app.cadence.backend.engine.stream.WebPlayback.aacCache(context).clear()
+            }
             bytes = 0
         }
     }

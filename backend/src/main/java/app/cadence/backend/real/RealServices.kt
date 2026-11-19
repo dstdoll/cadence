@@ -45,18 +45,16 @@ class RealSearchService(private val catalog: RealCatalog) : SearchService {
     }
 }
 
-/** "More like this" from what is cached: same artist first, then same album. */
+/** "More like this" and stations from available cached tracks via [Recommender]. */
 class RealRecommendationService(private val catalog: RealCatalog) : RecommendationService {
+    private fun pool() = catalog.tracks.filter { it.track.available }
+
     override suspend fun similar(seed: TrackInfo, exclude: Set<String>, count: Int): List<TrackInfo> =
-        (catalog.tracks.filter { it.track.artistId == seed.track.artistId } +
-            catalog.tracks.filter { it.track.albumId == seed.track.albumId })
-            .distinctBy { it.id }
-            .filter { it.id !in exclude && it.id != seed.id }
-            .take(count)
+        app.cadence.backend.search.Recommender.similar(seed, pool(), exclude, count)
 
     override suspend fun discovery(exclude: Set<String>, count: Int): List<TrackInfo> =
-        app.cadence.backend.search.Recommender.discovery(catalog.tracks, exclude, count)
+        app.cadence.backend.search.Recommender.discovery(pool(), exclude, count)
 
     override suspend fun heavyRotation(seedIds: Set<String>, exclude: Set<String>, count: Int): List<TrackInfo> =
-        app.cadence.backend.search.Recommender.heavyRotation(catalog.tracks, seedIds, exclude, count)
+        app.cadence.backend.search.Recommender.heavyRotation(pool(), seedIds, exclude, count)
 }

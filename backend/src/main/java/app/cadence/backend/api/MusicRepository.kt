@@ -40,7 +40,7 @@ interface MusicRepository {
     suspend fun prepareAlbum(albumId: String): List<TrackInfo> = tracksOfAlbum(albumId)
 
     /** Loads a playlist's tracklist on open (networked sources fetch it lazily). */
-    suspend fun preparePlaylist(playlistId: String): List<TrackInfo> =
+    suspend fun preparePlaylist(playlistId: String, forceRefresh: Boolean = false): List<TrackInfo> =
         playlists.find { it.id == playlistId }?.trackIds?.mapNotNull(::track) ?: emptyList()
     fun albumsOfArtist(artistId: String): List<Album>
 

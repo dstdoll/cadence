@@ -191,4 +191,52 @@ object WebPlayback {
             .mapNotNull { uriRegex.find(it)?.groupValues?.get(1) }
             .firstOrNull()
     }
+
+    @Volatile private var aacDiskCache: AacCache? = null
+    private val aacCacheLock = Any()
+
+    /**
+     * Process-wide decrypted `.m4a` cache for AAC-only tracks. Cold misses still stream immediately
+     * via Widevine HLS; this cache fills in the background for instant replay and queue transitions.
+     */
+    fun aacCache(context: Context): AacCache = aacDiskCache ?: synchronized(aacCacheLock) {
+        val app = context.applicationContext
+        aacDiskCache ?: AacCache(
+            root = java.io.File(app.cacheDir, "aac-stream"),
+            fetcher = AacCache.TrackFetcher { trackId, outFile -> fetchClearM4a(app, trackId, outFile) },
+            log = { CadenceLog.i("aac-cache", it) },
+        ).also { aacDiskCache = it }
+    }
+
+    private fun fetchClearM4a(context: Context, trackId: String, outFile: java.io.File): Boolean {
+        if (!app.cadence.backend.engine.media.EngineDownloader.initNative(context)) return false
+        val asset = app.cadence.backend.engine.media.NativeWrapper.m4pAsset(trackId) ?: return false
+        val m4pTmp = java.io.File(context.cacheDir, "aac_tmp_${trackId}_${System.nanoTime()}.m4p")
+        return try {
+            val conn = (URL(asset.url).openConnection() as HttpURLConnection).apply {
+                connectTimeout = 15_000
+                readTimeout = 30_000
+            }
+            try {
+                if (conn.responseCode !in 200..299) return false
+                conn.inputStream.use { input ->
+                    m4pTmp.outputStream().use { output -> input.copyTo(output) }
+                }
+            } finally {
+                conn.disconnect()
+            }
+            val rc = app.cadence.backend.engine.media.NativeDrm.decryptM4pWithMeta(
+                asset.decryptorCtx,
+                m4pTmp.absolutePath,
+                outFile.absolutePath,
+                "{}",
+                null,
+                null,
+            )
+            rc == 0
+        } finally {
+            m4pTmp.delete()
+            app.cadence.backend.engine.media.NativeWrapper.releaseM4pContext(asset.decryptorCtx)
+        }
+    }
 }

@@ -91,34 +91,43 @@ class RealCatalog(
      * tracklist). Each song may be from a different album, so an album is synthesised per song.
      * Stations are dynamic radio with no tracklist, so they resolve to empty.
      */
-    override suspend fun preparePlaylist(playlistId: String): List<TrackInfo> = playlistLoad.withLock {
-        playlist(playlistId)?.takeIf { it.trackIds.isNotEmpty() }
-            ?.let { return@withLock it.trackIds.mapNotNull(::track) }
+    override suspend fun preparePlaylist(playlistId: String, forceRefresh: Boolean): List<TrackInfo> = playlistLoad.withLock {
+        val existing = playlist(playlistId)
+        if (!forceRefresh) {
+            existing?.takeIf { it.trackIds.isNotEmpty() }?.let { return@withLock it.trackIds.mapNotNull(::track) }
+        }
         if (playlistId.startsWith("st:")) return@withLock emptyList()
         if (playlistId.startsWith("lp:")) {
             val ids = libraryPlaylistSongs(playlistId)
+                ?: return@withLock existing?.trackIds?.mapNotNull(::track).orEmpty()
             accountPlaylists = accountPlaylists.map { if (it.id == playlistId) it.copy(trackIds = ids) else it }
+            changes.value += 1
             CadenceLog.i("playlist", "open $playlistId (library) tracks=${ids.size}")
             return@withLock ids.mapNotNull(::track)
         }
         val appleId = playlistId.removePrefix("pl:")
-        val root = engine.playlistTracks(appleId) ?: return@withLock emptyList()
-        val songs = root.optJSONArray("data")?.optJSONObject(0)
-            ?.optJSONObject("relationships")?.optJSONObject("tracks")?.optJSONArray("data")
-            ?: return@withLock emptyList()
+        val root = engine.playlistTracks(appleId)
+            ?: return@withLock existing?.trackIds?.mapNotNull(::track).orEmpty()
+        val tracksRel = root.optJSONArray("data")?.optJSONObject(0)
+            ?.optJSONObject("relationships")?.optJSONObject("tracks")
+            ?: return@withLock existing?.trackIds?.mapNotNull(::track).orEmpty()
         val ids = ArrayList<String>()
-        for (i in 0 until songs.length()) {
-            val song = songs.optJSONObject(i) ?: continue
-            val attrs = song.optJSONObject("attributes") ?: continue
-            val artist = Mapping.artistFromName(attrs.optString("artistName"))
-            artistMap.putIfAbsent(artist.id, artist)
-            val albumId = song.optJSONObject("relationships")?.optJSONObject("albums")
-                ?.optJSONArray("data")?.optJSONObject(0)?.optString("id")?.takeIf { it.isNotBlank() }
-                ?: "plalb:${attrs.optString("albumName")}:${artist.id}"
-            val album = albumMap[albumId] ?: Mapping.albumFromSong(song, albumId, artist.id).also { albumMap[albumId] = it }
-            val tr = Mapping.track(song, albumId) ?: continue
-            trackMap[tr.id] = TrackInfo(tr, album, artist)
-            ids += tr.id
+        tracksRel.optJSONArray("data")?.let { page ->
+            for (i in 0 until page.length()) {
+                page.optJSONObject(i)?.let(::mapPlaylistTrack)?.let(ids::add)
+            }
+        }
+        if (tracksRel.has("next")) {
+            var offset = ids.size
+            while (offset < MAX_LIBRARY_PLAYLIST_SONGS) {
+                val page = engine.playlistTracksPage(appleId, offset) ?: break
+                val data = page.optJSONArray("data") ?: break
+                for (i in 0 until data.length()) {
+                    data.optJSONObject(i)?.let(::mapPlaylistTrack)?.let(ids::add)
+                }
+                if (data.length() == 0 || !page.has("next")) break
+                offset += data.length()
+            }
         }
         synchronized(playlistsLock) {
             val idx = personalPlaylists.indexOfFirst { it.id == playlistId }
@@ -127,8 +136,22 @@ class RealCatalog(
             }
         }
         foundPlaylists[playlistId]?.let { foundPlaylists[playlistId] = it.copy(trackIds = ids) }
+        changes.value += 1
         CadenceLog.i("playlist", "open $playlistId tracks=${ids.size}")
         ids.mapNotNull(::track)
+    }
+
+    private fun mapPlaylistTrack(song: JSONObject): String? {
+        val attrs = song.optJSONObject("attributes") ?: return null
+        val artist = Mapping.artistFromName(attrs.optString("artistName"))
+        artistMap.putIfAbsent(artist.id, artist)
+        val albumId = song.optJSONObject("relationships")?.optJSONObject("albums")
+            ?.optJSONArray("data")?.optJSONObject(0)?.optString("id")?.takeIf { it.isNotBlank() }
+            ?: "plalb:${attrs.optString("albumName")}:${artist.id}"
+        val album = albumMap[albumId] ?: Mapping.albumFromSong(song, albumId, artist.id).also { albumMap[albumId] = it }
+        val tr = Mapping.track(song, albumId) ?: return null
+        trackMap[tr.id] = TrackInfo(tr, album, artist)
+        return tr.id
     }
 
     override fun albumsOfArtist(artistId: String): List<Album> =
@@ -467,11 +490,12 @@ class RealCatalog(
     }
 
     /** Songs of a library playlist, through their catalogue counterparts (what can be played). */
-    private suspend fun libraryPlaylistSongs(playlistId: String): List<String> {
+    private suspend fun libraryPlaylistSongs(playlistId: String): List<String>? {
         val ids = ArrayList<String>()
         var offset = 0
         while (offset < MAX_LIBRARY_PLAYLIST_SONGS) {
-            val page = engine.libraryPlaylistTracks(playlistId.removePrefix("lp:"), offset) ?: break
+            val page = engine.libraryPlaylistTracks(playlistId.removePrefix("lp:"), offset)
+                ?: return if (offset == 0) null else ids
             val data = page.optJSONArray("data") ?: break
             for (i in 0 until data.length()) {
                 val catalog = data.optJSONObject(i)?.optJSONObject("relationships")?.optJSONObject("catalog")

@@ -59,6 +59,8 @@ data class Album(
     val trackCount: Int = 0,
     // BACKEND: true when this is a single/EP release (Apple's isSingle), else false/unknown.
     val isSingle: Boolean = false,
+    // BACKEND: false when the release is not available in the user's storefront.
+    val available: Boolean = true,
 )
 
 @Serializable
@@ -83,6 +85,8 @@ data class Track(
     val format: AudioFormatInfo? = null,
     // BACKEND: here go the song credits (performers, writers, producers) for the Credits page.
     val credits: Credits? = null,
+    // BACKEND: false when the track is not available in the user's storefront.
+    val available: Boolean = true,
 )
 
 @Serializable
@@ -123,6 +127,8 @@ data class Playlist(
     val userCreated: Boolean = false,
     // BACKEND: here goes an optional motion-cover video URL.
     val motion: String? = null,
+    // BACKEND: false when the playlist/station is not available in the user's storefront.
+    val available: Boolean = true,
 )
 
 /** The whole catalog in one document: what the real catalogue caches on disk. */

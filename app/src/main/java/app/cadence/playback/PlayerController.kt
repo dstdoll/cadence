@@ -100,13 +100,29 @@ class PlayerController(
     fun position(): Long = controller?.currentPosition ?: 0L
 
     fun play(tracks: List<TrackInfo>, startIndex: Int = 0, shuffle: Boolean = false, contextTitle: String? = null) {
+        startQueue(tracks, startIndex, shuffle, contextTitle, isStation = false)
+    }
+
+    private fun startQueue(
+        tracks: List<TrackInfo>,
+        startIndex: Int = 0,
+        shuffle: Boolean = false,
+        contextTitle: String? = null,
+        isStation: Boolean = false,
+    ) {
         val c = controller ?: return
-        if (tracks.isEmpty()) return
-        stationMode = false // a normal play() leaves station mode; station starters re-arm it after.
-        _state.value = _state.value.copy(contextTitle = contextTitle, autoplayFrom = -1)
+        val tapped = tracks.getOrNull(startIndex)
+        if (!shuffle && tapped != null && !tapped.track.available) return
+        val playable = tracks.filter { it.track.available }
+        if (playable.isEmpty()) return
+        stationMode = isStation
+        _state.value = _state.value.copy(
+            contextTitle = contextTitle,
+            autoplayFrom = if (isStation && playable.size > 1) 1 else -1,
+        )
         c.shuffleModeEnabled = shuffle
-        val start = if (shuffle) tracks.indices.random() else startIndex
-        c.setMediaItems(tracks.map(::item), start, 0)
+        val start = if (shuffle) playable.indices.random() else playable.indexOfFirst { it.id == tapped?.id }.coerceAtLeast(0)
+        c.setMediaItems(playable.map(::item), start, 0)
         c.prepare()
         c.play()
         topUpAutoplay()
@@ -155,12 +171,9 @@ class PlayerController(
     /** An endless queue seeded from one song: it plays first, then similar music keeps coming. */
     fun startStation(seed: TrackInfo) {
         scope.launch {
-            val c = controller ?: return@launch
+            controller ?: return@launch
             val picks = recommendations.similar(seed, library.state.value.suggestLess, STATION_BATCH)
-            play(listOf(seed) + picks, contextTitle = "${seed.track.title} Station")
-            armStation()
-            _state.value = _state.value.copy(autoplayFrom = 1)
-            c.shuffleModeEnabled = false
+            startQueue(listOf(seed) + picks, contextTitle = "${seed.track.title} Station", isStation = true)
         }
     }
 
@@ -170,8 +183,7 @@ class PlayerController(
             controller ?: return@launch
             val picks = recommendations.discovery(library.state.value.suggestLess, STATION_BATCH + 1)
             if (picks.isEmpty()) return@launch
-            play(picks, contextTitle = "Discovery Station")
-            armStation()
+            startQueue(picks, contextTitle = "Discovery Station", isStation = true)
         }
     }
 
@@ -183,14 +195,12 @@ class PlayerController(
             val seedIds = lib.favorites + lib.savedTracks + lib.recentTracks
             val picks = recommendations.heavyRotation(seedIds, lib.suggestLess, STATION_BATCH + 1)
             if (picks.isEmpty()) return@launch
-            play(picks, contextTitle = "My Station")
-            armStation()
+            startQueue(picks, contextTitle = "My Station", isStation = true)
         }
     }
 
-    // A station keeps itself full even when the global autoplay toggle is off; [play] clears it.
+    // A station keeps itself full even when the global autoplay toggle is off; normal [play] clears it.
     @Volatile private var stationMode = false
-    private fun armStation() { stationMode = true; topUpAutoplay() }
 
     private var toppingUp = false
 

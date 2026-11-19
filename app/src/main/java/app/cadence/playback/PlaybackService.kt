@@ -83,7 +83,7 @@ class PlaybackService : MediaSessionService() {
                     .let { sink -> DspAudioSink(sink, loudness = FileLoudnessStore(java.io.File(filesDir, "dsp/loudness.json"))) { container.settings.state.value.let { s -> DspSettings(s.dspReplayGain, s.dspTone, s.dspEq, s.dspChannel, s.dspDither, bypassed = dspBypassed(s.bitPerfectUsb, usbOutput)) } } }
         }
             .setEnableAudioFloatOutput(useFloatOutput(container.settings.state.value))
-        val mediaSourceFactory = DefaultMediaSourceFactory(CadenceDataSourceFactory(this, streams))
+        val baseMediaSourceFactory = DefaultMediaSourceFactory(CadenceDataSourceFactory(this, streams))
             .setDrmSessionManagerProvider { item ->
                 if (item.localConfiguration?.drmConfiguration == null) {
                     androidx.media3.exoplayer.drm.DrmSessionManager.DRM_UNSUPPORTED
@@ -96,6 +96,32 @@ class PlaybackService : MediaSessionService() {
                         .build(AppleWidevineDrmCallback(applicationContext, item.mediaId))
                 }
             }
+        val aacCache = app.cadence.backend.engine.stream.WebPlayback.aacCache(applicationContext)
+        val mediaSourceFactory = object : androidx.media3.exoplayer.source.MediaSource.Factory {
+            override fun setDrmSessionManagerProvider(drmSessionManagerProvider: androidx.media3.exoplayer.drm.DrmSessionManagerProvider) =
+                apply { baseMediaSourceFactory.setDrmSessionManagerProvider(drmSessionManagerProvider) }
+
+            override fun setLoadErrorHandlingPolicy(loadErrorHandlingPolicy: androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy) =
+                apply { baseMediaSourceFactory.setLoadErrorHandlingPolicy(loadErrorHandlingPolicy) }
+
+            override fun getSupportedTypes(): IntArray = baseMediaSourceFactory.supportedTypes
+
+            override fun createMediaSource(mediaItem: MediaItem): androidx.media3.exoplayer.source.MediaSource {
+                val uri = mediaItem.localConfiguration?.uri?.toString().orEmpty()
+                val webId = app.cadence.backend.engine.stream.WebPlayback.trackIdOf(uri)
+                val cached = webId?.let { aacCache.cachedFile(it) }
+                val effective = if (cached != null) {
+                    MediaItem.Builder()
+                        .setMediaId(mediaItem.mediaId)
+                        .setUri(android.net.Uri.fromFile(cached))
+                        .setMediaMetadata(mediaItem.mediaMetadata)
+                        .build()
+                } else {
+                    mediaItem
+                }
+                return baseMediaSourceFactory.createMediaSource(effective)
+            }
+        }
         val player = ExoPlayer.Builder(this, renderers)
             .setMediaSourceFactory(mediaSourceFactory)
             .setAudioAttributes(
@@ -155,20 +181,22 @@ class PlaybackService : MediaSessionService() {
      */
     private fun followQueue(player: ExoPlayer, streams: StreamCache) {
         fun update() {
-            fun streamed(index: Int): String? = index
+            fun itemWithScheme(index: Int, scheme: String): String? = index
                 .takeIf { it != C.INDEX_UNSET && it < player.mediaItemCount }
                 ?.let(player::getMediaItemAt)
-                ?.takeIf { it.localConfiguration?.uri?.scheme == StreamPlayback.SCHEME }
+                ?.takeIf { it.localConfiguration?.uri?.scheme == scheme }
                 ?.mediaId
+            fun streamed(index: Int): String? = itemWithScheme(index, StreamPlayback.SCHEME)
+            fun webStreamed(index: Int): String? = itemWithScheme(index, app.cadence.backend.engine.stream.WebPlayback.SCHEME)
             val s = container.settings.state.value
             val metered = getSystemService(android.net.ConnectivityManager::class.java)?.isActiveNetworkMetered ?: true
             val config = streamConfigFor(s, metered)
             // The queue either way from the playing song, nearest first, in the order it will play.
-            fun queue(step: (Int) -> Int): List<String> {
+            fun queue(step: (Int) -> Int, picker: (Int) -> String?): List<String> {
                 val ids = ArrayList<String>()
                 var index = step(player.currentMediaItemIndex)
                 while (index != C.INDEX_UNSET && ids.size < WINDOW_TRACKS) {
-                    streamed(index)?.let(ids::add)
+                    picker(index)?.let(ids::add)
                     index = step(index)
                 }
                 return ids
@@ -177,15 +205,29 @@ class PlaybackService : MediaSessionService() {
             val shuffled = player.shuffleModeEnabled
             // A queue that was only restored at launch downloads nothing until it is played.
             val idle = player.playbackState == Player.STATE_IDLE && !player.playWhenReady
-            if (idle) streams.setWindow(null, null, null, config)
-            else streams.setWindow(
-                current = streamed(player.currentMediaItemIndex),
-                next = streamed(player.nextMediaItemIndex),
-                previous = streamed(player.previousMediaItemIndex),
-                config = config,
-                ahead = if (config.aheadBytes > 0 && !timeline.isEmpty) queue { timeline.getNextWindowIndex(it, Player.REPEAT_MODE_OFF, shuffled) } else emptyList(),
-                behind = if (config.behindBytes > 0 && !timeline.isEmpty) queue { timeline.getPreviousWindowIndex(it, Player.REPEAT_MODE_OFF, shuffled) } else emptyList(),
-            )
+            val aacCache = app.cadence.backend.engine.stream.WebPlayback.aacCache(applicationContext)
+            if (idle) {
+                streams.setWindow(null, null, null, config)
+                aacCache.setWindow(emptyList(), config.cacheBytes)
+            } else {
+                streams.setWindow(
+                    current = streamed(player.currentMediaItemIndex),
+                    next = streamed(player.nextMediaItemIndex),
+                    previous = streamed(player.previousMediaItemIndex),
+                    config = config,
+                    ahead = if (config.aheadBytes > 0 && !timeline.isEmpty) queue({ timeline.getNextWindowIndex(it, Player.REPEAT_MODE_OFF, shuffled) }, ::streamed) else emptyList(),
+                    behind = if (config.behindBytes > 0 && !timeline.isEmpty) queue({ timeline.getPreviousWindowIndex(it, Player.REPEAT_MODE_OFF, shuffled) }, ::streamed) else emptyList(),
+                )
+                val webTargets = buildList {
+                    webStreamed(player.currentMediaItemIndex)?.let(::add)
+                    if (config.nextSeconds != 0) webStreamed(player.nextMediaItemIndex)?.let(::add)
+                    if (config.previousSeconds != 0) webStreamed(player.previousMediaItemIndex)?.let(::add)
+                    if (config.aheadBytes > 0 && !timeline.isEmpty) {
+                        addAll(queue({ timeline.getNextWindowIndex(it, Player.REPEAT_MODE_OFF, shuffled) }, ::webStreamed))
+                    }
+                }
+                aacCache.setWindow(webTargets, config.cacheBytes)
+            }
         }
         player.addListener(object : Player.Listener {
             override fun onEvents(player: Player, events: Player.Events) {

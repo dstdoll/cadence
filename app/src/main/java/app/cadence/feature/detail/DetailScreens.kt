@@ -110,13 +110,14 @@ import app.cadence.backend.model.TrackInfo
 @Composable
 private fun PlayShuffleRow(tracks: List<TrackInfo>, contextTitle: String) {
     val p = LocalContainer.current.player
+    val hasPlayable = tracks.any { it.track.available }
     Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Button(
-            onClick = { p.play(tracks, contextTitle = contextTitle) }, enabled = tracks.isNotEmpty(),
+            onClick = { p.play(tracks, contextTitle = contextTitle) }, enabled = hasPlayable,
             shapes = ButtonDefaults.shapes(), modifier = Modifier.weight(1f).height(56.dp),
         ) { Icon(Icons.Rounded.PlayArrow, null, Modifier.size(ButtonDefaults.IconSize)); Spacer(Modifier.width(ButtonDefaults.IconSpacing)); Text(stringResource(R.string.cd_play), style = MaterialTheme.typography.titleMedium) }
         FilledTonalButton(
-            onClick = { p.play(tracks, shuffle = true, contextTitle = contextTitle) }, enabled = tracks.isNotEmpty(),
+            onClick = { p.play(tracks, shuffle = true, contextTitle = contextTitle) }, enabled = hasPlayable,
             shapes = ButtonDefaults.shapes(), modifier = Modifier.weight(1f).height(56.dp),
         ) { Icon(Icons.Rounded.Shuffle, null, Modifier.size(ButtonDefaults.IconSize)); Spacer(Modifier.width(ButtonDefaults.IconSpacing)); Text(stringResource(R.string.cd_shuffle), style = MaterialTheme.typography.titleMedium) }
     }
@@ -414,8 +415,8 @@ fun PlaylistScreen(id: String) {
     // starts empty and its tracklist is fetched once on open.
     val derived = playlist.trackIds.mapNotNull(repo::track)
     var loaded by remember(id) { mutableStateOf<List<TrackInfo>?>(null) }
-    LaunchedEffect(id, derived.isEmpty()) {
-        if (derived.isEmpty() && !playlist.userCreated && loaded == null) loaded = repo.preparePlaylist(id)
+    LaunchedEffect(id) {
+        if (!playlist.userCreated) loaded = repo.preparePlaylist(id, forceRefresh = true)
     }
     val tracks = if (derived.isNotEmpty()) derived else loaded.orEmpty()
     val own = playlist.userCreated

@@ -300,6 +300,10 @@ class AmpEngine(private val cfg: AmpConfig) {
     suspend fun playlistTracks(playlistId: String): JSONObject? =
         get("playlists/$playlistId?include=tracks&extend=extendedAssetUrls")
 
+    /** Paginates a catalog playlist's tracks beyond the initial inline relationship page. */
+    suspend fun playlistTracksPage(playlistId: String, offset: Int): JSONObject? =
+        get("playlists/$playlistId/tracks?limit=100&offset=$offset&extend=extendedAssetUrls")
+
     /**
      * Everything the artist page shows, in one request: biography, origin, and the views Apple
      * curates (top songs, latest release, albums, singles, similar artists, featured playlists).
@@ -349,6 +353,8 @@ object Artwork {
 
 object Mapping {
 
+    private fun isAvailable(attrs: JSONObject): Boolean = attrs.optJSONObject("playParams") != null
+
     fun artistFromName(name: String): Artist =
         Artist(id = "ar:$name", name = name.ifBlank { "Unknown Artist" }, bio = "", color = "#888888")
 
@@ -382,6 +388,7 @@ object Mapping {
             recordLabel = attrs.optString("recordLabel").takeIf { it.isNotBlank() },
             trackCount = attrs.optInt("trackCount", 0),
             isSingle = attrs.optBoolean("isSingle", false),
+            available = isAvailable(attrs),
         )
     }
 
@@ -399,6 +406,7 @@ object Mapping {
             colors = artworkColors(attrs),
             cover = Artwork.at(Artwork.template(attrs), "300x300"),
             released = released,
+            available = isAvailable(attrs),
         )
     }
 
@@ -437,6 +445,7 @@ object Mapping {
             colors = artworkColors(attrs),
             cover = Artwork.at(Artwork.template(attrs), "300x300"),
             userCreated = false,
+            available = isAvailable(attrs),
         )
     }
 
@@ -479,6 +488,7 @@ object Mapping {
             colors = artworkColors(attrs),
             cover = Artwork.at(Artwork.template(attrs), "300x300"),
             userCreated = false,
+            available = isAvailable(attrs),
         )
     }
 
@@ -500,6 +510,7 @@ object Mapping {
             colors = artworkColors(attrs),
             cover = Artwork.at(Artwork.template(attrs), "300x300"),
             userCreated = false,
+            available = isAvailable(attrs),
         )
     }
 
@@ -529,6 +540,7 @@ object Mapping {
             lyrics = null,
             format = format,
             credits = null,
+            available = isAvailable(attrs),
         )
     }
 }

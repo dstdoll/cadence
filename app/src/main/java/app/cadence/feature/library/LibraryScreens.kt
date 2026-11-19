@@ -21,6 +21,8 @@ import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Album
+import androidx.compose.material.icons.rounded.ArrowDownward
+import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Category
 import androidx.compose.material.icons.rounded.DragHandle
@@ -43,6 +45,7 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.ui.draw.alpha
 import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -316,11 +319,25 @@ internal fun sortsFor(kind: LibraryKind): List<Sort> = when (kind) {
 private val ci = String.CASE_INSENSITIVE_ORDER
 
 internal fun trackComparator(sort: Sort): Comparator<TrackInfo> = when (sort) {
-    Sort.Title -> compareBy(ci) { it.track.title }
-    Sort.Artist -> compareBy(ci) { it.artist.name }
-    Sort.Album -> compareBy(ci) { it.album.title }
-    Sort.Year -> compareBy { it.album.year }
-    Sort.Duration -> compareBy { it.track.durationMs }
+    Sort.Title -> compareBy<TrackInfo, String>(ci) { it.track.title }.thenBy(ci) { it.artist.name }
+    Sort.Artist -> compareBy<TrackInfo, String>(ci) { it.artist.name }
+        .thenBy(ci) { it.album.title }
+        .thenBy { it.track.number }
+        .thenBy(ci) { it.track.title }
+    Sort.Album -> compareBy<TrackInfo, String>(ci) { it.album.title }
+        .thenBy { it.track.number }
+        .thenBy(ci) { it.track.title }
+    Sort.Year -> compareBy<TrackInfo> { it.album.year }
+        .thenBy(ci) { it.album.title }
+        .thenBy { it.track.number }
+        .thenBy(ci) { it.track.title }
+    Sort.Duration -> compareBy<TrackInfo> { it.track.durationMs }.thenBy(ci) { it.track.title }
+}
+
+internal fun albumComparator(sort: Sort, artistName: (String) -> String): Comparator<Album> = when (sort) {
+    Sort.Artist -> compareBy<Album, String>(ci) { artistName(it.artistId) }.thenBy { it.year }.thenBy(ci) { it.title }
+    Sort.Year -> compareBy<Album> { it.year }.thenBy(ci) { it.title }
+    else -> compareBy<Album, String>(ci) { it.title }.thenBy(ci) { artistName(it.artistId) }
 }
 
 @Composable
@@ -335,19 +352,41 @@ fun LibrarySectionScreen(kind: LibraryKind) {
 
     ListScaffold(title = stringResource(kind.labelRes), showBack = true) {
         @Suppress("UNUSED_EXPRESSION") revision
-        if (kind == LibraryKind.Songs || kind == LibraryKind.Albums || kind == LibraryKind.Favorites) item(key = "sort") {
+        val hasKeys = kind == LibraryKind.Songs || kind == LibraryKind.Albums || kind == LibraryKind.Favorites
+        item(key = "sort") {
             Row(
-                Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 20.dp),
+                Modifier.padding(start = 20.dp, end = 20.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                sortsFor(kind).forEach { s -> FilterChip(sort == s, { sort = s }, label = { Text(stringResource(s.label)) }) }
-                FilterChip(reversed, { reversed = !reversed }, label = { Text(stringResource(R.string.filter_reversed)) })
+                FilterChip(
+                    selected = reversed,
+                    onClick = { reversed = !reversed },
+                    leadingIcon = {
+                        Icon(
+                            if (reversed) Icons.Rounded.ArrowDownward else Icons.Rounded.ArrowUpward,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                        )
+                    },
+                    label = { Text(if (reversed) "Desc" else "Asc") },
+                )
+                if (hasKeys) {
+                    Row(
+                        Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        sortsFor(kind).forEach { s ->
+                            FilterChip(sort == s, { sort = s }, label = { Text(stringResource(s.label)) })
+                        }
+                    }
+                }
             }
         }
         when (kind) {
             LibraryKind.Playlists, LibraryKind.MadeForYou -> {
                 // Playlists: the ones made here, then the account's own, then editorial ones.
-                val all = if (kind == LibraryKind.Playlists) lib.playlists + repo.libraryPlaylists + repo.playlists else repo.playlists
+                val base = if (kind == LibraryKind.Playlists) lib.playlists + repo.libraryPlaylists + repo.playlists else repo.playlists
+                val all = if (reversed) base.sortedWith(compareByDescending(ci) { it.title }) else base.sortedWith(compareBy(ci) { it.title })
                 if (all.isEmpty()) item(key = "empty") { Empty(stringResource(R.string.library_empty_playlists)) }
                 items(all, key = { it.id }) { p ->
                     ListItem(
@@ -355,13 +394,14 @@ fun LibrarySectionScreen(kind: LibraryKind) {
                         supportingContent = { Text(if (p.userCreated) "Your playlist · ${plural(p.trackIds.size, "song")}" else plural(p.trackIds.size, "song")) },
                         leadingContent = { Artwork(p.id, p.colors, Modifier.size(56.dp), RoundedCornerShape(12.dp), coverUrl = p.cover) },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clickable { nav.playlist(p.id) },
+                        modifier = Modifier.clickable { nav.playlist(p.id) }.alpha(if (p.available) 1f else 0.38f),
                     )
                 }
             }
             LibraryKind.Artists -> {
                 val ids = libraryArtistIds(repo, lib)
-                val artists = repo.artists.filter { it.id in ids }.sortedBy { it.name }
+                val artists = repo.artists.filter { it.id in ids }
+                    .sortedWith(if (reversed) compareByDescending(ci) { it.name } else compareBy(ci) { it.name })
                 // Counted once per change, not once per row.
                 val songCounts = songsPerArtistName(libraryTracks(repo, lib))
                 val albumCounts = libraryAlbums(repo, lib).groupingBy { it.artistId }.eachCount()
@@ -382,11 +422,7 @@ fun LibrarySectionScreen(kind: LibraryKind) {
             }
             LibraryKind.Albums -> {
                 val base = libraryAlbums(repo, lib)
-                val albumCmp: Comparator<Album> = when (sort) {
-                    Sort.Artist -> compareBy(ci) { repo.artist(it.artistId)?.name ?: "" }
-                    Sort.Year -> compareBy { it.year }
-                    else -> compareBy(ci) { it.title } // Title, and Album/Duration fall back to title here
-                }
+                val albumCmp = albumComparator(sort) { repo.artist(it)?.name ?: "" }
                 val albums = base.sortedWith(if (reversed) albumCmp.reversed() else albumCmp)
                 if (albums.isEmpty()) item(key = "empty") { Empty(stringResource(R.string.library_empty_albums)) }
                 items(albums, key = { it.id }) { a ->
@@ -395,12 +431,13 @@ fun LibrarySectionScreen(kind: LibraryKind) {
                         supportingContent = { Text("${repo.artist(a.artistId)?.name} · ${a.year}") },
                         leadingContent = { Artwork(a.id, a.colors, Modifier.size(56.dp), RoundedCornerShape(12.dp), coverUrl = a.cover) },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clickable { nav.album(a.id) },
+                        modifier = Modifier.clickable { nav.album(a.id) }.alpha(if (a.available) 1f else 0.38f),
                     )
                 }
             }
             LibraryKind.Genres -> {
-                val genres = repo.albums.map { it.genre }.distinct().sorted()
+                val genres = repo.albums.map { it.genre }.distinct()
+                    .sortedWith(if (reversed) compareByDescending(ci) { it } else compareBy(ci) { it })
                 items(genres, key = { it }) { g ->
                     ListItem(
                         content = { Text(g) },
