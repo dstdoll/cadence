@@ -35,6 +35,15 @@ pub unsafe extern "C" fn core_wrapper_decrypt_sample(kd: *mut c_void, sample: *m
     0
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn core_wrapper_decrypt_m4p_sample(
+    ctx: *mut c_void,
+    sample: *mut u8,
+    size: usize,
+) -> c_int {
+    core::decrypt_m4p_sample(ctx, sample, size)
+}
+
 /// Java string -> owned Rust String (empty on error), matching the old `from_jstring`.
 fn to_string(env: &mut JNIEnv, value: &JString) -> String {
     env.get_string(value).map(Into::into).unwrap_or_default()
@@ -155,5 +164,38 @@ pub extern "system" fn Java_app_cadence_backend_engine_media_NativeWrapper_decry
     match env.byte_array_from_slice(&bytes) {
         Ok(a) => a.into_raw(),
         Err(_) => std::ptr::null_mut(),
+    }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_cadence_backend_engine_media_NativeWrapper_m4pAssetNative(
+    mut env: JNIEnv,
+    _class: JClass,
+    adam_id: JString,
+) -> jstring {
+    let adam = to_string(&mut env, &adam_id);
+    match engine::m4p_asset(&adam) {
+        Some((url, ctx)) => {
+            let encoded = format!("{}\n{}", ctx as isize, url);
+            match env.new_string(encoded) {
+                Ok(j) => j.into_raw(),
+                Err(_) => {
+                    unsafe { engine::release_m4p_context(ctx) };
+                    std::ptr::null_mut()
+                }
+            }
+        }
+        None => std::ptr::null_mut(),
+    }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_cadence_backend_engine_media_NativeWrapper_releaseM4pContext(
+    _env: JNIEnv,
+    _class: JClass,
+    ctx: jlong,
+) {
+    if ctx != 0 {
+        unsafe { engine::release_m4p_context(ctx as *mut c_void) };
     }
 }

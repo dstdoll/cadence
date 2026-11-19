@@ -270,4 +270,48 @@ object DrmService {
             cacheOut.delete()
         }
     }
+
+    /**
+     * Decrypts a non-fragmented `.m4p` asset via `SVSampleDecryptor` ([m4pCtx]), writes tags +
+     * faststarts into a temporary `.m4a`, and publishes it into the configured folder/tree.
+     */
+    suspend fun decryptM4p(
+        context: Context,
+        m4pFile: File,
+        m4pCtx: Long,
+        settings: AppSettings = AppSettings(null, AppSettings.DEFAULT_TEMPLATE),
+        session: Session? = null,
+        track: Track? = null,
+        album: Album? = null,
+        dateStyle: String = "full",
+        relativeDir: String = "Music/Cadence",
+        outputName: String? = null,
+        folder: String = "",
+        treeUri: String? = null,
+        onProgress: ((Float) -> Unit)? = null,
+        tags: Triple<String, ByteArray?, String?>? = null,
+    ): String = withContext(Dispatchers.IO) {
+        AppLog.log("DRM", "start m4p-decrypt file=${m4pFile.length()} ctx=$m4pCtx")
+        val cacheOut = File(context.cacheDir, "cadence_${System.nanoTime()}.m4a")
+        try {
+            if (!m4pFile.isFile || m4pFile.length() == 0L) {
+                throw IOException("M4P file missing or empty: ${m4pFile.absolutePath}")
+            }
+            val (metaJson, coverBytes, coverMime) = tags ?: prepareTags(settings, session, track, album, dateStyle)
+            onProgress?.invoke(0.1f)
+            val rc = NativeDrm.decryptM4pWithMeta(
+                m4pCtx, m4pFile.absolutePath, cacheOut.absolutePath, metaJson, coverBytes, coverMime,
+            )
+            AppLog.log("DRM", "m4p-decrypt rc=$rc outBytes=${cacheOut.length()}")
+            if (rc != 0) throw IOException("Native m4p decrypt failed: $rc")
+            onProgress?.invoke(0.98f)
+
+            val outName = outputName?.takeIf { it.isNotBlank() }?.let {
+                if (it.endsWith(".m4a")) it else "$it.m4a"
+            } ?: "track.m4a"
+            TrackPublisher.publish(context, cacheOut, outName, relativeDir, folder, treeUri)
+        } finally {
+            cacheOut.delete()
+        }
+    }
 }

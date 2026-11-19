@@ -29,6 +29,19 @@ object NativeDrm {
         coverMime: String?,
     ): Int
 
+    /**
+     * Decrypts a non-fragmented `.m4p` file using an `SVSampleDecryptor` context from
+     * [NativeWrapper.m4pAsset] and writes a tagged, faststarted `.m4a`. Returns 0 on success.
+     */
+    external fun decryptM4pWithMeta(
+        ctx: Long,
+        inputPath: String,
+        outputPath: String,
+        metaJson: String,
+        cover: ByteArray?,
+        coverMime: String?,
+    ): Int
+
     /** The package's init segment with its protected sample entries rewritten as clear ALAC. */
     external fun clearInit(init: ByteArray): ByteArray
 

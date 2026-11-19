@@ -1,5 +1,6 @@
 {
   global:
     core_wrapper_decrypt_sample;
+    core_wrapper_decrypt_m4p_sample;
     JNI_OnLoad;
 };

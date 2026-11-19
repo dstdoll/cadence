@@ -13,9 +13,11 @@
 
 mod boxes;
 mod clear;
+mod m4p;
 mod mux;
 mod parse;
 
 pub use clear::{build_sidx, clear_fragment, clear_init, clear_segment, decrypt_samples, ClearError};
+pub use m4p::{mux_m4p, M4pError};
 pub use mux::{Mp4Muxer, TrackMetadata, TrackSpec};
 pub use parse::{parse_fragment, parse_init, Fragment, InitSegment, ParseError, Sample};

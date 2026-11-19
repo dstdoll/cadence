@@ -40,6 +40,19 @@ pub fn m3u8(adam_id: &str) -> Option<String> {
     core::m3u8(parse_adam(adam_id))
 }
 
+/// Request a progressive `.m4p` asset and its `SVSampleDecryptor` context.
+pub fn m4p_asset(adam_id: &str) -> Option<(String, *mut c_void)> {
+    if !READY.load(Ordering::Acquire) {
+        return None;
+    }
+    core::m4p_asset(parse_adam(adam_id))
+}
+
+/// Release a boxed `SVDecryptor` context returned by [`m4p_asset`].
+pub unsafe fn release_m4p_context(ctx: *mut c_void) {
+    core::release_m4p_context(ctx);
+}
+
 /// Fetch the FairPlay decrypt context for a track + key URI (0 on failure or not-ready).
 pub fn kd(adam_id: &str, key_uri: &str) -> *mut c_void {
     if !READY.load(Ordering::Acquire) {

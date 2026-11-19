@@ -9,6 +9,13 @@ object NativeWrapper {
     external fun kd(adamId: String, keyUri: String): Long
     external fun decryptSample(kd: Long, sample: ByteArray): ByteArray?
 
+    data class M4pAsset(val url: String, val decryptorCtx: Long)
+
+    private external fun m4pAssetNative(adamId: String): String?
+    external fun releaseM4pContext(ctx: Long)
+
+    fun m4pAsset(adamId: String): M4pAsset? = parseM4pAsset(m4pAssetNative(adamId))
+
     // ---- Account sign-in through StoreServices (the same Apple libs that fetch keys). Apple mints
     // the session for these libraries where the headless HTTP MusicKit exchange is refused. ----
     /** Set the Apple ID + password before [login] (fresh device, no account in mpl_db yet). */
@@ -27,4 +34,13 @@ object NativeWrapper {
      * [login]). Returns null if the engine isn't ready or Apple returned no token.
      */
     external fun mintMusicToken(): String?
+}
+
+internal fun parseM4pAsset(raw: String?): NativeWrapper.M4pAsset? {
+    if (raw == null) return null
+    val sep = raw.indexOf('\n')
+    if (sep <= 0) return null
+    val ctx = raw.substring(0, sep).toLongOrNull() ?: return null
+    val url = raw.substring(sep + 1)
+    return if (url.isNotEmpty() && ctx != 0L) NativeWrapper.M4pAsset(url, ctx) else null
 }

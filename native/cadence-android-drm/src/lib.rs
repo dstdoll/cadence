@@ -67,20 +67,28 @@ pub extern "system" fn Java_app_cadence_backend_engine_media_NativeDrm_decryptFi
 
 type SampleDecryptorFn = unsafe extern "C" fn(*mut c_void, *mut u8, usize) -> i32;
 
-fn load_native_decryptor() -> Result<SampleDecryptorFn, String> {
+fn load_native_symbol(name: &[u8]) -> Result<SampleDecryptorFn, String> {
     unsafe {
         let handle = libc::dlopen(c"libcadence-native.so".as_ptr(),
                      libc::RTLD_NOW | libc::RTLD_GLOBAL);
         if handle.is_null() {
             return Err("libcadence-native.so not loadable".to_string());
         }
-        let name = b"core_wrapper_decrypt_sample\0";
         let sym = libc::dlsym(handle, name.as_ptr() as *const libc::c_char);
         if sym.is_null() {
-            return Err("core_wrapper_decrypt_sample not found".to_string());
+            let label = std::str::from_utf8(name).unwrap_or("symbol").trim_end_matches('\0');
+            return Err(format!("{label} not found"));
         }
         Ok(std::mem::transmute::<*mut c_void, SampleDecryptorFn>(sym))
     }
+}
+
+fn load_native_decryptor() -> Result<SampleDecryptorFn, String> {
+    load_native_symbol(b"core_wrapper_decrypt_sample\0")
+}
+
+fn load_native_m4p_decryptor() -> Result<SampleDecryptorFn, String> {
+    load_native_symbol(b"core_wrapper_decrypt_m4p_sample\0")
 }
 
 /// One per-sample decrypt backend. Abstracted so the container, muxer, tag and
@@ -105,6 +113,23 @@ impl AppleDecryptor {
 impl SampleDecryptor for AppleDecryptor {
     fn decrypt(&self, kd: i64, buf: &mut [u8]) -> i32 {
         unsafe { (self.f)(kd as *mut c_void, buf.as_mut_ptr(), buf.len()) }
+    }
+}
+
+/// Real backend for non-fragmented `.m4p` assets (`SVSampleDecryptor` in libcadence-native.so).
+pub struct M4pAppleDecryptor {
+    f: SampleDecryptorFn,
+}
+
+impl M4pAppleDecryptor {
+    pub fn new() -> Result<Self, String> {
+        load_native_m4p_decryptor().map(|f| M4pAppleDecryptor { f })
+    }
+}
+
+impl SampleDecryptor for M4pAppleDecryptor {
+    fn decrypt(&self, ctx: i64, buf: &mut [u8]) -> i32 {
+        unsafe { (self.f)(ctx as *mut c_void, buf.as_mut_ptr(), buf.len()) }
     }
 }
 
@@ -823,6 +848,102 @@ pub extern "system" fn Java_app_cadence_backend_engine_media_NativeDrm_decryptFi
     }
 }
 
+fn extract_meta_and_cover(
+    env: &mut JNIEnv,
+    meta: &JString,
+    cover: &jni::objects::JByteArray,
+    cover_mime: &JString,
+) -> Result<Option<TrackMetadata>, jint> {
+    let meta_json = jstring(env, meta)?;
+    let mime = if cover_mime.is_null() {
+        String::new()
+    } else {
+        jstring(env, cover_mime)?
+    };
+    let mut cover_bytes: Option<Vec<u8>> = None;
+    if !cover.is_null() {
+        if let Ok(len) = env.get_array_length(cover) {
+            if len > 0 {
+                let mut buf = vec![0u8; len as usize];
+                if env
+                    .get_byte_array_region(cover, 0, unsafe {
+                        std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut i8, buf.len())
+                    })
+                    .is_ok()
+                {
+                    cover_bytes = Some(buf);
+                }
+            }
+        }
+    }
+    let trimmed = meta_json.trim();
+    Ok(if trimmed.is_empty() || trimmed == "{}" {
+        None
+    } else {
+        Some(meta_from_json(
+            trimmed,
+            cover_bytes,
+            if mime.is_empty() { None } else { Some(mime) },
+        ))
+    })
+}
+
+/// Decrypts a non-fragmented `.m4p` file with `decryptor` and writes a faststarted, tagged `.m4a`.
+pub fn decrypt_m4p_with_meta<D: SampleDecryptor + ?Sized>(
+    decryptor: &D,
+    ctx: i64,
+    input: &Path,
+    output: &Path,
+    meta: Option<TrackMetadata>,
+) -> Result<(), String> {
+    if ctx == 0 {
+        return Err("null m4p decryptor context".to_string());
+    }
+    let bytes = fs::read(input).map_err(|e| format!("read m4p: {e}"))?;
+    cadence_container::mux_m4p(&bytes, output, meta.unwrap_or_default(), |buf| {
+        decrypt_or_error(decryptor, ctx, buf)
+    })
+    .map_err(|e| format!("m4p mux: {e:?}"))?;
+    faststart(output)
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_cadence_backend_engine_media_NativeDrm_decryptM4pWithMeta(
+    mut env: JNIEnv,
+    _class: JClass,
+    ctx: jni::sys::jlong,
+    input: JString,
+    output: JString,
+    meta: JString,
+    cover: jni::objects::JByteArray,
+    cover_mime: JString,
+) -> jint {
+    let input = match jstring(&mut env, &input) { Ok(v) => v, Err(e) => return e };
+    let output = match jstring(&mut env, &output) { Ok(v) => v, Err(e) => return e };
+    let md = match extract_meta_and_cover(&mut env, &meta, &cover, &cover_mime) {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
+    let decryptor = match M4pAppleDecryptor::new() {
+        Ok(d) => d,
+        Err(msg) => return error(&mut env, &msg),
+    };
+    match decrypt_m4p_with_meta(&decryptor, ctx, Path::new(&input), Path::new(&output), md) {
+        Ok(()) => 0,
+        Err(message) => {
+            #[cfg(target_os = "android")]
+            {
+                let tag = std::ffi::CString::new("cadence-drm").unwrap();
+                let fmt = std::ffi::CString::new("decryptM4pWithMeta failed: %s").unwrap();
+                if let Ok(msg) = std::ffi::CString::new(message.as_str()) {
+                    unsafe { __android_log_print(6, tag.as_ptr(), fmt.as_ptr(), msg.as_ptr()) };
+                }
+            }
+            error(&mut env, &message)
+        }
+    }
+}
+
 /// Muxes an already-clear concatenated fragmented MP4 into a tagged `.m4a` (see
 /// [`mux_clear_with_meta`]). The metadata/cover arguments mirror
 /// [`Java_app_cadence_backend_engine_media_NativeDrm_decryptFileWithKdPlanMeta`]; there is no
@@ -839,30 +960,9 @@ pub extern "system" fn Java_app_cadence_backend_engine_media_NativeDrm_muxClearW
 ) -> jint {
     let input = match jstring(&mut env, &input) { Ok(v) => v, Err(e) => return e };
     let output = match jstring(&mut env, &output) { Ok(v) => v, Err(e) => return e };
-    let meta_json = match jstring(&mut env, &meta) { Ok(v) => v, Err(e) => return e };
-    let mime = if cover_mime.is_null() { String::new() } else {
-        match jstring(&mut env, &cover_mime) { Ok(v) => v, Err(e) => return e }
-    };
-
-    let mut cover_bytes: Option<Vec<u8>> = None;
-    if !cover.is_null() {
-        if let Ok(len) = env.get_array_length(&cover) {
-            if len > 0 {
-                let mut buf = vec![0u8; len as usize];
-                if env.get_byte_array_region(&cover, 0, unsafe {
-                    std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut i8, buf.len())
-                }).is_ok() {
-                    cover_bytes = Some(buf);
-                }
-            }
-        }
-    }
-
-    let trimmed = meta_json.trim();
-    let md = if trimmed.is_empty() || trimmed == "{}" {
-        None
-    } else {
-        Some(meta_from_json(trimmed, cover_bytes, if mime.is_empty() { None } else { Some(mime) }))
+    let md = match extract_meta_and_cover(&mut env, &meta, &cover, &cover_mime) {
+        Ok(v) => v,
+        Err(e) => return e,
     };
     match mux_clear_with_meta(Path::new(&input), Path::new(&output), md) {
         Ok(()) => 0,

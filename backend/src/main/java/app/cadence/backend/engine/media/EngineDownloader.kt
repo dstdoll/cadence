@@ -149,16 +149,21 @@ object EngineDownloader {
         internal val fileName: String,
         /** The assembled clear package for a streaming download; null for the two-phase path. */
         internal val clearPackage: File? = null,
+        /** Non-fragmented `.m4p` download + its `SVSampleDecryptor` context; null for HLS paths. */
+        internal val m4pFile: File? = null,
+        internal val m4pCtx: Long = 0L,
     ) {
         /** Removes the staged package; for a staged track that will not be finished. */
         fun discard() {
             clearPackage?.let { runCatching { it.delete() } }
+            m4pFile?.let { runCatching { it.delete() } }
+            if (m4pCtx != 0L) runCatching { NativeWrapper.releaseM4pContext(m4pCtx) }
             runCatching { android.net.Uri.parse(saved).path?.let { java.io.File(it).delete() } }
         }
     }
 
     /** The naming/metadata setup a job needs, resolved from the item and the user's templates. */
-    private class JobSetup(
+    internal class JobSetup(
         val track: Track,
         val album: Album,
         val settings: AppSettings,
@@ -190,8 +195,16 @@ object EngineDownloader {
      * [codec]/[bitDepth]/[sampleRate] are the resolved rendition's real quality, used by the
      * `{codec}`/`{bitdepth}`/`{samplerate}`/`{quality}` tokens.
      */
+    internal fun prepareJobForTest(
+        item: DownloadEngine.DownloadItem,
+        prefs: DownloadPreferences,
+        hls: String,
+        codec: String = "",
+        bitDepth: Int = 0,
+        sampleRate: Int = 0,
+    ): JobSetup = prepareJob(item, prefs, hls, codec, bitDepth, sampleRate)
+
     private fun prepareJob(
-        context: Context,
         item: DownloadEngine.DownloadItem,
         prefs: DownloadPreferences,
         hls: String,
@@ -274,7 +287,7 @@ object EngineDownloader {
     ): Staged = withContext(Dispatchers.IO) {
         check(initNative(context)) { "native engine failed to initialise" }
         val hls = freshHlsUrl(context, item.trackId) ?: item.hlsUrl
-        if (hls.isBlank()) throw IOException("This AAC-only track has no FairPlay HLS stream for offline download")
+        if (hls.isBlank()) return@withContext stageM4p(context, item, prefs, onState)
         if (hls != item.hlsUrl) AppLog.log("Cadence", "fresh HLS URL resolved for ${item.trackId}")
 
         // Resolve the ALAC/AAC variant first, exactly like the reference pipeline (the enhancedHls master
@@ -284,7 +297,7 @@ object EngineDownloader {
         val plan = WrapperKeyClient.resolve(trackOf(item, hls), prefs.bitDepth, prefs.maxSampleRate, prefs.codec, prefs.atmos)
         AppLog.log("Cadence", "resolved media=${plan.mediaUrl} key=${plan.keyUri} quality=${plan.kind}/${plan.bitDepth}bit/${plan.sampleRate}Hz")
 
-        val setup = prepareJob(context, item, prefs, hls, namingCodec(plan), plan.bitDepth, plan.sampleRate)
+        val setup = prepareJob(item, prefs, hls, namingCodec(plan), plan.bitDepth, plan.sampleRate)
         val track = setup.track
         val album = setup.album
         val settings = setup.settings
@@ -371,7 +384,7 @@ object EngineDownloader {
         // a best-effort extra lookup for the `{quality}` tokens; failure falls back to the settings.
         val hls = freshHlsUrl(context, item.trackId) ?: item.hlsUrl
         val (qCodec, qDepth, qRate) = resolveQuality(trackOf(item, hls), prefs)
-        val setup = prepareJob(context, item, prefs, hls, qCodec, qDepth, qRate)
+        val setup = prepareJob(item, prefs, hls, qCodec, qDepth, qRate)
         AppLog.log(
             "Cadence",
             "stream download start track=${item.trackId} kind=${item.kind} dir=${setup.relativeDir} " +
@@ -419,7 +432,111 @@ object EngineDownloader {
         onState: (DownloadState) -> Unit = {},
     ): String {
         staged.clearPackage?.let { return finishStreaming(context, staged, it, onState) }
+        staged.m4pFile?.let { return finishM4p(context, staged, it, onState) }
         return finishTwoPhase(context, staged, onState)
+    }
+
+    private suspend fun stageM4p(
+        context: Context,
+        item: DownloadEngine.DownloadItem,
+        prefs: DownloadPreferences,
+        onState: (DownloadState) -> Unit = {},
+    ): Staged = coroutineScope {
+        onState(DownloadState(running = true, phase = "downloading", progress = 0f, message = "Resolving AAC asset"))
+        val asset = NativeWrapper.m4pAsset(item.trackId)
+            ?: throw IOException("No FairPlay HLS or M4P asset available for ${item.trackId}")
+        val setup = prepareJob(item, prefs, hls = "", codec = "aac", bitDepth = 16, sampleRate = 44100)
+        val sess = session(context)
+        val m4pFile = File(context.cacheDir, "cadence_m4p_${item.trackId}_${System.nanoTime()}.m4p")
+        try {
+            val tagsJob = async(Dispatchers.IO) {
+                DrmService.prepareTags(setup.settings, sess, setup.track, setup.album, prefs.albumDate)
+            }
+            val conn = (java.net.URL(asset.url).openConnection() as java.net.HttpURLConnection).apply {
+                connectTimeout = 15_000
+                readTimeout = 30_000
+            }
+            try {
+                val code = conn.responseCode
+                if (code !in 200..299) {
+                    throw IOException("M4P download failed: HTTP $code")
+                }
+                val total = conn.contentLengthLong
+                conn.inputStream.use { input ->
+                    m4pFile.outputStream().use { out ->
+                        val buf = ByteArray(64 * 1024)
+                        var done = 0L
+                        while (true) {
+                            val n = input.read(buf)
+                            if (n <= 0) break
+                            out.write(buf, 0, n)
+                            done += n
+                            val frac = if (total > 0) (done.toFloat() / total).coerceIn(0f, 1f) else 0f
+                            onState(DownloadState(running = true, phase = "downloading", progress = frac, message = "Downloading"))
+                        }
+                    }
+                }
+            } finally {
+                conn.disconnect()
+            }
+            val tags = tagsJob.await()
+            AppLog.log("Cadence", "staged m4p=${m4pFile.length()} ctx=${asset.decryptorCtx}")
+            Staged(
+                item = item,
+                track = setup.track,
+                album = setup.album,
+                settings = setup.settings,
+                dateStyle = prefs.albumDate,
+                saved = m4pFile.absolutePath,
+                tags = tags,
+                kds = LongArray(0),
+                relativeDir = setup.relativeDir,
+                folder = setup.folder,
+                fileName = setup.fileName,
+                m4pFile = m4pFile,
+                m4pCtx = asset.decryptorCtx,
+            )
+        } catch (t: Throwable) {
+            m4pFile.delete()
+            NativeWrapper.releaseM4pContext(asset.decryptorCtx)
+            throw t
+        }
+    }
+
+    private suspend fun finishM4p(
+        context: Context,
+        staged: Staged,
+        m4pFile: File,
+        onState: (DownloadState) -> Unit = {},
+    ): String = withContext(Dispatchers.IO) {
+        try {
+            onState(DownloadState(running = true, phase = "decrypting", progress = 0f, message = "Decrypting"))
+            val outName = if (staged.fileName.endsWith(".m4a")) staged.fileName else "${staged.fileName}.m4a"
+            val out = DrmService.decryptM4p(
+                context = context,
+                m4pFile = m4pFile,
+                m4pCtx = staged.m4pCtx,
+                settings = staged.settings,
+                session = session(context),
+                track = staged.track,
+                album = staged.album,
+                dateStyle = staged.dateStyle,
+                relativeDir = staged.relativeDir,
+                outputName = outName,
+                folder = staged.folder,
+                treeUri = staged.settings.saveTreeUri,
+                onProgress = { fraction ->
+                    onState(DownloadState(running = true, phase = "decrypting", progress = fraction, message = "Decrypting"))
+                },
+                tags = staged.tags,
+            )
+            AppLog.log("Cadence", "m4p download published=$out")
+            onState(DownloadState(running = false, done = true, phase = "done", progress = 1f, message = out))
+            out
+        } finally {
+            m4pFile.delete()
+            if (staged.m4pCtx != 0L) NativeWrapper.releaseM4pContext(staged.m4pCtx)
+        }
     }
 
     /** Muxes and tags the assembled clear package from a streaming download, then publishes it. */

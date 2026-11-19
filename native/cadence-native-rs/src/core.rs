@@ -157,6 +157,21 @@ extern "C" {
 
     #[link_name = "_ZNK13mediaplatform4Data5bytesEv"]
     fn data_bytes(this: *mut c_void) -> *const c_char;
+    #[link_name = "_ZNK13mediaplatform4Data6lengthEv"]
+    fn data_length(this: *const c_void) -> usize;
+    #[link_name = "_ZN10FootHillSFC1ERKNSt6__ndk110shared_ptrIN17storeservicescore13PlaybackAssetEEE"]
+    fn foothill_sf_ctor(this: *mut c_void, asset: *const SharedPtr);
+    #[link_name = "_ZN10FootHillSF9getSFDataEv"]
+    fn foothill_sf_get_sf_data_raw();
+    #[link_name = "_ZN10FootHillSF10getSF2DataEv"]
+    fn foothill_sf_get_sf2_data_raw();
+    #[link_name = "_ZN10FootHillSF9getDpInfoEv"]
+    fn foothill_sf_get_dp_info_raw();
+    #[link_name = "_ZN18SVDecryptorFactory6createERKN11SVDecryptor15SVDecryptorTypeEPKhRKjS5_S7_RKNS0_20SVDecryptorTrackTypeERKbSC_"]
+    fn sv_decryptor_factory_create_raw();
+    fn YHrWZQ6wU(state: *mut c_void, inp: *const u8, len: u32, out: *mut u8, flags: usize) -> i32;
+    #[link_name = "_ZNSt6__ndk119__shared_weak_count16__release_sharedEv"]
+    fn cpp_release_shared(ctrl: *mut c_void);
 }
 
 // ---- process-wide state (the C globals) --------------------------------------------------------
@@ -169,6 +184,13 @@ static PRESHARE_CTX: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 struct LeaseBuf(std::cell::UnsafeCell<[u8; 16]>);
 unsafe impl Sync for LeaseBuf {}
 static LEASE_MGR: LeaseBuf = LeaseBuf(std::cell::UnsafeCell::new([0u8; 16]));
+
+struct M4pEntry {
+    sp: SharedPtr,
+}
+unsafe impl Send for M4pEntry {}
+static M4P_CTXS: Mutex<Option<std::collections::HashMap<usize, M4pEntry>>> = Mutex::new(None);
+static NEXT_M4P_ID: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
 
 /// Base storefront dir + configured android id (set once at configure()).
 struct ConfigState {
@@ -550,6 +572,248 @@ pub fn m3u8(adam: c_ulong) -> Option<String> {
         let s = CStr::from_ptr(data).to_string_lossy().into_owned();
         nlog(&format!("m3u8: url={s}"));
         Some(s)
+    }
+}
+
+/// Request a progressive `.m4p` playback asset and build an `SVSampleDecryptor` context from its
+/// `FootHillSF` sinf/dpInfo blobs. Returns `(url, boxed_shared_ptr_ctx)` on success.
+pub fn m4p_asset(adam_id: c_ulong) -> Option<(String, *mut c_void)> {
+    ensure_lease();
+    unsafe {
+        let mgr = LEASE_MGR.0.get() as *mut c_void;
+        let z0: u8 = 0;
+        let params = StdVector {
+            begin: ptr::null_mut(),
+            end: ptr::null_mut(),
+            end_cap: ptr::null_mut(),
+        };
+        let mut result = SharedPtr::NULL;
+        let req_fn = lease_mgr_request_asset_raw as *const () as usize;
+        std::arch::asm!(
+            "blr {fn_ptr}",
+            fn_ptr = in(reg) req_fn,
+            in("x8") &mut result as *mut SharedPtr,
+            in("x0") mgr,
+            in("x1") &adam_id as *const c_ulong,
+            in("x2") &params as *const StdVector,
+            in("x3") &z0 as *const u8,
+            clobber_abi("C"),
+        );
+        if result.obj.is_null() || asset_resp_has_valid(result.obj) == 0 {
+            nlog("m4p_asset: asset response invalid or null");
+            if !result.ctrl.is_null() {
+                cpp_release_shared(result.ctrl);
+            }
+            return None;
+        }
+        let asset = asset_resp_playback_asset(result.obj);
+        if asset.is_null() || (*asset).obj.is_null() {
+            nlog("m4p_asset: playback asset null");
+            if !result.ctrl.is_null() {
+                cpp_release_shared(result.ctrl);
+            }
+            return None;
+        }
+
+        let mut urlstr = [0u8; 24];
+        let url_fn = playback_asset_url_raw as *const () as usize;
+        std::arch::asm!(
+            "blr {fn_ptr}",
+            fn_ptr = in(reg) url_fn,
+            in("x8") urlstr.as_mut_ptr() as *mut StdString,
+            in("x0") (*asset).obj,
+            clobber_abi("C"),
+        );
+        let url_ptr = sys::StdString::data(urlstr.as_ptr() as *const StdString);
+        let url = if url_ptr.is_null() {
+            String::new()
+        } else {
+            CStr::from_ptr(url_ptr).to_string_lossy().into_owned()
+        };
+        if url.is_empty() {
+            nlog("m4p_asset: empty url");
+            if !result.ctrl.is_null() {
+                cpp_release_shared(result.ctrl);
+            }
+            return None;
+        }
+
+        let mut fh_buf = [0u8; 24];
+        foothill_sf_ctor(fh_buf.as_mut_ptr() as *mut c_void, asset);
+
+        let mut sf_data = SharedPtr::NULL;
+        let get_sf_fn = foothill_sf_get_sf_data_raw as *const () as usize;
+        std::arch::asm!(
+            "blr {fn_ptr}",
+            fn_ptr = in(reg) get_sf_fn,
+            in("x8") &mut sf_data as *mut SharedPtr,
+            in("x0") fh_buf.as_ptr(),
+            clobber_abi("C"),
+        );
+
+        let mut sf2_data = SharedPtr::NULL;
+        let get_sf2_fn = foothill_sf_get_sf2_data_raw as *const () as usize;
+        std::arch::asm!(
+            "blr {fn_ptr}",
+            fn_ptr = in(reg) get_sf2_fn,
+            in("x8") &mut sf2_data as *mut SharedPtr,
+            in("x0") fh_buf.as_ptr(),
+            clobber_abi("C"),
+        );
+
+        let mut dp_info = SharedPtr::NULL;
+        let get_dp_fn = foothill_sf_get_dp_info_raw as *const () as usize;
+        std::arch::asm!(
+            "blr {fn_ptr}",
+            fn_ptr = in(reg) get_dp_fn,
+            in("x8") &mut dp_info as *mut SharedPtr,
+            in("x0") fh_buf.as_ptr(),
+            clobber_abi("C"),
+        );
+
+        let fh_vec = &*(fh_buf.as_ptr() as *const StdVector);
+        let sinfs_count = if fh_vec.end >= fh_vec.begin {
+            (fh_vec.end as usize - fh_vec.begin as usize) / std::mem::size_of::<SharedPtr>()
+        } else {
+            0
+        };
+        let sf2_ptr = if sf2_data.obj.is_null() {
+            ptr::null()
+        } else {
+            data_bytes(sf2_data.obj) as *const u8
+        };
+        let sf2_len = if sf2_data.obj.is_null() {
+            0u32
+        } else {
+            data_length(sf2_data.obj) as u32
+        };
+        nlog(&format!("m4p_asset: sinfs_count={sinfs_count} sf2_len={sf2_len}"));
+
+        let sinf_ptr = if sf_data.obj.is_null() {
+            ptr::null()
+        } else {
+            data_bytes(sf_data.obj) as *const u8
+        };
+        let sinf_len = if sf_data.obj.is_null() {
+            0u32
+        } else {
+            data_length(sf_data.obj) as u32
+        };
+        let dp_ptr = if dp_info.obj.is_null() {
+            ptr::null()
+        } else {
+            data_bytes(dp_info.obj) as *const u8
+        };
+        let dp_len = if dp_info.obj.is_null() {
+            0u32
+        } else {
+            data_length(dp_info.obj) as u32
+        };
+        let (aux_ptr, aux_len) = if !dp_ptr.is_null() && dp_len > 0 {
+            (dp_ptr, dp_len)
+        } else {
+            (sf2_ptr, sf2_len)
+        };
+
+        let mut decryptor = SharedPtr::NULL;
+        if !sinf_ptr.is_null() && sinf_len > 0 {
+            let dec_type: u32 = if !aux_ptr.is_null() && aux_len > 0 { 3 } else { 2 };
+            let track_type: u32 = 0; // audio
+            let b1: u8 = 0;
+            let b2: u8 = 0;
+            let create_fn = sv_decryptor_factory_create_raw as *const () as usize;
+            std::arch::asm!(
+                "blr {fn_ptr}",
+                fn_ptr = in(reg) create_fn,
+                in("x8") &mut decryptor as *mut SharedPtr,
+                in("x0") &dec_type as *const u32,
+                in("x1") sinf_ptr,
+                in("x2") &sinf_len as *const u32,
+                in("x3") aux_ptr,
+                in("x4") &aux_len as *const u32,
+                in("x5") &track_type as *const u32,
+                in("x6") &b1 as *const u8,
+                in("x7") &b2 as *const u8,
+                clobber_abi("C"),
+            );
+        }
+
+        if !sf2_data.ctrl.is_null() {
+            cpp_release_shared(sf2_data.ctrl);
+        }
+
+        if !sf_data.ctrl.is_null() {
+            cpp_release_shared(sf_data.ctrl);
+        }
+        if !dp_info.ctrl.is_null() {
+            cpp_release_shared(dp_info.ctrl);
+        }
+        if !result.ctrl.is_null() {
+            cpp_release_shared(result.ctrl);
+        }
+
+        if decryptor.obj.is_null() {
+            nlog(&format!("m4p_asset: SVDecryptorFactory::create returned null (sinf_len={sinf_len}, dp_len={dp_len})"));
+            if !decryptor.ctrl.is_null() {
+                cpp_release_shared(decryptor.ctrl);
+            }
+            return None;
+        }
+
+        let id = NEXT_M4P_ID.fetch_add(1, Ordering::Relaxed);
+        {
+            let mut guard = M4P_CTXS.lock().unwrap_or_else(|e| e.into_inner());
+            guard.get_or_insert_with(Default::default).insert(id, M4pEntry { sp: decryptor });
+        }
+        let ctx = id as *mut c_void;
+        nlog(&format!("m4p_asset: url={url} sinf_len={sinf_len} dp_len={dp_len} ctx_id={id}"));
+        Some((url, ctx))
+    }
+}
+
+/// Decrypt a single `.m4p` audio sample in place using an `SVSampleDecryptor` context.
+pub unsafe fn decrypt_m4p_sample(ctx: *mut c_void, sample: *mut u8, size: usize) -> c_int {
+    if ctx.is_null() || sample.is_null() || size == 0 || size > u32::MAX as usize {
+        return -1;
+    }
+    let id = ctx as usize;
+    let obj = {
+        let guard = M4P_CTXS.lock().unwrap_or_else(|e| e.into_inner());
+        guard.as_ref().and_then(|m| m.get(&id)).map(|e| e.sp.obj)
+    };
+    let Some(obj) = obj else {
+        nlog(&format!("decrypt_m4p_sample: unknown ctx_id={id}"));
+        return -2;
+    };
+    if obj.is_null() {
+        return -2;
+    }
+    let state = *((obj as *const *mut c_void).add(3));
+    if state.is_null() {
+        nlog("decrypt_m4p_sample: state at +0x18 is null");
+        return -3;
+    }
+    let rc = YHrWZQ6wU(state, sample, size as u32, sample, 0);
+    if rc != 0 {
+        nlog(&format!("decrypt_m4p_sample: YHrWZQ6wU rc={rc} size={size} state={state:?}"));
+    }
+    rc
+}
+
+/// Release an `SVDecryptor` context created by [`m4p_asset`].
+pub unsafe fn release_m4p_context(ctx: *mut c_void) {
+    if ctx.is_null() {
+        return;
+    }
+    let id = ctx as usize;
+    let removed = {
+        let mut guard = M4P_CTXS.lock().unwrap_or_else(|e| e.into_inner());
+        guard.as_mut().and_then(|m| m.remove(&id))
+    };
+    if let Some(entry) = removed {
+        if !entry.sp.ctrl.is_null() {
+            cpp_release_shared(entry.sp.ctrl);
+        }
     }
 }
 
