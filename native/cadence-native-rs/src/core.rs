@@ -733,7 +733,6 @@ pub fn mint_music_token() -> Option<String> {
     if reqctx.is_null() {
         return None;
     }
-    let base = base_dir();
     unsafe {
         let reqctx_sp = reqctx as *mut SharedPtr;
 
@@ -783,7 +782,6 @@ pub fn mint_music_token() -> Option<String> {
             ("Expect", ""),
             ("X-Apple-Requesting-Bundle-Id", "com.apple.android.music"),
             ("X-Apple-Requesting-Bundle-Version", "Music/4.9 Android/10 model/Samsung S9 build/7663313 (dt:66)"),
-            ("X-Apple-Store-Front", base.as_str()),
         ];
         for (k, v) in headers {
             let kc = CString::new(k).unwrap_or_default();
