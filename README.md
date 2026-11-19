@@ -50,3 +50,10 @@ run `native/build-android.sh`.
 | `app/` | Screens, navigation, theme, playback service and the audio processing chain |
 | `backend/` | Apple Music catalogue, search, sign-in, downloads and the native bridge |
 | `native/` | Rust crates: Apple library bridge, DRM engine, auth and container handling |
+
+## Special thanks
+
+- [@Zhaarey](https://github.com/Zhaarey)
+- [@WorldObservationLog](https://github.com/WorldObservationLog)
+- [@Itouakirai](https://github.com/Itouakirai)
+- [@br0kendolllx-debug](https://github.com/br0kendolllx-debug)
