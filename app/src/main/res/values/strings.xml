@@ -669,4 +669,31 @@
     <string name="set_token_failed">Couldn\'t get the account token. Try again later, or add it by hand.</string>
     <string name="set_token_rejected">That token wasn\'t accepted. Check that you copied all of it.</string>
     <string name="set_token_network">Couldn\'t reach Apple. Check your connection and try again.</string>
+
+    <!-- Updates -->
+    <string name="set_updates_section">Updates</string>
+    <string name="set_update_channel">Update channel</string>
+    <string name="set_update_channel_release">Release</string>
+    <string name="set_update_channel_dev">Dev</string>
+    <string name="set_update_auto">Check automatically</string>
+    <string name="set_update_auto_desc">Check for new builds on launch</string>
+    <string name="set_update_check">Check for updates</string>
+    <string name="set_update_checking">Checking…</string>
+    <string name="set_update_up_to_date">You\'re on the latest build (%1$s)</string>
+    <string name="set_update_error">Couldn\'t check for updates</string>
+    <string name="set_update_current">Installed: %1$s</string>
+    <string name="update_title">Update available</string>
+    <string name="update_switch_title">Switch to Release</string>
+    <string name="update_downloading">Downloading… %1$d%% (%2$s / %3$s)</string>
+    <string name="update_downloading_unknown">Downloading… %1$s</string>
+    <string name="update_ready">Ready to install</string>
+    <string name="update_no_notes">No release notes provided.</string>
+    <string name="update_downgrade_warn">Switching to an older Release requires uninstalling the Dev build first if Android blocks the downgrade.</string>
+    <string name="update_permission_warn">Allow Cadence to install apps in Settings, then tap Install.</string>
+    <string name="update_action_update">Update</string>
+    <string name="update_action_install">Install</string>
+    <string name="update_action_later">Later</string>
+    <string name="update_action_cancel">Cancel</string>
+    <string name="update_action_skip">Skip this version</string>
+    <string name="update_action_browser">Open release page</string>
 </resources>

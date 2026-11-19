@@ -123,6 +123,9 @@ internal val SETTINGS_INDEX: List<SettingEntry> = listOf(
     SettingEntry(R.string.set_edit_categories, SettingsPage.Library, "sections order tabs"),
 
     SettingEntry(R.string.set_about_cadence, SettingsPage.About, "version"),
+    SettingEntry(R.string.set_update_channel, SettingsPage.About, "release dev beta channel"),
+    SettingEntry(R.string.set_update_auto, SettingsPage.About, "automatic updates launch"),
+    SettingEntry(R.string.set_update_check, SettingsPage.About, "update download version"),
     SettingEntry(R.string.set_diagnostics, SettingsPage.About, "log debug"),
     SettingEntry(R.string.set_export_logs, SettingsPage.About, "log debug save"),
     SettingEntry(R.string.set_share_logs, SettingsPage.About, "log debug send"),

@@ -16,6 +16,9 @@ enum class WaveStyle(@StringRes val labelRes: Int) {
 enum class AlbumDateStyle(@StringRes val labelRes: Int) {
     FullDate(R.string.set_date_full), YearOnly(R.string.set_date_year), None(R.string.set_none),
 }
+enum class UpdateChannel(@StringRes val labelRes: Int) {
+    Release(R.string.set_update_channel_release), Dev(R.string.set_update_channel_dev),
+}
 
 @Serializable
 data class UserSettings(
@@ -114,6 +117,11 @@ data class UserSettings(
     val resumeOnLaunch: Boolean = true,
     // Feel
     val haptics: Boolean = true,
+    // Updates
+    val updateChannel: UpdateChannel = UpdateChannel.Release,
+    val autoCheckUpdates: Boolean = true,
+    val skippedUpdateTag: String? = null,
+    val lastUpdateCheckMs: Long = 0L,
 )
 
 /** Which loudness reference replay gain levels to, when a track carries the matching tag. */

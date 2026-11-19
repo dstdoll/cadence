@@ -26,6 +26,7 @@ class AppContainer(context: Context) {
     val backend: BackendServices = Backend.create(context)
     val repository: MusicRepository = backend.catalog
     val settings = JsonStore(context, scope, "settings", UserSettings.serializer(), UserSettings())
+    val updates = app.cadence.state.UpdateChecker(context, settings, scope)
     val library = JsonStore(context, scope, "library", UserLibrary.serializer(), UserLibrary())
     val player by lazy { PlayerController(context, repository, backend.recommendations, library, settings, scope) }
 
@@ -42,6 +43,7 @@ class AppContainer(context: Context) {
         scope.launch {
             settings.state.collect { DownloadEngine.configure(it.toDownloadPreferences()) }
         }
+        updates.checkIfDue()
     }
 }
 

@@ -14,6 +14,7 @@ import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Equalizer
 import androidx.compose.material.icons.rounded.GraphicEq
@@ -43,10 +44,12 @@ import app.cadence.LocalContainer
 import app.cadence.LogExport
 import app.cadence.backend.engine.stream.StreamPlayback
 import app.cadence.core.design.LocalNavigator
+import app.cadence.state.UpdateState
 import app.cadence.state.settings.ColorSource
 import app.cadence.state.settings.ContrastLevel
 import app.cadence.state.settings.DarkMode
 import app.cadence.state.settings.LyricsAlign
+import app.cadence.state.settings.UpdateChannel
 import app.cadence.state.settings.UserSettings
 import app.cadence.state.settings.WaveStyle
 import kotlinx.coroutines.Dispatchers
@@ -408,6 +411,11 @@ internal fun AboutPanel(onBack: () -> Unit) {
         }
     }
 
+    val c = LocalContainer.current
+    val settings by c.settings.state.collectAsStateWithLifecycle()
+    val updateState by c.updates.state.collectAsStateWithLifecycle()
+    val currentVersion = c.updates.currentVersionName
+
     SettingsPanel(stringResource(R.string.detail_about), onBack) {
         item(key = "card") {
             Surface(
@@ -421,8 +429,45 @@ internal fun AboutPanel(onBack: () -> Unit) {
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Spacer(Modifier.height(10.dp))
-                    Text(stringResource(R.string.set_about_version, "0.1"), style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.set_about_version, currentVersion), style = MaterialTheme.typography.labelLarge)
                 }
+            }
+        }
+        item(key = "updates") {
+            SettingsGroup {
+                ListItem(
+                    content = { Text(stringResource(R.string.set_update_channel)) },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                    modifier = rememberHighlight(stringResource(R.string.set_update_channel)),
+                )
+                Connected(
+                    options = UpdateChannel.entries,
+                    selected = settings.updateChannel,
+                    label = { stringResource(it.labelRes) },
+                    onSelect = { ch ->
+                        c.settings.update { it.copy(updateChannel = ch) }
+                        c.updates.check(manual = true, channelOverride = ch)
+                    },
+                )
+                Spacer(Modifier.height(6.dp))
+                SwitchRow(
+                    title = stringResource(R.string.set_update_auto),
+                    info = null,
+                    checked = settings.autoCheckUpdates,
+                    note = stringResource(R.string.set_update_auto_desc),
+                    onChange = { v -> c.settings.update { it.copy(autoCheckUpdates = v) } },
+                )
+                val checkSub = when (val st = updateState) {
+                    is UpdateState.Checking -> stringResource(R.string.set_update_checking)
+                    is UpdateState.UpToDate -> stringResource(R.string.set_update_up_to_date, st.currentVersion)
+                    is UpdateState.Error -> stringResource(R.string.set_update_error)
+                    else -> stringResource(R.string.set_update_current, currentVersion)
+                }
+                ChevronRow(
+                    title = stringResource(R.string.set_update_check),
+                    subtitle = checkSub,
+                    icon = Icons.Rounded.SystemUpdate,
+                ) { c.updates.check(manual = true) }
             }
         }
         item(key = "diag") {

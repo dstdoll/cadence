@@ -53,6 +53,7 @@ class MainActivity : ComponentActivity() {
                         AnimatedContent(session != null, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "gate") { signedIn ->
                             if (signedIn) AppShell(openPlayer.intValue) else AuthFlow()
                         }
+                        app.cadence.feature.settings.UpdateDialog()
                     }
                 }
             }

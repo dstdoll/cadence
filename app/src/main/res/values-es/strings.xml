@@ -667,4 +667,31 @@
     <string name="set_token_failed">No se pudo obtener el token de la cuenta. Inténtalo más tarde o añádelo a mano.</string>
     <string name="set_token_rejected">No se aceptó ese token. Comprueba que lo copiaste completo.</string>
     <string name="set_token_network">No se pudo conectar con Apple. Revisa tu conexión e inténtalo de nuevo.</string>
+
+    <!-- Actualizaciones -->
+    <string name="set_updates_section">Actualizaciones</string>
+    <string name="set_update_channel">Canal de actualizaciones</string>
+    <string name="set_update_channel_release">Release</string>
+    <string name="set_update_channel_dev">Dev</string>
+    <string name="set_update_auto">Buscar automáticamente</string>
+    <string name="set_update_auto_desc">Buscar nuevas versiones al iniciar</string>
+    <string name="set_update_check">Buscar actualizaciones</string>
+    <string name="set_update_checking">Buscando…</string>
+    <string name="set_update_up_to_date">Tienes la última versión (%1$s)</string>
+    <string name="set_update_error">No se pudieron buscar actualizaciones</string>
+    <string name="set_update_current">Instalada: %1$s</string>
+    <string name="update_title">Actualización disponible</string>
+    <string name="update_switch_title">Cambiar a Release</string>
+    <string name="update_downloading">Descargando… %1$d%% (%2$s / %3$s)</string>
+    <string name="update_downloading_unknown">Descargando… %1$s</string>
+    <string name="update_ready">Listo para instalar</string>
+    <string name="update_no_notes">Sin notas de la versión.</string>
+    <string name="update_downgrade_warn">Volver a una versión Release anterior requiere desinstalar la compilación Dev primero si Android bloquea la instalación.</string>
+    <string name="update_permission_warn">Permite a Cadence instalar aplicaciones en Ajustes y luego pulsa Instalar.</string>
+    <string name="update_action_update">Actualizar</string>
+    <string name="update_action_install">Instalar</string>
+    <string name="update_action_later">Más tarde</string>
+    <string name="update_action_cancel">Cancelar</string>
+    <string name="update_action_skip">Omitir esta versión</string>
+    <string name="update_action_browser">Abrir página de lanzamiento</string>
 </resources>
