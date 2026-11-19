@@ -12,8 +12,8 @@ mod identity;
 mod support;
 mod sys;
 
-use jni::objects::{JByteArray, JClass, JString};
-use jni::sys::{jboolean, jbyteArray, jlong, jstring, JNI_FALSE, JNI_TRUE};
+use jni::objects::{JByteArray, JByteBuffer, JClass, JString};
+use jni::sys::{jboolean, jbyteArray, jint, jlong, jstring, JNI_FALSE, JNI_TRUE};
 use jni::JNIEnv;
 use std::ffi::{c_int, c_void};
 
@@ -197,5 +197,90 @@ pub extern "system" fn Java_app_cadence_backend_engine_media_NativeWrapper_relea
 ) {
     if ctx != 0 {
         unsafe { engine::release_m4p_context(ctx as *mut c_void) };
+    }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_cadence_backend_engine_media_NativeAlac_create(
+    env: JNIEnv,
+    _class: JClass,
+    cookie: JByteArray,
+) -> jlong {
+    let bytes = match env.convert_byte_array(&cookie) {
+        Ok(b) => b,
+        Err(_) => return 0,
+    };
+    match cadence_alac::AlacSession::from_cookie(&bytes) {
+        Ok(session) => Box::into_raw(Box::new(session)) as jlong,
+        Err(_) => 0,
+    }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_cadence_backend_engine_media_NativeAlac_maxOutputBytes(
+    _env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+    float_out: jboolean,
+) -> jint {
+    if handle == 0 {
+        return -1;
+    }
+    let session = unsafe { &*(handle as *const cadence_alac::AlacSession) };
+    session.max_output_bytes(float_out == JNI_TRUE) as jint
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_cadence_backend_engine_media_NativeAlac_decode(
+    env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+    packet: JByteBuffer,
+    in_offset: jint,
+    in_len: jint,
+    out: JByteBuffer,
+    float_out: jboolean,
+) -> jint {
+    if handle == 0 {
+        return -1;
+    }
+    if in_offset < 0 || in_len < 0 {
+        return -2;
+    }
+    let (Ok(in_ptr), Ok(in_cap), Ok(out_ptr), Ok(out_cap)) = (
+        env.get_direct_buffer_address(&packet),
+        env.get_direct_buffer_capacity(&packet),
+        env.get_direct_buffer_address(&out),
+        env.get_direct_buffer_capacity(&out),
+    ) else {
+        return -2;
+    };
+    let (off, len) = (in_offset as usize, in_len as usize);
+    if off.saturating_add(len) > in_cap {
+        return -2;
+    }
+    let pkt_slice = unsafe { std::slice::from_raw_parts(in_ptr.add(off), len) };
+    let out_slice = unsafe { std::slice::from_raw_parts_mut(out_ptr, out_cap) };
+    let session = unsafe { &mut *(handle as *mut cadence_alac::AlacSession) };
+    let res = if float_out == JNI_TRUE {
+        session.decode_to_f32(pkt_slice, out_slice)
+    } else {
+        session.decode_to_pcm16(pkt_slice, out_slice)
+    };
+    match res {
+        Ok(written) => written as jint,
+        Err(cadence_alac::AlacError::BufferTooSmall { .. }) => -2,
+        Err(_) => -3,
+    }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_cadence_backend_engine_media_NativeAlac_destroy(
+    _env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+) {
+    if handle != 0 {
+        unsafe { drop(Box::from_raw(handle as *mut cadence_alac::AlacSession)) };
     }
 }

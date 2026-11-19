@@ -3,15 +3,29 @@
 version = 4
 
 [[package]]
+name = "alac"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "498a34d3cad5f3b23cc217ab489424ebcfffed186e30ad5ac02624e50df2c2b8"
+
+[[package]]
 name = "bytes"
 version = "1.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "776dfebd015e2d8732c684a2c71003674ccb49457b539b9e82151ba38e96dd7c"
 
 [[package]]
+name = "cadence-alac"
+version = "0.1.0"
+dependencies = [
+ "alac",
+]
+
+[[package]]
 name = "cadence-native-rs"
 version = "0.1.0"
 dependencies = [
+ "cadence-alac",
  "jni",
  "libc",
 ]

@@ -17,7 +17,7 @@ android {
         minSdk = 31
         targetSdk = 37
         versionCode = 3
-        versionName = "0.1.2-dev"
+        versionName = "0.1.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders["extractNativeLibs"] = compressLibs.toString()
         // The native engine only exists for arm64; without this the FFmpeg decoder would also
@@ -111,8 +111,6 @@ dependencies {
     implementation(libs.androidx.media3.exoplayer.hls)
     implementation(libs.androidx.media3.session)
     implementation(libs.androidx.media3.ui.compose)
-    // FFmpeg audio decoder for ExoPlayer: Android has no system ALAC decoder. GPL-3.0.
-    implementation(libs.nextlib.media3ext)
     // Installs the baseline profiles Compose/Media3 ship, so release builds start AOT-compiled instead of interpreted.
     implementation(libs.androidx.profileinstaller)
 

@@ -20,8 +20,6 @@ import app.cadence.toDownloadPreferences
 import app.cadence.backend.engine.stream.StreamCache
 import app.cadence.backend.engine.stream.StreamConfig
 import app.cadence.backend.engine.stream.StreamPlayback
-import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.FfmpegLibrary
-import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.NextRenderersFactory
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import app.cadence.MainActivity
@@ -45,12 +43,12 @@ class PlaybackService : MediaSessionService() {
         super.onCreate()
         val streams = StreamPlayback.cache(this)
         StreamPlayback.warmUp(this)
-        // Android ships no ALAC decoder, so audio is decoded by the FFmpeg renderer. Float
-        // output hands 24-bit masters to the mixer intact instead of converting them to 16-bit.
+        // Android ships no ALAC decoder, so ALAC is decoded by our native Rust AlacAudioRenderer.
+        // Float output hands 24-bit masters to the mixer intact instead of converting them to 16-bit.
         // The waveform tap wraps the sink the renderers write to, so it sees the PCM in 16-bit
         // and in float output alike (audio processors are bypassed for float).
         val waveTap = WaveTap(container.wave)
-        val renderers = object : NextRenderersFactory(this@PlaybackService) {
+        val renderers = object : DefaultRenderersFactory(this@PlaybackService) {
             override fun buildAudioRenderers(
                 context: android.content.Context,
                 extensionRendererMode: Int,
@@ -61,14 +59,7 @@ class PlaybackService : MediaSessionService() {
                 eventListener: androidx.media3.exoplayer.audio.AudioRendererEventListener,
                 out: java.util.ArrayList<androidx.media3.exoplayer.Renderer>,
             ) {
-                // Dolby formats go first to the device's own decoder (real Atmos rendering on phones
-                // that license it) or to passthrough on an output that takes the bitstream. FFmpeg,
-                // added below, decodes everything else and stays the Dolby fallback.
-                out.add(
-                    androidx.media3.exoplayer.audio.MediaCodecAudioRenderer(
-                        context, DolbyCodecSelector(mediaCodecSelector), enableDecoderFallback, eventHandler, eventListener, audioSink,
-                    ),
-                )
+                out.add(AlacAudioRenderer(eventHandler, eventListener, audioSink))
                 super.buildAudioRenderers(context, extensionRendererMode, mediaCodecSelector, enableDecoderFallback, audioSink, eventHandler, eventListener, out)
             }
 
@@ -91,7 +82,6 @@ class PlaybackService : MediaSessionService() {
                     // A disabled/flat config makes this a pure pass-through.
                     .let { sink -> DspAudioSink(sink, loudness = FileLoudnessStore(java.io.File(filesDir, "dsp/loudness.json"))) { container.settings.state.value.let { s -> DspSettings(s.dspReplayGain, s.dspTone, s.dspEq, s.dspChannel, s.dspDither, bypassed = dspBypassed(s.bitPerfectUsb, usbOutput)) } } }
         }
-            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
             .setEnableAudioFloatOutput(useFloatOutput(container.settings.state.value))
         val mediaSourceFactory = DefaultMediaSourceFactory(CadenceDataSourceFactory(this, streams))
             .setDrmSessionManagerProvider { item ->
@@ -116,7 +106,7 @@ class PlaybackService : MediaSessionService() {
             // Streaming keeps downloading with the screen off, so the network is held awake too.
             .setWakeMode(C.WAKE_MODE_NETWORK)
             .build()
-        CadenceLog.i("player", "ffmpeg available=${runCatching { FfmpegLibrary.isAvailable() }.getOrDefault(false)} float=${useFloatOutput(container.settings.state.value)}")
+        CadenceLog.i("player", "alac=native float=${useFloatOutput(container.settings.state.value)}")
         player.addAnalyticsListener(PlaybackLog(applicationContext))
         followQueue(player, streams)
         // The waveform is credited to the position that is audible, whether or not a screen shows it.

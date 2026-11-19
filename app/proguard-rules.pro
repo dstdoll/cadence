@@ -11,9 +11,6 @@
 -keep class app.cadence.backend.real.NativeAuth { native <methods>; }
 -keepclasseswithmembernames class * { native <methods>; }
 
-# FFmpeg decoder extension: its JNI layer looks classes and members up by name.
--keep class io.github.anilbeesetti.nextlib.media3ext.** { *; }
-
 # libandroidappmusic.so (JavaCPP build) registers these by name at load.
 -keep class org.bytedeco.javacpp.** { *; }
 -dontwarn org.bytedeco.**
