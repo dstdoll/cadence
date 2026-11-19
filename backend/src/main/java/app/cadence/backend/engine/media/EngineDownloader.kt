@@ -274,6 +274,7 @@ object EngineDownloader {
     ): Staged = withContext(Dispatchers.IO) {
         check(initNative(context)) { "native engine failed to initialise" }
         val hls = freshHlsUrl(context, item.trackId) ?: item.hlsUrl
+        if (hls.isBlank()) throw IOException("This AAC-only track has no FairPlay HLS stream for offline download")
         if (hls != item.hlsUrl) AppLog.log("Cadence", "fresh HLS URL resolved for ${item.trackId}")
 
         // Resolve the ALAC/AAC variant first, exactly like the reference pipeline (the enhancedHls master

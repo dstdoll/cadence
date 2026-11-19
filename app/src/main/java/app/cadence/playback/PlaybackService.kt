@@ -93,8 +93,21 @@ class PlaybackService : MediaSessionService() {
         }
             .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
             .setEnableAudioFloatOutput(useFloatOutput(container.settings.state.value))
+        val mediaSourceFactory = DefaultMediaSourceFactory(CadenceDataSourceFactory(this, streams))
+            .setDrmSessionManagerProvider { item ->
+                if (item.localConfiguration?.drmConfiguration == null) {
+                    androidx.media3.exoplayer.drm.DrmSessionManager.DRM_UNSUPPORTED
+                } else {
+                    androidx.media3.exoplayer.drm.DefaultDrmSessionManager.Builder()
+                        .setUuidAndExoMediaDrmProvider(
+                            C.WIDEVINE_UUID,
+                            androidx.media3.exoplayer.drm.FrameworkMediaDrm.DEFAULT_PROVIDER,
+                        )
+                        .build(AppleWidevineDrmCallback(applicationContext, item.mediaId))
+                }
+            }
         val player = ExoPlayer.Builder(this, renderers)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(CadenceDataSourceFactory(this, streams)))
+            .setMediaSourceFactory(mediaSourceFactory)
             .setAudioAttributes(
                 AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(),
                 /* handleAudioFocus = */ true,
@@ -355,3 +368,35 @@ private class PlaybackLog(private val context: android.content.Context) : Analyt
 
 /** How far along the queue the cache window looks in each direction. */
 private const val WINDOW_TRACKS = 60
+
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+private class AppleWidevineDrmCallback(
+    private val context: android.content.Context,
+    private val trackId: String,
+) : androidx.media3.exoplayer.drm.MediaDrmCallback {
+
+    override fun executeProvisionRequest(
+        uuid: java.util.UUID,
+        request: androidx.media3.exoplayer.drm.ExoMediaDrm.ProvisionRequest,
+    ): androidx.media3.exoplayer.drm.MediaDrmCallback.Response {
+        val url = "${request.defaultUrl}&signedRequest=${String(request.data, Charsets.UTF_8)}"
+        val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+        conn.requestMethod = "POST"
+        conn.connectTimeout = 10_000
+        conn.readTimeout = 15_000
+        val bytes = try {
+            conn.inputStream.use { it.readBytes() }
+        } finally {
+            conn.disconnect()
+        }
+        return androidx.media3.exoplayer.drm.MediaDrmCallback.Response.Builder(bytes).build()
+    }
+
+    override fun executeKeyRequest(
+        uuid: java.util.UUID,
+        request: androidx.media3.exoplayer.drm.ExoMediaDrm.KeyRequest,
+    ): androidx.media3.exoplayer.drm.MediaDrmCallback.Response {
+        val bytes = app.cadence.backend.engine.stream.WebPlayback.exchangeLicense(context, trackId, request.data)
+        return androidx.media3.exoplayer.drm.MediaDrmCallback.Response.Builder(bytes).build()
+    }
+}

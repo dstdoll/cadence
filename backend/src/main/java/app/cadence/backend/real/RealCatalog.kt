@@ -143,8 +143,11 @@ class RealCatalog(
      * The catalogue holds Apple's protected HLS master, which a player cannot read. Playback
      * goes through the decrypting stream cache instead, addressed by track id.
      */
-    override fun audioUri(track: TrackInfo): String =
-        if (track.track.audio.isBlank()) "" else app.cadence.backend.engine.stream.StreamPlayback.uriFor(track.id)
+    override fun audioUri(track: TrackInfo): String = when {
+        track.id.isBlank() -> ""
+        track.track.audio.isBlank() -> app.cadence.backend.engine.stream.WebPlayback.uriFor(track.id)
+        else -> app.cadence.backend.engine.stream.StreamPlayback.uriFor(track.id)
+    }
 
     override fun motionUri(path: String?): String? = path
 

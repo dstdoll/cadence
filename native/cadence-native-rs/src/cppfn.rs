@@ -36,6 +36,8 @@ struct Func {
 struct VTable {
     offset_to_top: usize,
     typeinfo: usize,
+    dtor_complete: unsafe extern "C" fn(*mut Func),
+    dtor_deleting: unsafe extern "C" fn(*mut Func),
     clone_heap: unsafe extern "C" fn(*mut Func) -> *mut Func,
     clone_place: unsafe extern "C" fn(*mut Func, *mut Func),
     destroy: unsafe extern "C" fn(*mut Func),
@@ -46,16 +48,22 @@ struct VTable {
 }
 unsafe impl Sync for VTable {}
 
-/// libc++ `std::function` storage: the 24-byte buffer (holding a `Func` in SBO) + `__f_`.
-#[repr(C)]
+/// libc++ `std::function` storage: 16-byte-aligned 32-byte buffer (holding `Func` in SBO) + `__f_` at +0x20.
+#[repr(C, align(16))]
 struct StdFunction {
-    buf: [usize; 3],
+    buf: [usize; 4],
     f: *mut c_void,
+    _pad: usize,
 }
-const _: () = assert!(std::mem::size_of::<StdFunction>() == 32);
+const _: () = assert!(std::mem::size_of::<StdFunction>() == 48);
+const _: () = assert!(std::mem::offset_of!(StdFunction, f) == 32);
 const _: () = assert!(std::mem::size_of::<Func>() == 16);
 
 // ---- the __func vtable: operates on `this` == *mut Func ------------------------------------------
+unsafe extern "C" fn vt_dtor_complete(_this: *mut Func) {}
+unsafe extern "C" fn vt_dtor_deleting(this: *mut Func) {
+    libc::free(this as *mut c_void);
+}
 unsafe extern "C" fn vt_clone_heap(this: *mut Func) -> *mut Func {
     let p = libc::malloc(std::mem::size_of::<Func>()) as *mut Func;
     if !p.is_null() {
@@ -83,6 +91,8 @@ unsafe extern "C" fn vt_target_type(_this: *mut Func) -> *const c_void {
 static VTABLE: VTable = VTable {
     offset_to_top: 0,
     typeinfo: 0, // unused by the lease's clone/call/destroy operations
+    dtor_complete: vt_dtor_complete,
+    dtor_deleting: vt_dtor_deleting,
     clone_heap: vt_clone_heap,
     clone_place: vt_clone_place,
     destroy: vt_destroy,
@@ -103,14 +113,15 @@ extern "C" fn pb_err_cb(_err: *const c_void) {
 
 struct Slot(UnsafeCell<StdFunction>);
 unsafe impl Sync for Slot {}
-static END_LEASE: Slot = Slot(UnsafeCell::new(StdFunction { buf: [0; 3], f: ptr::null_mut() }));
-static PB_ERR: Slot = Slot(UnsafeCell::new(StdFunction { buf: [0; 3], f: ptr::null_mut() }));
+static END_LEASE: Slot = Slot(UnsafeCell::new(StdFunction { buf: [0; 4], f: ptr::null_mut(), _pad: 0 }));
+static PB_ERR: Slot = Slot(UnsafeCell::new(StdFunction { buf: [0; 4], f: ptr::null_mut(), _pad: 0 }));
 static INIT: std::sync::Once = std::sync::Once::new();
 
 unsafe fn build(slot: *mut StdFunction, cb: extern "C" fn(*const c_void)) {
-    (*slot).buf[0] = ptr::addr_of!(VTABLE.clone_heap) as usize; // vptr → first virtual slot
+    (*slot).buf[0] = ptr::addr_of!(VTABLE.dtor_complete) as usize; // vptr → first virtual slot
     (*slot).buf[1] = cb as usize; // target
     (*slot).buf[2] = 0;
+    (*slot).buf[3] = 0;
     (*slot).f = ptr::addr_of_mut!((*slot).buf) as *mut c_void; // __f_ → this std::function's own buffer
 }
 

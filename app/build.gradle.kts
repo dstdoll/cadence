@@ -108,6 +108,7 @@ dependencies {
     implementation(libs.materialkolor)
 
     implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.media3.exoplayer.hls)
     implementation(libs.androidx.media3.session)
     implementation(libs.androidx.media3.ui.compose)
     // FFmpeg audio decoder for ExoPlayer: Android has no system ALAC decoder. GPL-3.0.

@@ -112,13 +112,13 @@ extern "C" {
     #[link_name = "_ZN22SVPlaybackLeaseManager12requestLeaseERKb"]
     fn lease_mgr_request_lease(this: *mut c_void, b: *const u8);
     #[link_name = "_ZN22SVPlaybackLeaseManager12requestAssetERKmRKNSt6__ndk16vectorINS2_12basic_stringIcNS2_11char_traitsIcEENS2_9allocatorIcEEEENS7_IS9_EEEERKb"]
-    fn lease_mgr_request_asset(ret: *mut SharedPtr, this: *mut c_void, adam: *const c_ulong, params: *const StdVector, b: *const u8);
+    fn lease_mgr_request_asset_raw();
     #[link_name = "_ZNK23SVPlaybackAssetResponse13hasValidAssetEv"]
     fn asset_resp_has_valid(this: *mut c_void) -> c_int;
     #[link_name = "_ZNK23SVPlaybackAssetResponse13playbackAssetEv"]
     fn asset_resp_playback_asset(this: *mut c_void) -> *mut SharedPtr;
     #[link_name = "_ZNK17storeservicescore13PlaybackAsset9URLStringEv"]
-    fn playback_asset_url(ret: *mut StdString, this: *mut c_void);
+    fn playback_asset_url_raw();
 
     // Token mint: HTTPMessage / URLRequest / URLResponse / Data.
     #[link_name = "_ZN13mediaplatform11HTTPMessageC2ENSt6__ndk112basic_stringIcNS1_11char_traitsIcEENS1_9allocatorIcEEEES7_"]
@@ -504,16 +504,27 @@ pub fn m3u8(adam: c_ulong) -> Option<String> {
     unsafe {
         let mgr = LEASE_MGR.0.get() as *mut c_void;
         let hls = ShortStr::new("HLS");
-        // vector<string> of one element, matching new_std_vector (begin, begin+1 byte, same).
+        // vector<string> of one element: end/end_cap sit 1 StdString (24 bytes) past begin.
         let elem = hls.as_stdstring_ptr() as *mut c_void;
+        let elem_end = (elem as *mut u8).add(std::mem::size_of::<StdString>()) as *mut c_void;
         let params = StdVector {
             begin: elem,
-            end: (elem as *mut u8).add(1) as *mut c_void,
-            end_cap: (elem as *mut u8).add(1) as *mut c_void,
+            end: elem_end,
+            end_cap: elem_end,
         };
         let z0: u8 = 0;
         let mut result = SharedPtr::NULL;
-        lease_mgr_request_asset(&mut result, mgr, &adam, &params, &z0);
+        let req_fn = lease_mgr_request_asset_raw as *const () as usize;
+        std::arch::asm!(
+            "blr {fn_ptr}",
+            fn_ptr = in(reg) req_fn,
+            in("x8") &mut result as *mut SharedPtr,
+            in("x0") mgr,
+            in("x1") &adam as *const c_ulong,
+            in("x2") &params as *const StdVector,
+            in("x3") &z0 as *const u8,
+            clobber_abi("C"),
+        );
         if result.obj.is_null() || asset_resp_has_valid(result.obj) == 0 {
             nlog("m3u8: url=(null)");
             return None;
@@ -522,9 +533,16 @@ pub fn m3u8(adam: c_ulong) -> Option<String> {
         if asset.is_null() || (*asset).obj.is_null() {
             return None;
         }
-        // URLString writes a std::string into our 24-byte slot (sret-by-pointer); read + copy it.
+        // URLString writes a std::string into our 24-byte slot (ARM64 sret in x8); read + copy it.
         let mut urlstr = [0u8; 24];
-        playback_asset_url(urlstr.as_mut_ptr() as *mut StdString, (*asset).obj);
+        let url_fn = playback_asset_url_raw as *const () as usize;
+        std::arch::asm!(
+            "blr {fn_ptr}",
+            fn_ptr = in(reg) url_fn,
+            in("x8") urlstr.as_mut_ptr() as *mut StdString,
+            in("x0") (*asset).obj,
+            clobber_abi("C"),
+        );
         let data = sys::StdString::data(urlstr.as_ptr() as *const StdString);
         if data.is_null() {
             return None;

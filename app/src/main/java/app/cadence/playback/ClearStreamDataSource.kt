@@ -15,6 +15,7 @@ import androidx.media3.datasource.TransferListener
 import app.cadence.backend.engine.stream.ClearStreamReader
 import app.cadence.backend.engine.stream.StreamCache
 import app.cadence.backend.engine.stream.StreamPlayback
+import app.cadence.backend.engine.stream.WebPlayback
 import java.io.IOException
 
 /**
@@ -68,26 +69,85 @@ class ClearStreamDataSource(private val cache: StreamCache) : BaseDataSource(/* 
     }
 }
 
+@OptIn(UnstableApi::class)
+class WebPlaylistDataSource(private val context: Context) : BaseDataSource(/* isNetwork = */ true) {
+    private var uri: Uri? = null
+    private var bytes: ByteArray? = null
+    private var offset = 0
+    private var opened = false
+
+    override fun open(dataSpec: DataSpec): Long {
+        uri = dataSpec.uri
+        transferInitializing(dataSpec)
+        val trackId = WebPlayback.trackIdOf(dataSpec.uri.toString())
+            ?: throw IOException("Not a web playback URI: ${dataSpec.uri}")
+        val data = WebPlayback.resolvePlaylistBytes(context, trackId)
+        val pos = dataSpec.position.toInt().coerceAtLeast(0)
+        if (pos > data.size) throw DataSourceException(PlaybackException.ERROR_CODE_IO_READ_POSITION_OUT_OF_RANGE)
+        bytes = data
+        offset = pos
+        opened = true
+        transferStarted(dataSpec)
+        return (data.size - pos).toLong()
+    }
+
+    override fun read(buffer: ByteArray, dstOffset: Int, length: Int): Int {
+        if (length == 0) return 0
+        val data = bytes ?: return C.RESULT_END_OF_INPUT
+        val rem = data.size - offset
+        if (rem <= 0) return C.RESULT_END_OF_INPUT
+        val count = minOf(length, rem)
+        System.arraycopy(data, offset, buffer, dstOffset, count)
+        offset += count
+        bytesTransferred(count)
+        return count
+    }
+
+    override fun getUri(): Uri? = uri
+
+    override fun close() {
+        uri = null
+        bytes = null
+        offset = 0
+        if (opened) {
+            opened = false
+            transferEnded()
+        }
+    }
+}
+
 /**
  * Data sources for the player: catalogue tracks ([StreamPlayback.SCHEME]) come from the decrypted
- * stream cache, everything else (local files, plain URLs) from the default.
+ * stream cache, AAC-only tracks ([WebPlayback.SCHEME]) resolve via Web Playback, and everything else
+ * (local files, plain URLs, Widevine segments) comes from the default.
  */
 @OptIn(UnstableApi::class)
 class CadenceDataSourceFactory(context: Context, private val cache: StreamCache) : DataSource.Factory {
-    private val fallback = DefaultDataSource.Factory(context.applicationContext)
+    private val appContext = context.applicationContext
+    private val fallback = DefaultDataSource.Factory(appContext)
 
-    override fun createDataSource(): DataSource = Routing(fallback.createDataSource(), ClearStreamDataSource(cache))
+    override fun createDataSource(): DataSource =
+        Routing(fallback.createDataSource(), ClearStreamDataSource(cache), WebPlaylistDataSource(appContext))
 
-    private class Routing(private val fallback: DataSource, private val stream: DataSource) : DataSource {
+    private class Routing(
+        private val fallback: DataSource,
+        private val stream: DataSource,
+        private val web: DataSource,
+    ) : DataSource {
         private var active: DataSource? = null
 
         override fun addTransferListener(transferListener: TransferListener) {
             fallback.addTransferListener(transferListener)
             stream.addTransferListener(transferListener)
+            web.addTransferListener(transferListener)
         }
 
         override fun open(dataSpec: DataSpec): Long {
-            val target = if (dataSpec.uri.scheme == StreamPlayback.SCHEME) stream else fallback
+            val target = when (dataSpec.uri.scheme) {
+                StreamPlayback.SCHEME -> stream
+                WebPlayback.SCHEME -> web
+                else -> fallback
+            }
             active = target
             return target.open(dataSpec)
         }

@@ -8,6 +8,7 @@ import android.net.Uri
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.Player
 import androidx.media3.common.Format
 import androidx.media3.common.Tracks
@@ -271,11 +272,20 @@ class PlayerController(
             }.toByteArray()
             meta.setArtworkData(art, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
         }
-        return MediaItem.Builder()
+        val audioUri = repo.audioUri(t)
+        val builder = MediaItem.Builder()
             .setMediaId(t.id)
-            .setUri(Uri.parse(repo.audioUri(t)))
+            .setUri(Uri.parse(audioUri))
             .setMediaMetadata(meta.build())
-            .build()
+        if (audioUri.startsWith(app.cadence.backend.engine.stream.WebPlayback.SCHEME)) {
+            builder.setMimeType(MimeTypes.APPLICATION_M3U8)
+            builder.setDrmConfiguration(
+                MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
+                    .setLicenseUri("https://cadence.local/widevine/${t.id}")
+                    .build(),
+            )
+        }
+        return builder.build()
     }
 
     private fun sync() {
