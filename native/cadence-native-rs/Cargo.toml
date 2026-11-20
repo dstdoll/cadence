@@ -19,8 +19,14 @@ cadence-eac3 = { path = "../cadence-eac3" }
 jni = "0.21"
 libc = "0.2"
 
+[features]
+# Device self-test of the C++ exception guard (never in release builds). See src/selftest.rs.
+selftest = []
+
 [profile.release]
 strip = "symbols"
 lto = "thin"
 codegen-units = 1
-panic = "abort"
+# "unwind" is required for cxx_guard (an Apple C++ throw through Rust frames aborts under "abort").
+# JNI_OnLoad installs an abort panic hook, so Rust panics still kill the process.
+panic = "unwind"

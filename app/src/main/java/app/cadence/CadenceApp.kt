@@ -55,6 +55,7 @@ class CadenceApp : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
+        NativeNoticeToasts.install(this)
     }
 }
 

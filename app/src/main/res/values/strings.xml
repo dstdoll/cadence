@@ -698,4 +698,15 @@
     <string name="update_action_cancel">Cancel</string>
     <string name="update_action_skip">Skip this version</string>
     <string name="update_action_browser">Open release page</string>
+
+    <!-- Native engine errors that were caught (the app keeps running). Details are in the log. -->
+    <string name="native_notice_key_rejected">Couldn\'t unlock a track: Apple\'s key service rejected it. It was skipped.</string>
+    <string name="native_notice_lease_or_asset">A track couldn\'t start playing and was skipped.</string>
+    <string name="native_notice_decrypt">A track couldn\'t be decrypted and was skipped.</string>
+    <string name="native_notice_sign_in">Sign-in hit an error inside Apple\'s library. Please try again.</string>
+    <string name="native_notice_token_mint">Couldn\'t refresh your Apple Music session. Try signing in again.</string>
+    <string name="native_notice_engine_init">The playback engine hit an error while starting. Restart the app if nothing plays.</string>
+    <string name="native_notice_out_of_memory">The playback engine ran low on memory. Close other apps if playback stutters.</string>
+    <string name="native_notice_previous_crash">Cadence closed unexpectedly last time. Details were saved to the log.</string>
+    <string name="native_notice_unknown">Something went wrong in the playback engine. It was handled; details are in the log.</string>
 </resources>

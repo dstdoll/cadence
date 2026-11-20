@@ -20,7 +20,7 @@ export AR_aarch64_linux_android="$BIN/llvm-ar"
 export CFLAGS_aarch64_linux_android="-ffile-prefix-map=$HOME=/home -ffile-prefix-map=$ROOT=/src"
 export CXXFLAGS_aarch64_linux_android="$CFLAGS_aarch64_linux_android"
 # The most specific prefix goes last: rustc applies the last matching remapping.
-export RUSTFLAGS="--remap-path-prefix=$HOME=/home --remap-path-prefix=${CARGO_HOME:-$HOME/.cargo}=/cargo --remap-path-prefix=$ROOT=/src -C link-arg=-Wl,-z,max-page-size=16384"
+export RUSTFLAGS="--remap-path-prefix=$HOME=/home --remap-path-prefix=${CARGO_HOME:-$HOME/.cargo}=/cargo --remap-path-prefix=$ROOT=/src -C target-cpu=generic -C link-arg=-Wl,-z,max-page-size=16384"
 OUT="$ROOT/backend/src/main/jniLibs/arm64-v8a"
 
 build() { # crate directory, file cargo produces, name in jniLibs
@@ -30,6 +30,14 @@ build() { # crate directory, file cargo produces, name in jniLibs
     echo "built $3"
 }
 
+# libcadence-native resolves __gxx_personality_v0 / __cxa_* (the C++ exception guard) from the same
+# libc++_shared.so that Apple's libraries throw with: it must stay in NEEDED.
+check_cxx_runtime() {
+    "$BIN/llvm-readelf" -d "$OUT/libcadence-native.so" | grep -q 'NEEDED.*libc++_shared.so' \
+        || { echo "libcadence-native.so lost its libc++_shared.so dependency" >&2; exit 1; }
+}
+
 build cadence-android-drm libcadence_android_drm.so libcadence_android_drm.so
 build cadence-native-rs libcadence_native.so libcadence-native.so
 # libcadence_auth_android.so is prebuilt: its core crate is not part of this repository.
+check_cxx_runtime

@@ -1,0 +1,19 @@
+{
+  global:
+    core_wrapper_decrypt_sample;
+    core_wrapper_decrypt_m4p_sample;
+    JNI_OnLoad;
+    cadence_selftest_throw;
+    cadence_selftest_throw_int;
+    cadence_selftest_throw_custom;
+    cadence_selftest_throw_message;
+    cadence_selftest_poison;
+    cadence_selftest_ok;
+    cadence_selftest_asm_throw;
+    cadence_selftest_panic;
+    cadence_selftest_crash;
+    cadence_selftest_uncaught;
+    cadence_selftest_throw_count;
+    cadence_selftest_event;
+    cadence_selftest_install_hooks;
+};

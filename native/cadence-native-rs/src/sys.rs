@@ -107,7 +107,9 @@ pub fn sym(name: &CStr) -> Option<usize> {
 
 // ---- representative StoreServices bindings (Phase 0: prove the shapes compile) -------------------
 // These are linked by their mangled C++ names; the final module will group them by subsystem.
-extern "C" {
+// Every function here is an Apple C++ call: `apple_externs!` runs it under the C++ exception catch
+// (see `cxx_guard`); a throw returns zero and skips the rest of the entry point.
+apple_externs! {
     /// `std::make_shared<RequestContext>(std::string&)` → shared_ptr (sret).
     #[link_name = "_ZNSt6__ndk110shared_ptrIN17storeservicescore14RequestContextEE11make_sharedIJRNS_12basic_stringIcNS_11char_traitsIcEENS_9allocatorIcEEEEEEES3_DpOT_"]
     pub fn make_request_ctx(path: *const StdString) -> SretShared;

@@ -57,11 +57,13 @@ class RealBackend(context: Context, config: AmpConfig) : BackendServices {
      */
     private val catalogCache = java.io.File(context.filesDir, "catalog_cache.json")
     private val accountMarker = java.io.File(context.filesDir, "catalog_account.txt")
+    private val favoritesDb = FavoritesDb(context)
     init {
         val fingerprint = "${effective.storefront}:${effective.mediaUserToken.hashCode()}"
         val previous = runCatching { accountMarker.readText() }.getOrNull()
         if (previous != fingerprint) {
             catalogCache.delete()
+            runCatching { favoritesDb.clear() }
             runCatching { accountMarker.writeText(fingerprint) }
             app.cadence.backend.engine.CadenceLog.i(
                 "cache",
@@ -70,7 +72,7 @@ class RealBackend(context: Context, config: AmpConfig) : BackendServices {
         }
     }
 
-    private val catalogImpl = RealCatalog(engine, catalogCache)
+    private val catalogImpl = RealCatalog(engine, catalogCache, favoritesDb)
 
     override val catalog: MusicRepository = this.catalogImpl
     override val search: SearchService = RealSearchService(this.catalogImpl)
@@ -99,7 +101,14 @@ class RealBackend(context: Context, config: AmpConfig) : BackendServices {
             // refusal is not repeated seconds later.
             var retryMissingToken = auth.session.value != null
             auth.session.collect { session ->
-                if (session == null) return@collect
+                if (session == null) {
+                    if (loadedFor != null) {
+                        loadedFor = null
+                        catalogCache.delete()
+                        catalogImpl.clearFavorites()
+                    }
+                    return@collect
+                }
                 val token = session.refreshToken.ifBlank { session.accessToken }
                 engine.updateAccount(token, null)
                 if (retryMissingToken) {
@@ -110,6 +119,10 @@ class RealBackend(context: Context, config: AmpConfig) : BackendServices {
                     }
                 }
                 if (token == loadedFor) return@collect
+                if (loadedFor != null && loadedFor!!.isNotBlank() && token != loadedFor) {
+                    catalogCache.delete()
+                    catalogImpl.clearFavorites()
+                }
                 loadedFor = token
                 runCatching {
                     catalogImpl.seedBrowse()

@@ -696,4 +696,15 @@
     <string name="update_action_cancel">Cancelar</string>
     <string name="update_action_skip">Omitir esta versión</string>
     <string name="update_action_browser">Abrir página de lanzamiento</string>
+
+    <!-- Errores del motor nativo que se capturaron (la app sigue funcionando). Los detalles están en el registro. -->
+    <string name="native_notice_key_rejected">No se pudo desbloquear una canción: el servicio de claves de Apple la rechazó. Se omitió.</string>
+    <string name="native_notice_lease_or_asset">Una canción no pudo empezar a reproducirse y se omitió.</string>
+    <string name="native_notice_decrypt">Una canción no se pudo descifrar y se omitió.</string>
+    <string name="native_notice_sign_in">El inicio de sesión tuvo un error dentro de la biblioteca de Apple. Inténtalo de nuevo.</string>
+    <string name="native_notice_token_mint">No se pudo renovar tu sesión de Apple Music. Intenta iniciar sesión de nuevo.</string>
+    <string name="native_notice_engine_init">El motor de reproducción tuvo un error al iniciar. Reinicia la app si no suena nada.</string>
+    <string name="native_notice_out_of_memory">El motor de reproducción se quedó con poca memoria. Cierra otras apps si la reproducción se entrecorta.</string>
+    <string name="native_notice_previous_crash">Cadence se cerró inesperadamente la última vez. Los detalles se guardaron en el registro.</string>
+    <string name="native_notice_unknown">Algo salió mal en el motor de reproducción. Se controló; los detalles están en el registro.</string>
 </resources>

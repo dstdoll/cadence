@@ -4,12 +4,19 @@
 //! over their C++ ABI (see `sys`/`bridges`). The library is now 100% Rust — JNI_OnLoad + the crash
 //! handler live in `support`, and the lease std::function callbacks in `cppfn`; no C/C++ is compiled.
 
+#[macro_use]
+mod cxx_guard;
+mod apple_errors;
+mod events;
+mod logfmt;
 mod bridges;
 mod core;
 mod cppfn;
 mod engine;
 mod identity;
 mod support;
+#[cfg(feature = "selftest")]
+mod selftest;
 mod sys;
 
 use jni::objects::{JByteArray, JByteBuffer, JClass, JString};
@@ -78,7 +85,12 @@ pub unsafe extern "C" fn core_wrapper_decrypt_sample(kd: *mut c_void, sample: *m
     if state.is_null() {
         return -2;
     }
+    let scope = crate::cxx_guard::Scope::named("decrypt_sample", "");
     let _rc = sys::nfc_decrypt_sample(state, 5, sample as *mut c_void, sample as *mut c_void, size);
+    if scope.threw() {
+        // Must not escape: the DRM crate (panic = "abort") calls this through dlsym.
+        return -4;
+    }
     0
 }
 

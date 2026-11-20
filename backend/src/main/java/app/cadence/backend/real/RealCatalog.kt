@@ -28,6 +28,7 @@ class RealCatalog(
     private val engine: AmpEngine,
     /** Where the last good catalogue is snapshotted, so first paint works offline. */
     private val cacheFile: java.io.File? = null,
+    private val favoritesStore: FavoritesStore? = null,
 ) : app.cadence.backend.api.MusicRepository {
 
     // The UI reads these from the main thread while the seed, searches and detail loads write
@@ -201,6 +202,7 @@ class RealCatalog(
 
     /** Restores the last snapshot. Returns true when the catalogue is usable. */
     fun loadCache(): Boolean {
+        hydrateFavoritesFromStore()
         val file = cacheFile ?: return false
         if (!file.exists()) return false
         return runCatching {
@@ -398,19 +400,61 @@ class RealCatalog(
 
     @Volatile private var accountPlaylists: List<Playlist> = emptyList()
     @Volatile private var favoriteIds: Set<String> = emptySet()
+    @Volatile private var libraryLoaded = false
+    private val favLock = Any()
     override val libraryPlaylists: List<Playlist> get() = accountPlaylists
     override val favoriteTrackIds: Set<String> get() = favoriteIds
 
+    internal fun hydrateFavoritesFromStore() {
+        val store = favoritesStore ?: return
+        val (ids, infos) = runCatching { store.loadAll() }.getOrNull() ?: return
+        if (infos.isNotEmpty()) {
+            for (info in infos) {
+                artistMap.putIfAbsent(info.artist.id, info.artist)
+                albumMap.putIfAbsent(info.album.id, info.album)
+                trackMap.putIfAbsent(info.id, info)
+            }
+        }
+        synchronized(favLock) {
+            if (!libraryLoaded) {
+                favoriteIds = ids
+            }
+        }
+        if (ids.isNotEmpty()) changed()
+    }
+
+    /** Clears in-memory and persisted account favourites (e.g. on sign-out or account switch). */
+    fun clearFavorites() {
+        runCatching { favoritesStore?.clear() }
+        synchronized(favLock) {
+            libraryLoaded = false
+            favoriteIds = emptySet()
+        }
+        changed()
+    }
+
     /**
-     * Pushes a favourite to the real account via Apple's ratings endpoint (love = 1, or clears it),
-     * then updates [favoriteTrackIds] locally so the UI reflects it without waiting for the next
-     * profile sync. Only mutates local state when the service accepted the change.
+     * Persists the favourite locally first (`pending_add` / `pending_remove`) so cold boots and
+     * offline toggles never lose state, then pushes to Apple's ratings endpoint.
      */
     override suspend fun setFavorite(trackId: String, favorite: Boolean): Boolean {
+        val info = track(trackId)
+        favoritesStore?.let { store ->
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching { store.upsertLocal(info, trackId, favorite) }
+            }
+        }
+        synchronized(favLock) {
+            favoriteIds = if (favorite) favoriteIds + trackId else favoriteIds - trackId
+        }
+        changed()
         val ok = engine.rateSong(trackId, if (favorite) 1 else null)
         if (ok) {
-            favoriteIds = if (favorite) favoriteIds + trackId else favoriteIds - trackId
-            changed()
+            favoritesStore?.let { store ->
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    runCatching { store.markSynced(trackId, favorite) }
+                }
+            }
         }
         return ok
     }
@@ -421,6 +465,18 @@ class RealCatalog(
      * are loaded here and exposed as [favoriteTrackIds].
      */
     suspend fun loadLibrary() {
+        favoritesStore?.let { store ->
+            val pending = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching { store.pendingOps() }.getOrDefault(emptyList())
+            }
+            for ((id, fav) in pending) {
+                if (engine.rateSong(id, if (fav) 1 else null)) {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        runCatching { store.markSynced(id, fav) }
+                    }
+                }
+            }
+        }
         val data = engine.libraryPlaylists()?.optJSONArray("data") ?: return
         val loaded = accountPlaylists.filter { it.trackIds.isNotEmpty() }.associateBy { it.id }
         val fresh = ArrayList<Playlist>(data.length())
@@ -432,7 +488,26 @@ class RealCatalog(
         }
         accountPlaylists = fresh
         CadenceLog.i("library", "account playlists=${fresh.size} favourites=${favorites != null}")
-        favorites?.let { id -> favoriteIds = preparePlaylist(id).map { it.id }.toSet() }
+        if (favorites != null) {
+            val favTracks = preparePlaylist(favorites)
+            if (favoritesStore != null) {
+                val mergedIds = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    runCatching {
+                        favoritesStore.reconcileRemote(favTracks)
+                        favoritesStore.loadAll().first
+                    }.getOrNull()
+                }
+                synchronized(favLock) {
+                    libraryLoaded = true
+                    if (mergedIds != null) favoriteIds = mergedIds
+                }
+            } else {
+                synchronized(favLock) {
+                    libraryLoaded = true
+                    favoriteIds = favTracks.map { it.id }.toSet()
+                }
+            }
+        }
         CadenceLog.i("library", "favourite songs=${favoriteIds.size}")
         changed()
     }

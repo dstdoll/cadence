@@ -20,20 +20,50 @@ use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::{Condvar, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::cxx_guard;
+
 // ---- StoreServices symbol bindings (methods/accessors; the sret-returning ones go through bridges) -
+// libc / bionic (plain C: nothing here throws).
 extern "C" {
     fn _resolv_set_nameservers_for_net(netid: u32, servers: *const *const c_char, num: c_int, domains: *const c_char, params: *const c_void);
     fn setenv(name: *const c_char, value: *const c_char, overwrite: c_int) -> c_int;
+}
 
+// Addresses only: these are called through inline asm below (sret/arg layout), each inside its own
+// guarded thunk, never directly.
+extern "C" {
+    #[link_name = "_ZN22SVPlaybackLeaseManager12requestAssetERKmRKNSt6__ndk16vectorINS2_12basic_stringIcNS2_11char_traitsIcEENS2_9allocatorIcEEEENS7_IS9_EEEERKb"]
+    fn lease_mgr_request_asset_raw();
+    #[link_name = "_ZNK17storeservicescore13PlaybackAsset9URLStringEv"]
+    fn playback_asset_url_raw();
+    #[link_name = "_ZN10FootHillSF9getSFDataEv"]
+    fn foothill_sf_get_sf_data_raw();
+    #[link_name = "_ZN10FootHillSF10getSF2DataEv"]
+    fn foothill_sf_get_sf2_data_raw();
+    #[link_name = "_ZN10FootHillSF9getDpInfoEv"]
+    fn foothill_sf_get_dp_info_raw();
+    #[link_name = "_ZN18SVDecryptorFactory6createERKN11SVDecryptor15SVDecryptorTypeEPKhRKjS5_S7_RKNS0_20SVDecryptorTrackTypeERKbSC_"]
+    fn sv_decryptor_factory_create_raw();
+}
+
+// `__shared_ptr_emplace` vtables for the objects we construct in place.
+extern "C" {
+    // __shared_ptr_emplace vtables for the objects we construct in place.
+    static _ZTVNSt6__ndk120__shared_ptr_emplaceIN17storeservicescore22ProtocolDialogResponseENS_9allocatorIS2_EEEE: usize;
+    static _ZTVNSt6__ndk120__shared_ptr_emplaceIN17storeservicescore19CredentialsResponseENS_9allocatorIS2_EEEE: usize;
+    static _ZTVNSt6__ndk120__shared_ptr_emplaceIN17storeservicescore20RequestContextConfigENS_9allocatorIS2_EEEE: usize;
+    static _ZTVNSt6__ndk120__shared_ptr_emplaceIN13mediaplatform11HTTPMessageENS_9allocatorIS2_EEEE: usize;
+}
+
+// Apple C++ functions. Each becomes a same-named `unsafe fn` that runs under the C++ exception catch
+// (see `cxx_guard`); a throw returns zero and skips the rest of the entry point.
+apple_externs! {
     #[link_name = "_ZN14FootHillConfig6configERKNSt6__ndk112basic_stringIcNS0_11char_traitsIcEENS0_9allocatorIcEEEE"]
     fn foothill_config(s: *const StdString);
-
     #[link_name = "_ZN21SVFootHillSessionCtrl8instanceEv"]
     fn fhsession_instance() -> *mut c_void;
-
     #[link_name = "_ZNK18SVFootHillPContext9kdContextEv"]
     fn pcontext_kd_context(this: *mut c_void) -> *mut *mut c_void;
-
     // RequestContext / RequestContextConfig / Manager.
     #[link_name = "_ZN21RequestContextManager9configureERKNSt6__ndk110shared_ptrIN17storeservicescore14RequestContextEEE"]
     fn reqctx_manager_configure(reqctx_sp: *mut SharedPtr);
@@ -61,7 +91,6 @@ extern "C" {
     fn reqcfg_set_locale_id(this: *mut c_void, s: *const StdString);
     #[link_name = "_ZN17storeservicescore20RequestContextConfig21setLanguageIdentifierERKNSt6__ndk112basic_stringIcNS1_11char_traitsIcEENS1_9allocatorIcEEEE"]
     fn reqcfg_set_language_id(this: *mut c_void, s: *const StdString);
-
     // AndroidPresentationInterface handlers + response delivery.
     #[link_name = "_ZN20androidstoreservices28AndroidPresentationInterface16setDialogHandlerEPFvlNSt6__ndk110shared_ptrIN17storeservicescore14ProtocolDialogEEENS2_INS_36AndroidProtocolDialogResponseHandlerEEEE"]
     fn ap_set_dialog_handler(this: *mut c_void, cb: extern "C" fn(c_long, *mut SharedPtr, *mut SharedPtr));
@@ -71,7 +100,6 @@ extern "C" {
     fn ap_handle_dialog_response(this: *mut c_void, j: *const c_long, resp: *mut SharedPtr);
     #[link_name = "_ZN20androidstoreservices28AndroidPresentationInterface25handleCredentialsResponseERKNSt6__ndk110shared_ptrIN17storeservicescore19CredentialsResponseEEE"]
     fn ap_handle_credentials_response(this: *mut c_void, resp: *mut SharedPtr);
-
     // ProtocolDialog / ProtocolButton / ProtocolDialogResponse.
     #[link_name = "_ZNK17storeservicescore14ProtocolDialog5titleEv"]
     fn dialog_title(this: *mut c_void) -> *mut StdString;
@@ -83,7 +111,6 @@ extern "C" {
     fn dialog_response_ctor(this: *mut c_void);
     #[link_name = "_ZN17storeservicescore22ProtocolDialogResponse17setSelectedButtonERKNSt6__ndk110shared_ptrINS_14ProtocolButtonEEE"]
     fn dialog_response_set_button(this: *mut c_void, button: *mut SharedPtr);
-
     // CredentialsRequest / CredentialsResponse.
     #[link_name = "_ZNK17storeservicescore18CredentialsRequest28requiresHSA2VerificationCodeEv"]
     fn cred_req_requires_2fa(this: *mut c_void) -> u8;
@@ -95,7 +122,6 @@ extern "C" {
     fn cred_response_set_pass(this: *mut c_void, s: *const StdString);
     #[link_name = "_ZN17storeservicescore19CredentialsResponse15setResponseTypeENS0_12ResponseTypeE"]
     fn cred_response_set_type(this: *mut c_void, ty: c_int);
-
     // AuthenticateFlow / AuthenticateResponse.
     #[link_name = "_ZN17storeservicescore16AuthenticateFlow3runEv"]
     fn auth_flow_run(this: *mut c_void);
@@ -103,7 +129,6 @@ extern "C" {
     fn auth_flow_response(this: *mut c_void) -> *mut SharedPtr;
     #[link_name = "_ZNK17storeservicescore20AuthenticateResponse12responseTypeEv"]
     fn auth_response_type(this: *mut c_void) -> c_int;
-
     // Playback lease + asset.
     #[link_name = "_ZN22SVPlaybackLeaseManagerC2ERKNSt6__ndk18functionIFvRKiEEERKNS1_IFvRKNS0_10shared_ptrIN17storeservicescore19StoreErrorConditionEEEEEE"]
     fn lease_mgr_ctor(this: *mut c_void, end_cb: *const c_void, err_cb: *const c_void);
@@ -111,15 +136,10 @@ extern "C" {
     fn lease_mgr_refresh_auto(this: *mut c_void, b: *const u8);
     #[link_name = "_ZN22SVPlaybackLeaseManager12requestLeaseERKb"]
     fn lease_mgr_request_lease(this: *mut c_void, b: *const u8);
-    #[link_name = "_ZN22SVPlaybackLeaseManager12requestAssetERKmRKNSt6__ndk16vectorINS2_12basic_stringIcNS2_11char_traitsIcEENS2_9allocatorIcEEEENS7_IS9_EEEERKb"]
-    fn lease_mgr_request_asset_raw();
     #[link_name = "_ZNK23SVPlaybackAssetResponse13hasValidAssetEv"]
     fn asset_resp_has_valid(this: *mut c_void) -> c_int;
     #[link_name = "_ZNK23SVPlaybackAssetResponse13playbackAssetEv"]
     fn asset_resp_playback_asset(this: *mut c_void) -> *mut SharedPtr;
-    #[link_name = "_ZNK17storeservicescore13PlaybackAsset9URLStringEv"]
-    fn playback_asset_url_raw();
-
     // Token mint: HTTPMessage / URLRequest / URLResponse / Data.
     #[link_name = "_ZN13mediaplatform11HTTPMessageC2ENSt6__ndk112basic_stringIcNS1_11char_traitsIcEENS1_9allocatorIcEEEES7_"]
     fn http_message_ctor(this: *mut c_void, url: *const StdString, method: *const StdString);
@@ -139,7 +159,6 @@ extern "C" {
     fn url_request_response(this: *mut c_void) -> *mut SharedPtr;
     #[link_name = "_ZNK17storeservicescore11URLResponse18underlyingResponseEv"]
     fn url_response_underlying(this: *mut c_void) -> *mut SharedPtr;
-
     // StoreErrorCondition accessors, to log why a request failed. `what` is the message (the
     // condition's own string); the two codes are references to values stored inside the object.
     #[link_name = "_ZNK17storeservicescore19StoreErrorCondition4whatEv"]
@@ -148,30 +167,53 @@ extern "C" {
     fn store_error_code(this: *mut c_void) -> *const i32;
     #[link_name = "_ZNK17storeservicescore19StoreErrorCondition17externalErrorCodeEv"]
     fn store_error_external(this: *mut c_void) -> *const i64;
-
-    // __shared_ptr_emplace vtables for the objects we construct in place.
-    static _ZTVNSt6__ndk120__shared_ptr_emplaceIN17storeservicescore22ProtocolDialogResponseENS_9allocatorIS2_EEEE: usize;
-    static _ZTVNSt6__ndk120__shared_ptr_emplaceIN17storeservicescore19CredentialsResponseENS_9allocatorIS2_EEEE: usize;
-    static _ZTVNSt6__ndk120__shared_ptr_emplaceIN17storeservicescore20RequestContextConfigENS_9allocatorIS2_EEEE: usize;
-    static _ZTVNSt6__ndk120__shared_ptr_emplaceIN13mediaplatform11HTTPMessageENS_9allocatorIS2_EEEE: usize;
-
     #[link_name = "_ZNK13mediaplatform4Data5bytesEv"]
     fn data_bytes(this: *mut c_void) -> *const c_char;
     #[link_name = "_ZNK13mediaplatform4Data6lengthEv"]
     fn data_length(this: *const c_void) -> usize;
     #[link_name = "_ZN10FootHillSFC1ERKNSt6__ndk110shared_ptrIN17storeservicescore13PlaybackAssetEEE"]
     fn foothill_sf_ctor(this: *mut c_void, asset: *const SharedPtr);
-    #[link_name = "_ZN10FootHillSF9getSFDataEv"]
-    fn foothill_sf_get_sf_data_raw();
-    #[link_name = "_ZN10FootHillSF10getSF2DataEv"]
-    fn foothill_sf_get_sf2_data_raw();
-    #[link_name = "_ZN10FootHillSF9getDpInfoEv"]
-    fn foothill_sf_get_dp_info_raw();
-    #[link_name = "_ZN18SVDecryptorFactory6createERKN11SVDecryptor15SVDecryptorTypeEPKhRKjS5_S7_RKNS0_20SVDecryptorTrackTypeERKbSC_"]
-    fn sv_decryptor_factory_create_raw();
+    #[allow(non_snake_case)]
     fn YHrWZQ6wU(state: *mut c_void, inp: *const u8, len: u32, out: *mut u8, flags: usize) -> i32;
     #[link_name = "_ZNSt6__ndk119__shared_weak_count16__release_sharedEv"]
     fn cpp_release_shared(ctrl: *mut c_void);
+}
+
+// ---- guarded calls made through inline asm -------------------------------------------------------
+// A few Apple methods return a `shared_ptr`/`std::string` in x8 with an argument layout Rust cannot
+// express, so they are called with `blr`. Each such call runs inside this one thunk, under the C++
+// exception catch (see `cxx_guard`): x8 is the sret slot, x0..x7 the arguments. Returns false when
+// the call was skipped or threw (the sret slot is then left as the caller initialised it).
+#[repr(C)]
+struct AsmCall {
+    f: usize,
+    x8: usize,
+    x: [usize; 8],
+}
+const _: () = assert!(!std::mem::needs_drop::<AsmCall>());
+extern "C-unwind" fn asm_call_thunk(p: *mut c_void) {
+    let a = unsafe { &*(p as *const AsmCall) };
+    // SAFETY: `a.f` is the address of an Apple function taking these registers (see each caller).
+    unsafe {
+        std::arch::asm!(
+            "blr {f}",
+            f = in(reg) a.f,
+            in("x8") a.x8,
+            in("x0") a.x[0],
+            in("x1") a.x[1],
+            in("x2") a.x[2],
+            in("x3") a.x[3],
+            in("x4") a.x[4],
+            in("x5") a.x[5],
+            in("x6") a.x[6],
+            in("x7") a.x[7],
+            clobber_abi("C"),
+        );
+    }
+}
+pub(crate) unsafe fn asm_call(name: &'static str, f: unsafe extern "C" fn(), x8: usize, x: [usize; 8]) -> bool {
+    let mut c = AsmCall { f: f as *const () as usize, x8, x };
+    cxx_guard::run(name, f as *const () as usize, asm_call_thunk, &mut c as *mut AsmCall as *mut c_void)
 }
 
 // ---- process-wide state (the C globals) --------------------------------------------------------
@@ -347,7 +389,7 @@ pub fn init_ctx() -> *mut c_void {
         reqcfg_ctor(cfg.obj);
 
         reqcfg_set_base_dir(cfg.obj, &path as *const StdString);
-        let set = |f: unsafe extern "C" fn(*mut c_void, *const StdString), v: &str| {
+        let set = |f: unsafe fn(*mut c_void, *const StdString), v: &str| {
             let c = CString::new(v).unwrap_or_default();
             let s = StdString::borrow(&c);
             f(cfg.obj, &s as *const StdString);
@@ -399,6 +441,9 @@ pub fn instance() -> *mut c_void {
 // ---- sign-in handlers (run on a StoreServices thread during login) ------------------------------
 
 extern "C" fn dialog_handler(j: c_long, proto_dialog: *mut SharedPtr, _resp_handler: *mut SharedPtr) {
+    // Runs on an Apple-created thread. The Apple calls made here are ours to guard; a throw that
+    // starts above this frame cannot be caught. A throw skips the response (the flow then times out).
+    let _scope = cxx_guard::Scope::named("dialog_handler", "");
     unsafe {
         let apinf_sp = AP_INF.load(Ordering::Acquire);
         if apinf_sp.is_null() || proto_dialog.is_null() {
@@ -409,7 +454,11 @@ extern "C" fn dialog_handler(j: c_long, proto_dialog: *mut SharedPtr, _resp_hand
             return;
         }
         let dialog_obj = (*proto_dialog).obj;
-        let title = cstr_of(sys::StdString::data(dialog_title(dialog_obj)));
+        let title_ptr = dialog_title(dialog_obj);
+        if title_ptr.is_null() {
+            return;
+        }
+        let title = cstr_of(sys::StdString::data(title_ptr));
 
         // ProtocolDialogResponse in heap (libc::calloc so retaining the shared_ptr past return cannot UAF stack).
         let buf = libc::calloc(1, 72) as *mut u8;
@@ -425,7 +474,11 @@ extern "C" fn dialog_handler(j: c_long, proto_dialog: *mut SharedPtr, _resp_hand
                 let mut b = (*buttons).begin as *mut SharedPtr;
                 let end = (*buttons).end as *mut SharedPtr;
                 while b != end {
-                    let bt = cstr_of(sys::StdString::data(button_title((*b).obj)));
+                    let bt_ptr = button_title((*b).obj);
+                    if bt_ptr.is_null() {
+                        break;
+                    }
+                    let bt = cstr_of(sys::StdString::data(bt_ptr));
                     if bt == "Use Existing Apple ID" {
                         dialog_response_set_button(resp.obj, b);
                         break;
@@ -440,6 +493,7 @@ extern "C" fn dialog_handler(j: c_long, proto_dialog: *mut SharedPtr, _resp_hand
 }
 
 extern "C" fn credential_handler(cred_req: *mut SharedPtr, _cred_resp_handler: *mut SharedPtr) {
+    let _scope = cxx_guard::Scope::named("credential_handler", ""); // see dialog_handler
     unsafe {
         let apinf_sp = AP_INF.load(Ordering::Acquire);
         if apinf_sp.is_null() || cred_req.is_null() {
@@ -540,17 +594,8 @@ pub fn m3u8(adam: c_ulong) -> Option<String> {
         };
         let z0: u8 = 0;
         let mut result = SharedPtr::NULL;
-        let req_fn = lease_mgr_request_asset_raw as *const () as usize;
-        std::arch::asm!(
-            "blr {fn_ptr}",
-            fn_ptr = in(reg) req_fn,
-            in("x8") &mut result as *mut SharedPtr,
-            in("x0") mgr,
-            in("x1") &adam as *const c_ulong,
-            in("x2") &params as *const StdVector,
-            in("x3") &z0 as *const u8,
-            clobber_abi("C"),
-        );
+        let req_fn = lease_mgr_request_asset_raw as unsafe extern "C" fn();
+        asm_call("requestAsset", req_fn, (&mut result as *mut SharedPtr) as usize, [(mgr) as usize, (&adam as *const c_ulong) as usize, (&params as *const StdVector) as usize, (&z0 as *const u8) as usize, 0, 0, 0, 0]);
         if result.obj.is_null() || asset_resp_has_valid(result.obj) == 0 {
             nlog("m3u8: url=(null)");
             return None;
@@ -561,14 +606,8 @@ pub fn m3u8(adam: c_ulong) -> Option<String> {
         }
         // URLString writes a std::string into our 24-byte slot (ARM64 sret in x8); read + copy it.
         let mut urlstr = [0u8; 24];
-        let url_fn = playback_asset_url_raw as *const () as usize;
-        std::arch::asm!(
-            "blr {fn_ptr}",
-            fn_ptr = in(reg) url_fn,
-            in("x8") urlstr.as_mut_ptr() as *mut StdString,
-            in("x0") (*asset).obj,
-            clobber_abi("C"),
-        );
+        let url_fn = playback_asset_url_raw as unsafe extern "C" fn();
+        asm_call("playbackAsset.URLString", url_fn, (urlstr.as_mut_ptr() as *mut StdString) as usize, [((*asset).obj) as usize, 0, 0, 0, 0, 0, 0, 0]);
         let data = sys::StdString::data(urlstr.as_ptr() as *const StdString);
         if data.is_null() {
             return None;
@@ -593,17 +632,8 @@ pub fn m4p_asset(adam_id: c_ulong) -> Option<(String, *mut c_void)> {
             end_cap: ptr::null_mut(),
         };
         let mut result = SharedPtr::NULL;
-        let req_fn = lease_mgr_request_asset_raw as *const () as usize;
-        std::arch::asm!(
-            "blr {fn_ptr}",
-            fn_ptr = in(reg) req_fn,
-            in("x8") &mut result as *mut SharedPtr,
-            in("x0") mgr,
-            in("x1") &adam_id as *const c_ulong,
-            in("x2") &params as *const StdVector,
-            in("x3") &z0 as *const u8,
-            clobber_abi("C"),
-        );
+        let req_fn = lease_mgr_request_asset_raw as unsafe extern "C" fn();
+        asm_call("requestAsset", req_fn, (&mut result as *mut SharedPtr) as usize, [(mgr) as usize, (&adam_id as *const c_ulong) as usize, (&params as *const StdVector) as usize, (&z0 as *const u8) as usize, 0, 0, 0, 0]);
         if result.obj.is_null() || asset_resp_has_valid(result.obj) == 0 {
             nlog("m4p_asset: asset response invalid or null");
             if !result.ctrl.is_null() {
@@ -621,14 +651,8 @@ pub fn m4p_asset(adam_id: c_ulong) -> Option<(String, *mut c_void)> {
         }
 
         let mut urlstr = [0u8; 24];
-        let url_fn = playback_asset_url_raw as *const () as usize;
-        std::arch::asm!(
-            "blr {fn_ptr}",
-            fn_ptr = in(reg) url_fn,
-            in("x8") urlstr.as_mut_ptr() as *mut StdString,
-            in("x0") (*asset).obj,
-            clobber_abi("C"),
-        );
+        let url_fn = playback_asset_url_raw as unsafe extern "C" fn();
+        asm_call("playbackAsset.URLString", url_fn, (urlstr.as_mut_ptr() as *mut StdString) as usize, [((*asset).obj) as usize, 0, 0, 0, 0, 0, 0, 0]);
         let url_ptr = sys::StdString::data(urlstr.as_ptr() as *const StdString);
         let url = if url_ptr.is_null() {
             String::new()
@@ -647,34 +671,16 @@ pub fn m4p_asset(adam_id: c_ulong) -> Option<(String, *mut c_void)> {
         foothill_sf_ctor(fh_buf.as_mut_ptr() as *mut c_void, asset);
 
         let mut sf_data = SharedPtr::NULL;
-        let get_sf_fn = foothill_sf_get_sf_data_raw as *const () as usize;
-        std::arch::asm!(
-            "blr {fn_ptr}",
-            fn_ptr = in(reg) get_sf_fn,
-            in("x8") &mut sf_data as *mut SharedPtr,
-            in("x0") fh_buf.as_ptr(),
-            clobber_abi("C"),
-        );
+        let get_sf_fn = foothill_sf_get_sf_data_raw as unsafe extern "C" fn();
+        asm_call("FootHillSF.getSFData", get_sf_fn, (&mut sf_data as *mut SharedPtr) as usize, [(fh_buf.as_ptr()) as usize, 0, 0, 0, 0, 0, 0, 0]);
 
         let mut sf2_data = SharedPtr::NULL;
-        let get_sf2_fn = foothill_sf_get_sf2_data_raw as *const () as usize;
-        std::arch::asm!(
-            "blr {fn_ptr}",
-            fn_ptr = in(reg) get_sf2_fn,
-            in("x8") &mut sf2_data as *mut SharedPtr,
-            in("x0") fh_buf.as_ptr(),
-            clobber_abi("C"),
-        );
+        let get_sf2_fn = foothill_sf_get_sf2_data_raw as unsafe extern "C" fn();
+        asm_call("FootHillSF.getSF2Data", get_sf2_fn, (&mut sf2_data as *mut SharedPtr) as usize, [(fh_buf.as_ptr()) as usize, 0, 0, 0, 0, 0, 0, 0]);
 
         let mut dp_info = SharedPtr::NULL;
-        let get_dp_fn = foothill_sf_get_dp_info_raw as *const () as usize;
-        std::arch::asm!(
-            "blr {fn_ptr}",
-            fn_ptr = in(reg) get_dp_fn,
-            in("x8") &mut dp_info as *mut SharedPtr,
-            in("x0") fh_buf.as_ptr(),
-            clobber_abi("C"),
-        );
+        let get_dp_fn = foothill_sf_get_dp_info_raw as unsafe extern "C" fn();
+        asm_call("FootHillSF.getDpInfo", get_dp_fn, (&mut dp_info as *mut SharedPtr) as usize, [(fh_buf.as_ptr()) as usize, 0, 0, 0, 0, 0, 0, 0]);
 
         let fh_vec = &*(fh_buf.as_ptr() as *const StdVector);
         let sinfs_count = if fh_vec.end >= fh_vec.begin {
@@ -726,21 +732,8 @@ pub fn m4p_asset(adam_id: c_ulong) -> Option<(String, *mut c_void)> {
             let track_type: u32 = 0; // audio
             let b1: u8 = 0;
             let b2: u8 = 0;
-            let create_fn = sv_decryptor_factory_create_raw as *const () as usize;
-            std::arch::asm!(
-                "blr {fn_ptr}",
-                fn_ptr = in(reg) create_fn,
-                in("x8") &mut decryptor as *mut SharedPtr,
-                in("x0") &dec_type as *const u32,
-                in("x1") sinf_ptr,
-                in("x2") &sinf_len as *const u32,
-                in("x3") aux_ptr,
-                in("x4") &aux_len as *const u32,
-                in("x5") &track_type as *const u32,
-                in("x6") &b1 as *const u8,
-                in("x7") &b2 as *const u8,
-                clobber_abi("C"),
-            );
+            let create_fn = sv_decryptor_factory_create_raw as unsafe extern "C" fn();
+            asm_call("SVDecryptorFactory.create", create_fn, (&mut decryptor as *mut SharedPtr) as usize, [(&dec_type as *const u32) as usize, (sinf_ptr) as usize, (&sinf_len as *const u32) as usize, (aux_ptr) as usize, (&aux_len as *const u32) as usize, (&track_type as *const u32) as usize, (&b1 as *const u8) as usize, (&b2 as *const u8) as usize]);
         }
 
         if !sf2_data.ctrl.is_null() {
@@ -799,7 +792,12 @@ pub unsafe fn decrypt_m4p_sample(ctx: *mut c_void, sample: *mut u8, size: usize)
         nlog("decrypt_m4p_sample: state at +0x18 is null");
         return -3;
     }
+    let scope = cxx_guard::Scope::named("decrypt_m4p_sample", "");
     let rc = YHrWZQ6wU(state, sample, size as u32, sample, 0);
+    if scope.threw() {
+        nlog("decrypt_m4p_sample: Apple decrypt threw a C++ exception (sample skipped)");
+        return -4;
+    }
     if rc != 0 {
         nlog(&format!("decrypt_m4p_sample: YHrWZQ6wU rc={rc} size={size} state={state:?}"));
     }

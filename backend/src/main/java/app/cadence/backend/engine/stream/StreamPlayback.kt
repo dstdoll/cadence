@@ -111,6 +111,32 @@ internal fun keyCanFix(message: String?): Boolean {
     return !(m.startsWith("parse init") || m.startsWith("parse fragment") || "UnsupportedCodec" in m)
 }
 
+/**
+ * Remembers keys whose native exchange just failed. Apple's key service can reject a track (the
+ * native layer then returns no context, or in the worst case throws and skips the step), and every
+ * segment and every prefetch would otherwise start another licence round trip for the same key.
+ * Entries expire so a transient failure is retried soon, and a success clears the entry at once.
+ */
+internal class FailedKeyMemory(
+    private val ttlMs: Long = 60_000L,
+    private val now: () -> Long = System::currentTimeMillis,
+) {
+    private val until = ConcurrentHashMap<String, Long>()
+
+    fun failed(key: String) { until[key] = now() + ttlMs }
+
+    fun succeeded(key: String) { until.remove(key) }
+
+    fun isFailing(key: String): Boolean {
+        val deadline = until[key] ?: return false
+        if (now() >= deadline) {
+            until.remove(key, deadline)
+            return false
+        }
+        return true
+    }
+}
+
 /** The key Apple puts on the first segment of every track, so playback can start at once. */
 private const val PREFETCH_KEY = "skd://itunes.apple.com/P000000000/s1/e1"
 
@@ -119,6 +145,7 @@ internal class NativeSegmentSource(private val context: Context) : SegmentSource
     /** FairPlay contexts by `adamId|keyUri`. The prefetch key is one entry shared by every track. */
     private val handles = ConcurrentHashMap<String, Long>()
     private val handleLocks = ConcurrentHashMap<String, Any>()
+    private val failures = FailedKeyMemory()
     private val keyThreads = java.util.concurrent.Executors.newCachedThreadPool { r ->
         Thread(r, "cadence-stream-keys").apply { isDaemon = true }
     }
@@ -132,7 +159,7 @@ internal class NativeSegmentSource(private val context: Context) : SegmentSource
 
     private fun acquireInBackground(adamId: String, keyUri: String) {
         val key = "$adamId|$keyUri"
-        if (handles.containsKey(key)) return
+        if (handles.containsKey(key) || failures.isFailing(key)) return
         keyThreads.execute {
             runCatching {
                 if (EngineDownloader.initNative(context)) handle(key, adamId, keyUri)
@@ -172,7 +199,20 @@ internal class NativeSegmentSource(private val context: Context) : SegmentSource
 
     private fun handle(key: String, adamId: String, keyUri: String): Long =
         handles[key] ?: synchronized(handleLocks.computeIfAbsent(key) { Any() }) {
-            handles[key] ?: exchange(adamId, keyUri).also { handles[key] = it }
+            handles[key] ?: run {
+                if (failures.isFailing(key)) {
+                    throw IOException("Key exchange for ${keyUri.substringAfterLast('/')} failed moments ago; not retrying yet")
+                }
+                val kd = try {
+                    exchange(adamId, keyUri)
+                } catch (e: IOException) {
+                    failures.failed(key)
+                    throw e
+                }
+                failures.succeeded(key)
+                handles[key] = kd
+                kd
+            }
         }
 
     private fun exchange(adamId: String, keyUri: String): Long {

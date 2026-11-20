@@ -1,6 +1,7 @@
 package app.cadence.feature.nowplaying
 
 import app.cadence.core.design.colors
+import kotlinx.coroutines.launch
 import android.content.Intent
 import android.media.MediaRouter2
 import android.os.Build
@@ -236,7 +237,11 @@ private fun TitleRow(info: TrackInfo) {
                 maxLines = 1, modifier = Modifier.clickable { nav.artist(info.artist.id) },
             )
         }
-        FavoriteButton(fav) { c.library.update { it.toggleFavorite(info.id, c.settings.state.value.addFavoritesToLibrary, c.repository.favoriteTrackIds) } }
+        FavoriteButton(fav) {
+            val next = !fav
+            c.library.update { it.toggleFavorite(info.id, c.settings.state.value.addFavoritesToLibrary, c.repository.favoriteTrackIds) }
+            c.scope.launch { c.repository.setFavorite(info.id, next) }
+        }
     }
 }
 
@@ -263,8 +268,11 @@ private fun CompactHeader(info: TrackInfo, artModifier: Modifier) {
             Text(info.track.title, style = MaterialTheme.typography.titleMedium, color = text.title, maxLines = 1, modifier = Modifier.basicMarquee())
             Text(info.artist.name, style = MaterialTheme.typography.bodyMedium, color = text.artist, maxLines = 1)
         }
-        FavoriteButton(lib.isFavorite(info.id, c.repository.favoriteTrackIds)) {
+        val fav = lib.isFavorite(info.id, c.repository.favoriteTrackIds)
+        FavoriteButton(fav) {
+            val next = !fav
             c.library.update { it.toggleFavorite(info.id, c.settings.state.value.addFavoritesToLibrary, c.repository.favoriteTrackIds) }
+            c.scope.launch { c.repository.setFavorite(info.id, next) }
         }
     }
 }

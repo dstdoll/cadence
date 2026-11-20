@@ -4,6 +4,7 @@
 //! in C and is reached one call at a time through the flat-C `core_fh_*` bridges (see native_core.c).
 
 use crate::core;
+use crate::cxx_guard::Scope;
 use crate::identity;
 use std::ffi::{c_ulong, c_void};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -22,11 +23,14 @@ pub fn init(base_dir: &str, device_id: &str, dns_servers: &str) -> bool {
     if READY.load(Ordering::Acquire) {
         return true;
     }
+    // An Apple C++ exception anywhere in this sequence (caught by cxx_guard) leaves the engine not
+    // ready, so the next call retries from scratch instead of building on half-initialised state.
+    let scope = Scope::named("init", "");
     let android_id = identity::resolve(base_dir, device_id, &core::nlog);
     core::configure(base_dir, dns_servers, &android_id);
     core::init_ctx();
     core::nlog(&format!("identity: {}", identity::adi_state(base_dir)));
-    let ready = !core::instance().is_null();
+    let ready = !core::instance().is_null() && !scope.threw();
     READY.store(ready, Ordering::Release);
     ready
 }
@@ -36,8 +40,10 @@ pub fn m3u8(adam_id: &str) -> Option<String> {
     if !READY.load(Ordering::Acquire) {
         return None;
     }
+    let scope = Scope::named("m3u8", &format!("adam={}", adam_id.trim()));
     ensure_lease();
-    core::m3u8(parse_adam(adam_id))
+    let url = core::m3u8(parse_adam(adam_id));
+    if scope.threw() { None } else { url }
 }
 
 /// Request a progressive `.m4p` asset and its `SVSampleDecryptor` context.
@@ -45,11 +51,14 @@ pub fn m4p_asset(adam_id: &str) -> Option<(String, *mut c_void)> {
     if !READY.load(Ordering::Acquire) {
         return None;
     }
-    core::m4p_asset(parse_adam(adam_id))
+    let scope = Scope::named("m4p_asset", &format!("adam={}", adam_id.trim()));
+    let asset = core::m4p_asset(parse_adam(adam_id));
+    if scope.threw() { None } else { asset }
 }
 
 /// Release a boxed `SVDecryptor` context returned by [`m4p_asset`].
 pub unsafe fn release_m4p_context(ctx: *mut c_void) {
+    let _scope = Scope::named("release_m4p_context", "");
     core::release_m4p_context(ctx);
 }
 
@@ -58,7 +67,10 @@ pub fn kd(adam_id: &str, key_uri: &str) -> *mut c_void {
     if !READY.load(Ordering::Acquire) {
         return std::ptr::null_mut();
     }
-    core::kd(adam_id, key_uri)
+    // adam id and the key's last path part (`e1` = the shared prefetch key, `c23` = a track key).
+    let scope = Scope::named("kd", &format!("adam={} key={}", adam_id.trim(), key_uri.rsplit('/').next().unwrap_or("")));
+    let ctx = core::kd(adam_id, key_uri);
+    if scope.threw() { std::ptr::null_mut() } else { ctx }
 }
 
 /// Set the Apple ID sign-in credentials the StoreServices credential handler will use. Call before
@@ -85,6 +97,9 @@ pub fn login() -> bool {
     if !READY.load(Ordering::Acquire) {
         return false;
     }
+    // No `threw` check on the result: a throw while minting the token after a confirmed sign-in
+    // must not turn that sign-in into a failure (Kotlin mints again through `mint_music_token`).
+    let _scope = Scope::named("login", "");
     core::login()
 }
 
@@ -94,7 +109,9 @@ pub fn mint_music_token() -> Option<String> {
     if !READY.load(Ordering::Acquire) {
         return None;
     }
-    core::mint_music_token()
+    let scope = Scope::named("mint_music_token", "");
+    let token = core::mint_music_token();
+    if scope.threw() { None } else { token }
 }
 
 fn ensure_lease() {
@@ -106,7 +123,10 @@ fn ensure_lease() {
         return;
     }
     core::ensure_lease();
-    LEASE.store(true, Ordering::Release);
+    // A throw while building the lease manager leaves it unusable: stay "no lease" and retry later.
+    if !crate::cxx_guard::threw() {
+        LEASE.store(true, Ordering::Release);
+    }
 }
 
 /// strtoul-style: consume leading ASCII digits, stop at the first non-digit (adam ids are numeric).

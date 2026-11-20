@@ -1,7 +1,31 @@
 package app.cadence.backend.engine.media
 
+import app.cadence.backend.engine.CadenceLog
+import app.cadence.backend.engine.NativeNotice
+import app.cadence.backend.engine.NativeNotices
+
 object NativeWrapper {
     init { System.loadLibrary("cadence-native") }
+
+    /**
+     * Called by the native layer (never from Kotlin) for every native error line: `[CXX-THROW]`,
+     * `[CXX-SKIP]`, `[CXX-TERMINATE]`, `[RUST-PANIC]` and the `[NATIVE-INFO]` start-up line (see
+     * native/cadence-native-rs/src/events.rs and native/APPLE_ERRORS.md). It lands in `cadence.log`
+     * through [CadenceLog], so it is redacted like every other line and appears in order with the
+     * Kotlin lines around it. Keep the signature: the native side looks it up by name (the R8 rule
+     * in backend/consumer-rules.pro keeps it).
+     */
+    @JvmStatic
+    fun onNativeEvent(level: Int, tag: String, message: String) {
+        if (level >= 1) CadenceLog.e(tag, message) else CadenceLog.i(tag, message)
+    }
+
+    /** Called by the native layer when an error reached the user (a track skipped, a sign-in failed). */
+    @JvmStatic
+    fun onNativeNotice(kind: String, impact: String, entry: String, detail: String) {
+        NativeNotices.post(NativeNotice(kind, impact, entry, detail))
+    }
+
     /** [dnsServers] is a comma-separated list of the active network's DNS server IPs; the native
      *  resolver uses them (reachable on any network) instead of a fixed public resolver. */
     external fun init(baseDir: String, deviceId: String, dnsServers: String): Boolean
