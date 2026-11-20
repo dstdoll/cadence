@@ -17,10 +17,10 @@ fn vectors() -> Option<serde_json::Value> {
 }
 
 /// The GUID as sent to the key server.
-fn guid_capturado(v: &serde_json::Value) -> String {
+fn captured_guid(v: &serde_json::Value) -> String {
     let reqs = v["ckcRequests"].as_array().expect("vectors.json missing ckcRequests");
-    let primero = reqs.first().expect("vectors.json has no CKC request body");
-    primero["parsed"]["guid"]
+    let first = reqs.first().expect("vectors.json has no CKC request body");
+    first["parsed"]["guid"]
         .as_str()
         .expect("CKC body missing guid")
         .to_owned()
@@ -30,7 +30,7 @@ fn guid_capturado(v: &serde_json::Value) -> String {
 ///
 /// Accepted in two places because the harness emits them separately since hooking `guid()` proved
 /// fragile.
-fn insumos(v: &serde_json::Value) -> (String, String) {
+fn inputs(v: &serde_json::Value) -> (String, String) {
     let i = if v["deviceGuidInputs"].is_object() {
         &v["deviceGuidInputs"]
     } else {
@@ -47,15 +47,15 @@ fn insumos(v: &serde_json::Value) -> (String, String) {
 
 /// Observed structure matches what the crate declares.
 #[test]
-fn la_estructura_capturada_tiene_seis_campos_de_ancho_fijo() {
+fn captured_structure_has_six_fixed_width_fields() {
     let Some(v) = vectors() else {
         eprintln!("no vectors.json: skipped");
         return;
     };
-    let guid = guid_capturado(&v);
+    let guid = captured_guid(&v);
     assert_eq!(guid.len(), GUID_LEN, "captured GUID length");
-    let anchos: Vec<usize> = guid.split('.').map(str::len).collect();
-    assert_eq!(anchos, vec![36, 14, 14, 14, 14, 14]);
+    let widths: Vec<usize> = guid.split('.').map(str::len).collect();
+    assert_eq!(widths, vec![36, 14, 14, 14, 14, 14]);
 }
 
 /// Given the same inputs, the port produces the exact same GUID byte for byte.
@@ -63,81 +63,81 @@ fn la_estructura_capturada_tiene_seis_campos_de_ancho_fijo() {
 /// The acid test: the only field that cannot be derived without the blob (the first) is taken
 /// from the capture; everything else is computed by the port.
 #[test]
-fn reproduce_el_guid_capturado() {
+fn reproduces_captured_guid() {
     let Some(v) = vectors() else { return };
-    let guid = guid_capturado(&v);
-    let (android_id, serial) = insumos(&v);
+    let guid = captured_guid(&v);
+    let (android_id, serial) = inputs(&v);
     let parts = parse(&guid).expect("captured GUID must parse");
 
-    let nuestro = build(&DeviceInfo {
+    let ours = build(&DeviceInfo {
         android_id,
         serial,
         fairplay_field1: Some(parts.fairplay1.clone()),
         fairplay_field2: Some(parts.fairplay2.clone()),
     });
     assert!(
-        nuestro == guid,
+        ours == guid,
         "generated GUID does not match captured GUID (lengths {} vs {})",
-        nuestro.len(),
+        ours.len(),
         guid.len()
     );
 }
 
 /// The fourth field is truncated `sha1(androidId)` and nothing else.
 #[test]
-fn el_hash_corresponde_al_android_id_de_los_insumos() {
+fn hash_matches_android_id_from_inputs() {
     let Some(v) = vectors() else { return };
-    let (android_id, _) = insumos(&v);
-    let parts = parse(&guid_capturado(&v)).unwrap();
+    let (android_id, _) = inputs(&v);
+    let parts = parse(&captured_guid(&v)).unwrap();
     assert_eq!(parts.android_id_hash, android_id_hash(&android_id));
     assert!(parts.matches_android_id(&android_id));
 }
 
 /// Fillers came in as zeros, and field 1 carries FairPlay data.
 #[test]
-fn los_rellenos_capturados_estan_en_ceros() {
+fn captured_fillers_are_zeroed() {
     let Some(v) = vectors() else { return };
-    let parts = parse(&guid_capturado(&v)).unwrap();
+    let parts = parse(&captured_guid(&v)).unwrap();
     assert_eq!(parts.filler1, "0".repeat(FIELD_LEN));
     assert_eq!(parts.filler2, "0".repeat(FIELD_LEN));
     assert!(parts.looks_valid());
     assert!(parts.has_fairplay(), "captured GUID must carry FairPlay blob data");
 }
 
-/// El campo 1 mide lo que da el base16 de los 18 bytes que entrega FairPlay.
+/// Field 1 matches the base16 encoding of the 18 bytes returned by FairPlay.
 #[test]
-fn el_campo1_es_el_base16_de_18_bytes() {
+fn field1_is_base16_of_18_bytes() {
     let Some(v) = vectors() else { return };
-    let parts = parse(&guid_capturado(&v)).unwrap();
+    let parts = parse(&captured_guid(&v)).unwrap();
     assert_eq!(parts.fairplay1.len(), FAIRPLAY_FIELD1_BYTES * 2);
     assert!(
         parts.fairplay1.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()),
-        "Base16Representation da hex en minúsculas"
+        "Base16Representation outputs lowercase hex"
     );
 }
 
-/// El dispositivo de pruebas no reporta serial, y el campo igual viene relleno.
+/// The test device does not report a serial, and the field is still zero-padded.
 #[test]
-fn sin_serial_el_campo_viene_relleno() {
+fn missing_serial_field_is_padded() {
     let Some(v) = vectors() else { return };
-    let (_, serial) = insumos(&v);
-    let parts = parse(&guid_capturado(&v)).unwrap();
+    let (_, serial) = inputs(&v);
+    let parts = parse(&captured_guid(&v)).unwrap();
     if serial.is_empty() {
-        assert_eq!(parts.serial, "0".repeat(FIELD_LEN), "sin serial va relleno, no vacío");
+        assert_eq!(parts.serial, "0".repeat(FIELD_LEN), "missing serial is zero-padded, not empty");
     } else {
         assert_eq!(parts.serial.len(), FIELD_LEN);
     }
 }
 
-/// Todos los requests llevan el mismo GUID.
+/// Every request carries the same GUID.
 #[test]
-fn el_guid_es_el_mismo_en_todos_los_requests() {
+fn guid_is_identical_across_requests() {
     let Some(v) = vectors() else { return };
-    let guid = guid_capturado(&v);
+    let guid = captured_guid(&v);
     for r in v["ckcRequests"].as_array().unwrap() {
         assert!(
             r["parsed"]["guid"].as_str() == Some(guid.as_str()),
-            "un request lleva otro GUID"
+            "a request carries a different GUID"
         );
     }
 }

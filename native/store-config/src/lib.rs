@@ -133,7 +133,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn reconstruye_el_user_agent_capturado() {
+    fn reconstructs_captured_user_agent() {
         let c = RequestContextConfig::for_android("/data/user/0/app.cadence/files", "10");
         assert_eq!(
             c.user_agent(66),
@@ -142,28 +142,28 @@ mod tests {
     }
 
     #[test]
-    fn el_modelo_es_fijo_no_el_del_dispositivo() {
+    fn model_is_fixed_not_device_model() {
         // Captured on a tablet from another manufacturer and it still says Pixel 8.
         let c = RequestContextConfig::for_android("/x", "10");
         assert_eq!(c.device_model, "Pixel 8");
     }
 
     #[test]
-    fn el_release_de_android_va_en_product_version() {
+    fn android_release_goes_in_product_version() {
         let c = RequestContextConfig::for_android("/x", "15");
         assert_eq!(c.platform_identifier, "Android");
         assert_eq!(c.product_version, "15");
-        assert_eq!(c.version_identifier, PRODUCT_VERSION, "la version de la app no cambia");
-        // y en el User-Agent los dos se concatenan
+        assert_eq!(c.version_identifier, PRODUCT_VERSION, "app version does not change");
+        // and in User-Agent the two are concatenated
         assert!(c.user_agent(66).contains(" Android/15 model/"));
     }
 
-    /// Cada campo tiene que poder pasarse tal cual a su setter de la libreria cerrada.
-    /// Si alguien reordena los campos, el User-Agent se rompe y este test lo pilla.
+    /// Each field must be passed as-is to its closed-library setter.
+    /// If someone reorders the fields, the User-Agent breaks and this test catches it.
     #[test]
-    fn los_campos_corresponden_uno_a_uno_con_los_setters() {
+    fn fields_correspond_one_to_one_with_setters() {
         let c = RequestContextConfig::for_android("/data/user/0/app.cadence/files", "10");
-        // El orden es el de las llamadas en el arranque nativo.
+        // The order matches the calls during native startup.
         let setters = [
             ("setBaseDirectoryPath", &c.base_directory_path),
             ("setClientIdentifier", &c.client_identifier),
@@ -175,11 +175,11 @@ mod tests {
             ("setLocaleIdentifier", &c.locale_identifier),
             ("setLanguageIdentifier", &c.language_identifier),
         ];
-        assert_eq!(setters.len(), 9, "RequestContextConfig tiene nueve campos");
-        for (nombre, valor) in setters {
-            assert!(!valor.is_empty(), "{nombre} no puede ir vacio");
+        assert_eq!(setters.len(), 9, "RequestContextConfig has nine fields");
+        for (name, value) in setters {
+            assert!(!value.is_empty(), "{name} cannot be empty");
         }
-        // Los cuatro que el User-Agent expone, en el orden en que salen.
+        // The four exposed by User-Agent, in the order they appear.
         assert_eq!(
             c.user_agent(66),
             "Music/5.0.2 Android/10 model/Pixel 8 build/7663314 (dt:66)"
@@ -187,7 +187,7 @@ mod tests {
     }
 
     #[test]
-    fn el_storefront_arma_las_dos_variantes() {
+    fn storefront_builds_both_variants() {
         let sf = StoreFront::new(StoreFront::CHILE);
         assert_eq!(sf.header_value(false), "143483-2,31");
         assert_eq!(sf.header_value(true), "143483-2,31 t:music31");

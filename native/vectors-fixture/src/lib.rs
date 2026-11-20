@@ -137,142 +137,142 @@ mod tests {
 
     /// Un directorio temporal con el archivo de captura que se le pida, y el
     /// `manifest_dir` que hay que pasarle a [`load`] (la captura se busca en `..`).
-    struct Caso {
-        raiz: PathBuf,
+    struct Case {
+        root: PathBuf,
     }
 
-    impl Caso {
-        fn nuevo(nombre: &str, contenido: Option<(&str, &str)>) -> Self {
+    impl Case {
+        fn new(name: &str, content: Option<(&str, &str)>) -> Self {
             static N: AtomicU32 = AtomicU32::new(0);
-            let raiz = std::env::temp_dir()
-                .join(format!("vectores-{nombre}-{}", N.fetch_add(1, Ordering::Relaxed)));
-            let _ = std::fs::remove_dir_all(&raiz);
-            std::fs::create_dir_all(raiz.join("crate_falso")).unwrap();
-            if let Some((archivo, texto)) = contenido {
-                std::fs::write(raiz.join(archivo), texto).unwrap();
+            let root = std::env::temp_dir()
+                .join(format!("vectors-{name}-{}", N.fetch_add(1, Ordering::Relaxed)));
+            let _ = std::fs::remove_dir_all(&root);
+            std::fs::create_dir_all(root.join("fake_crate")).unwrap();
+            if let Some((file, text)) = content {
+                std::fs::write(root.join(file), text).unwrap();
             }
-            Self { raiz }
+            Self { root }
         }
         fn manifest(&self) -> String {
-            self.raiz.join("crate_falso").to_string_lossy().into_owned()
+            self.root.join("fake_crate").to_string_lossy().into_owned()
         }
     }
 
-    impl Drop for Caso {
+    impl Drop for Case {
         fn drop(&mut self) {
-            let _ = std::fs::remove_dir_all(&self.raiz);
+            let _ = std::fs::remove_dir_all(&self.root);
         }
     }
 
-    /// La captura de un caso, **sin mirar el entorno**: estos tests corren tambien con
-    /// `CADENCE_VECTORS_FILE` y `CADENCE_VECTORS_REQUIRED` puestas (es como los lanza el runner
-    /// del dispositivo), y lo que prueban es este crate, no como esta configurada la shell.
-    fn aqui(c: &Caso) -> Option<serde_json::Value> {
+    /// Capture for a test case, **ignoring the environment**: these tests also run with
+    /// `CADENCE_VECTORS_FILE` and `CADENCE_VECTORS_REQUIRED` set (as invoked by the device
+    /// runner), and they test this crate itself rather than the shell environment.
+    fn load_case(c: &Case) -> Option<serde_json::Value> {
         load_from(&c.manifest(), false, None)
     }
 
-    const BUENO: &str = r#"{"userAgent":"Music/5.0.2","ckcRequests":[1],"nulo":null}"#;
+    const GOOD: &str = r#"{"userAgent":"Music/5.0.2","ckcRequests":[1],"nullField":null}"#;
 
     #[test]
-    fn lee_la_captura_real_cuando_esta() {
-        let c = Caso::nuevo("real", Some(("vectors.json", BUENO)));
-        let v = aqui(&c).expect("tiene que encontrarla");
+    fn reads_real_capture_when_present() {
+        let c = Case::new("real", Some(("vectors.json", GOOD)));
+        let v = load_case(&c).expect("should find it");
         assert_eq!(v["userAgent"], "Music/5.0.2");
     }
 
-    /// Sin la real cae a la muestra versionada.
+    /// Without the real capture, falls back to the checked-in sample.
     #[test]
-    fn cae_a_la_muestra() {
-        let c = Caso::nuevo("muestra", Some(("vectors.sample.json", BUENO)));
-        assert_eq!(aqui(&c).expect("la muestra")["userAgent"], "Music/5.0.2");
+    fn falls_back_to_sample() {
+        let c = Case::new("sample", Some(("vectors.sample.json", GOOD)));
+        assert_eq!(load_case(&c).expect("sample")["userAgent"], "Music/5.0.2");
     }
 
-    /// Con las dos, manda la real: es la que corresponde al dispositivo que se esta probando.
+    /// With both present, the real capture wins: it matches the device under test.
     #[test]
-    fn la_real_le_gana_a_la_muestra() {
-        let c = Caso::nuevo("ambas", Some(("vectors.sample.json", r#"{"userAgent":"muestra"}"#)));
-        std::fs::write(c.raiz.join("vectors.json"), r#"{"userAgent":"real"}"#).unwrap();
-        assert_eq!(aqui(&c).expect("la real")["userAgent"], "real");
+    fn real_overrides_sample() {
+        let c = Case::new("both", Some(("vectors.sample.json", r#"{"userAgent":"sample"}"#)));
+        std::fs::write(c.root.join("vectors.json"), r#"{"userAgent":"real"}"#).unwrap();
+        assert_eq!(load_case(&c).expect("real")["userAgent"], "real");
     }
 
-    /// Sin ninguna de las dos se salta, que es el unico caso en que un test puede no validar.
+    /// With neither present it skips, which is the only case where a test may not validate.
     #[test]
-    fn sin_captura_devuelve_none() {
-        let c = Caso::nuevo("ninguna", None);
-        // explicito: sin exigir se salta, y es el unico caso en que un test no valida
+    fn no_capture_returns_none() {
+        let c = Case::new("none", None);
+        // explicit: when not required it skips, the only case where a test does not validate
         assert!(load_from(&c.manifest(), false, None).is_none());
     }
 
-    /// Una captura corrupta es un fallo, no un test que se salta: es justo el agujero que
-    /// este crate existe para tapar.
+    /// A corrupt capture is a failure, not a skipped test: that is the exact gap this crate
+    /// exists to close.
     #[test]
     #[should_panic(expected = "failed to parse")]
-    fn una_captura_corrupta_revienta() {
-        let c = Caso::nuevo("corrupta", Some(("vectors.json", "{ no soy json")));
-        let _ = aqui(&c);
+    fn corrupt_capture_panics() {
+        let c = Case::new("corrupt", Some(("vectors.json", "{ not json")));
+        let _ = load_case(&c);
     }
 
-    /// Si la captura esta, la seccion que el test pide **tiene** que estar.
+    /// If the capture is present, the section requested by the test **must** exist.
     #[test]
     #[should_panic(expected = "missing section")]
-    fn una_seccion_que_falta_revienta() {
-        let c = Caso::nuevo("sin-seccion", Some(("vectors.json", BUENO)));
-        let _ = section_in(&aqui(&c).unwrap(), "deviceGuid");
+    fn missing_section_panics() {
+        let c = Case::new("missing-section", Some(("vectors.json", GOOD)));
+        let _ = section_in(&load_case(&c).unwrap(), "deviceGuid");
     }
 
-    /// Una seccion en null tampoco sirve para validar.
+    /// A null section cannot be used for validation either.
     #[test]
     #[should_panic(expected = "as null")]
-    fn una_seccion_en_null_revienta() {
-        let c = Caso::nuevo("null", Some(("vectors.json", BUENO)));
-        let _ = section_in(&aqui(&c).unwrap(), "nulo");
+    fn null_section_panics() {
+        let c = Case::new("null", Some(("vectors.json", GOOD)));
+        let _ = section_in(&load_case(&c).unwrap(), "nullField");
     }
 
-    /// Y si se pide como string, tiene que serlo.
+    /// And if requested as a string, it must be a string.
     #[test]
     #[should_panic(expected = "should be a string")]
-    fn una_seccion_que_no_es_string_revienta() {
-        let c = Caso::nuevo("no-string", Some(("vectors.json", BUENO)));
-        let _ = string_in(&aqui(&c).unwrap(), "ckcRequests");
+    fn non_string_section_panics() {
+        let c = Case::new("non-string", Some(("vectors.json", GOOD)));
+        let _ = string_in(&load_case(&c).unwrap(), "ckcRequests");
     }
 
-    /// Con la captura exigida, que falte es un fallo y no un salto.
+    /// When the capture is required, missing it is a failure rather than a skip.
     #[test]
     #[should_panic(expected = "is set and neither")]
-    fn sin_captura_pero_exigida_revienta() {
-        let c = Caso::nuevo("exigida", None);
+    fn missing_required_capture_panics() {
+        let c = Case::new("required", None);
         let _ = load_from(&c.manifest(), true, None);
     }
 
-    /// La ruta indicada a mano manda sobre la captura del crate.
+    /// An explicit path overrides the crate's capture.
     #[test]
-    fn la_ruta_forzada_le_gana_a_todo() {
-        let c = Caso::nuevo("forzada", Some(("vectors.json", r#"{"userAgent":"del crate"}"#)));
-        let otra = c.raiz.join("otra.json");
-        std::fs::write(&otra, r#"{"userAgent":"forzada"}"#).unwrap();
-        let v = load_from(&c.manifest(), false, Some(otra)).expect("la forzada");
-        assert_eq!(v["userAgent"], "forzada");
+    fn explicit_path_overrides_everything() {
+        let c = Case::new("forced", Some(("vectors.json", r#"{"userAgent":"from crate"}"#)));
+        let other = c.root.join("other.json");
+        std::fs::write(&other, r#"{"userAgent":"forced"}"#).unwrap();
+        let v = load_from(&c.manifest(), false, Some(other)).expect("forced");
+        assert_eq!(v["userAgent"], "forced");
     }
 
-    /// Y si apunta a algo que no existe es un fallo aunque no se haya exigido la captura: quien
-    /// la indico queria ese archivo, no "el que haya".
+    /// And if it points to a nonexistent file, it fails even when not required: whoever
+    /// specified it wanted that specific file, not "whichever exists".
     #[test]
     #[should_panic(expected = "is set and neither")]
-    fn una_ruta_forzada_que_no_existe_revienta() {
-        let c = Caso::nuevo("forzada-falta", Some(("vectors.json", BUENO)));
-        let _ = load_from(&c.manifest(), false, Some(c.raiz.join("no-existe.json")));
+    fn nonexistent_explicit_path_panics() {
+        let c = Case::new("forced-missing", Some(("vectors.json", GOOD)));
+        let _ = load_from(&c.manifest(), false, Some(c.root.join("missing.json")));
     }
 
     #[test]
-    fn una_seccion_string_se_lee() {
-        let c = Caso::nuevo("string", Some(("vectors.json", BUENO)));
-        assert_eq!(string_in(&aqui(&c).unwrap(), "userAgent"), "Music/5.0.2");
+    fn string_section_is_read() {
+        let c = Case::new("string", Some(("vectors.json", GOOD)));
+        assert_eq!(string_in(&load_case(&c).unwrap(), "userAgent"), "Music/5.0.2");
     }
 
-    /// `section` sobre una captura ausente se salta igual que `load`: no hay nada que exigir.
+    /// `section` on a missing capture skips just like `load`: there is nothing to require.
     #[test]
-    fn seccion_sin_captura_devuelve_none() {
-        let c = Caso::nuevo("sec-ninguna", None);
+    fn missing_capture_section_returns_none() {
+        let c = Case::new("sec-none", None);
         assert!(load_from(&c.manifest(), false, None).is_none());
     }
 }
