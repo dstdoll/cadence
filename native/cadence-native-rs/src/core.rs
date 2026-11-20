@@ -401,7 +401,7 @@ fn android_release() -> String {
         )
     };
     if n <= 0 {
-        nlog("init: sin ro.build.version.release, uso el valor por defecto");
+        nlog("init: missing ro.build.version.release, using default");
         return FALLBACK.to_owned();
     }
     let v = String::from_utf8_lossy(&buf[..n as usize]).trim().to_owned();
@@ -527,9 +527,9 @@ pub fn configure(base_dir_in: &str, dns_servers: &str, android_id_in: &str) {
                 &conf3 as *const u32 as *mut c_void,
                 &conf4 as *const bool as *mut c_void,
             );
-            // Ya configurado, se puede leer el GUID y contrastarlo con el del port. Va aca y
-            // no solo en el mint porque el mint no corre en cada arranque: si la sesion sigue
-            // valida se lo saltea, y el contraste tardaria dias en aparecer.
+            // Once configured, we can read the GUID and compare it against the port's output.
+            // This runs here rather than only in mint because mint does not run on every startup:
+            // if the session is still valid it is skipped, and the comparison would take days to appear.
             let mut buf = [0u8; 128];
             if bridges::cadence_device_guid_string(
                 guid_obj,
@@ -575,8 +575,8 @@ pub fn init_ctx() -> *mut c_void {
             let s = StdString::borrow_cstr(&c);
             f(cfg.obj, &s as *const StdString);
         };
-        // Los nueve campos salen de store_cfg(): el port de RequestContextConfig. Cada
-        // campo es el argumento de su setter homonimo, por eso se pasan tal cual.
+        // All nine fields come from store_cfg(): the RequestContextConfig port. Each field
+        // is the argument to its namesake setter, so they are passed through as-is.
         let scfg = store_cfg();
         set(reqcfg_set_client_id, &scfg.client_identifier);
         set(reqcfg_set_version_id, &scfg.version_identifier);
@@ -1032,8 +1032,8 @@ unsafe fn get_kd_context(adam: *const c_char, uri: *const c_char) -> *mut c_void
     }
     let fh = FH_INSTANCE.load(Ordering::Acquire);
     let uri_cstr = CStr::from_ptr(uri);
-    // Constantes del protocolo desde el port `fairplay-proto`, que las valida contra la
-    // captura del dispositivo (vectors.json) en vez de repetirlas a mano aca.
+    // Protocol constants from the `fairplay-proto` port, which validates them against the
+    // device capture (vectors.json) instead of repeating them by hand here.
     let key_format = CString::new(fairplay_proto::KEY_FORMAT).unwrap();
     let key_format_ver = CString::new(fairplay_proto::KEY_FORMAT_VERSION).unwrap();
     let server_uri = CString::new(fairplay_proto::KEY_SERVER_URL).unwrap();
@@ -1279,8 +1279,8 @@ pub fn mint_music_token() -> Option<String> {
             ("Content-Type", "application/json; charset=UTF-8"),
             ("Expect", ""),
             ("X-Apple-Requesting-Bundle-Id", "com.apple.android.music"),
-            // Misma identidad que la de RequestContextConfig (store_cfg()), no una copia
-            // escrita a mano: antes aqui decia "Music/4.9 ... Samsung S9 ... 7663313".
+            // Same identity as RequestContextConfig (store_cfg()), not a hardcoded copy:
+            // previously this said "Music/4.9 ... Samsung S9 ... 7663313".
             ("X-Apple-Requesting-Bundle-Version", user_agent.as_str()),
         ];
         for (k, v) in headers {

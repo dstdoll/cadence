@@ -118,12 +118,12 @@ fun NowPlaying(onCollapse: () -> Unit, modifier: Modifier = Modifier) {
             Column(Modifier.fillMaxSize()) {
                 TopBar(info, state.contextTitle, onCollapse)
                 if (wide) {
-                    // Dos paneles: la caratula a la izquierda, dimensionada por la ALTURA disponible, y
-                    // titulo + controles a la derecha. Letras o cola solo cuando el modo las pide: antes el
-                    // panel derecho mostraba letras siempre, incluso en modo Artwork.
+                    // Two panes: artwork on the left, sized by the available HEIGHT, and
+                    // title + controls on the right. Lyrics or queue only when the mode asks for
+                    // them: previously the right pane always showed lyrics even in Artwork mode.
                     Row(Modifier.weight(1f)) {
-                        // Sin tope de ancho: en horizontal la caratula la limita la ALTURA del panel,
-                        // asi llena su mitad en vez de quedar flotando chica en el medio.
+                        // No width cap: in landscape the artwork is bounded by the pane HEIGHT,
+                        // so it fills its half instead of floating small in the middle.
                         Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
                             BigArtwork(info, state.isPlaying)
                         }
@@ -230,8 +230,8 @@ private fun BigArtwork(info: TrackInfo, isPlaying: Boolean, modifier: Modifier =
     ) {
         CoverArt(
             info.album.id, info.album.colors, info.album.motion, animate = isPlaying,
-            // Sin fillMaxWidth: fijaba minWidth==maxWidth y anulaba el aspectRatio(1f) de CoverArt, asi
-            // que en una ventana baja la caratula se desbordaba por encima del titulo.
+            // No fillMaxWidth: it fixed minWidth==maxWidth and overrode CoverArt's aspectRatio(1f),
+            // so on a short window the artwork overflowed over the title.
             modifier = Modifier.shadow(if (isPlaying) 24.dp else 8.dp, RoundedCornerShape(28.dp)),
             shape = RoundedCornerShape(28.dp),
             coverUrl = hiResCover(info.album.cover),

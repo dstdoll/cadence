@@ -135,8 +135,8 @@ mod tests {
     use super::*;
     use std::sync::atomic::{AtomicU32, Ordering};
 
-    /// Un directorio temporal con el archivo de captura que se le pida, y el
-    /// `manifest_dir` que hay que pasarle a [`load`] (la captura se busca en `..`).
+    /// A temporary directory containing the requested capture file, and the
+    /// `manifest_dir` to pass to [`load`] (the capture is looked up in `..`).
     struct Case {
         root: PathBuf,
     }
