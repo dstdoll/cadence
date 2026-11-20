@@ -39,7 +39,7 @@
     <string name="quality_details">Detalles de calidad de audio</string>
     <string name="quality_codec_audio">Audio %s</string>
     <string name="quality_format">Formato</string>
-    <string name="quality_lossless">(sin pérdida)</string>
+    <string name="quality_lossless">(Lossless)</string>
     <string name="quality_bit_depth">Profundidad de bits</string>
     <string name="quality_bits">%d bits</string>
     <string name="quality_sample_rate">Frecuencia de muestreo</string>
@@ -328,7 +328,7 @@
     <string name="set_replay_gain">Replay gain</string>
     <string name="set_balance_width">Balance y amplitud</string>
     <string name="set_streaming_quality">Calidad de streaming</string>
-    <string name="set_hires_output">Salida hi-res</string>
+    <string name="set_hires_output">Salida Hi-Res</string>
     <string name="set_bit_perfect">USB bit-perfect (Android 14+)</string>
     <string name="set_dolby_atmos">Dolby Atmos</string>
     <string name="set_dither">Dither</string>
@@ -437,7 +437,7 @@
     <string name="set_contrast_hint">El contraste se aplica a las paletas personalizadas y de carátula; el fondo de pantalla ya trae el suyo.</string>
     <string name="set_pure_black_sub">Usa superficies negras de verdad en el tema oscuro (ideal en OLED).</string>
     <string name="set_motion_covers_sub">Deja que las carátulas se muevan: videos en bucle cuando los hay, carátulas animadas si no.</string>
-    <string name="set_show_quality_sub">Marca las canciones sin pérdida y hi-res en el reproductor y en los álbumes.</string>
+    <string name="set_show_quality_sub">Marca las canciones Lossless y Hi-Res en el reproductor y en los álbumes.</string>
     <string name="set_reduce_motion_sub">Transiciones más tranquilas, sin desenfoque ni fondos en movimiento.</string>
     <string name="set_wave_material">Material</string>
     <string name="set_wave_bars">Barras</string>
@@ -450,7 +450,7 @@
     <string name="set_wave_hint_line">La forma de onda como un solo contorno relleno.</string>
     <string name="set_wave_hint_neon">Forma de onda luminosa que late con el nivel y los golpes de bajo.</string>
     <string name="set_autoplay_sub">Cuando se acabe tu cola, se reproduce música parecida.</string>
-    <string name="set_skip_silence_sub_hires">Desactiva la salida hi-res mientras está activo.</string>
+    <string name="set_skip_silence_sub_hires">Desactiva la salida Hi-Res mientras está activo.</string>
     <string name="set_state_on">Activado</string>
     <string name="set_state_off">Desactivado</string>
     <string name="set_streaming_quality_hint">AAC usa más o menos una quinta parte de los datos y empieza más rápido. Se aplica desde la siguiente canción.</string>
@@ -467,7 +467,7 @@
     <string name="set_window_hint">Canciones completas de la cola descargadas y descifradas alrededor de la que suena, para que saltar en cualquier dirección sea instantáneo.</string>
     <string name="set_fill_mobile_sub">Desactivado, esas canciones esperan al Wi-Fi; la precarga de arriba siempre funciona.</string>
     <string name="set_cache_hint">El máximo de audio descifrado que se guarda en este dispositivo; las canciones por delante y por detrás nunca lo superan. La canción que suena siempre se descarga completa.</string>
-    <string name="set_lossless">Sin pérdida</string>
+    <string name="set_lossless">Lossless</string>
     <string name="set_atmos_spatial">Espacial</string>
     <string name="set_off_short">No</string>
     <string name="set_whole">Completa</string>
@@ -481,7 +481,7 @@
     <string name="set_listening_history_sub">Recuerda lo que reproduces para el Historial y Reproducido recientemente.</string>
     <string name="set_logs_failed">No se pudieron exportar los registros</string>
     <string name="set_logs_saved">Guardado en %1$s</string>
-    <string name="set_about_desc">Un reproductor Material 3 Expressive con un descargador sin pérdida integrado.</string>
+    <string name="set_about_desc">Un reproductor Material 3 Expressive con un descargador Lossless integrado.</string>
     <string name="set_about_version">Versión %1$s</string>
     <string name="set_diag_sub">Registro del motor: %1$s</string>
     <string name="set_export_logs_sub">Guarda los registros del motor en %1$s</string>
@@ -524,11 +524,11 @@
     <string name="set_tokens">Marcadores</string>
     <string name="set_preview">Vista previa</string>
     <string name="set_reset_default">Restablecer</string>
-    <string name="set_dl_format_hint">Sin pérdida es ALAC; AAC es de 256 kbps y pesa más o menos una quinta parte. Los dos se guardan como .m4a.</string>
+    <string name="set_dl_format_hint">Lossless es ALAC; AAC es de 256 kbps y pesa más o menos una quinta parte. Los dos se guardan como .m4a.</string>
     <string name="set_dl_atmos_hint_atmos">Las canciones mezcladas en Dolby Atmos se guardan con esa mezcla (E-AC-3, unos 768 kbps, en un .m4a). Necesita un reproductor con decodificador Dolby; las demás canciones mantienen el formato de arriba.</string>
     <string name="set_dl_atmos_hint_spatial">Las canciones mezcladas en Dolby Atmos se guardan en su versión para audífonos (AAC 256 kbps), espacial en cualquier audífono y cualquier reproductor. Las demás canciones mantienen el formato de arriba.</string>
     <string name="set_dl_atmos_hint_off">Las canciones siempre se guardan en el formato de arriba, aunque tengan mezcla Dolby Atmos.</string>
-    <string name="set_dl_depth_hint">La profundidad preferida cuando Apple publica más de una variante sin pérdida.</string>
+    <string name="set_dl_depth_hint">La profundidad preferida cuando Apple publica más de una variante Lossless.</string>
     <string name="set_dl_rate_hint">Automática toma la mejor variante que ofrece la canción.</string>
     <string name="set_write_tags_sub">Título, artista, álbum, pista, disco, fecha y género dentro del archivo.</string>
     <string name="set_auto_rate">Frecuencia automática</string>
@@ -606,8 +606,8 @@
     <string name="set_dither_desc_rect">Un paso de ruido uniforme. Descorrelaciona el error.</string>
     <string name="set_dither_desc_tri">Ruido triangular de dos pasos. La opción estándar.</string>
     <string name="set_dither_desc_shaped">Triangular más conformación del ruido hacia las frecuencias altas.</string>
-    <string name="quality_tier_hires">Hi-Res sin pérdida</string>
-    <string name="quality_tier_lossless">Sin pérdida</string>
+    <string name="quality_tier_hires">Hi-Res Lossless</string>
+    <string name="quality_tier_lossless">Lossless</string>
     <string name="quality_tier_spatial">Dolby Atmos</string>
     <string name="quality_tier_standard">Estándar</string>
     <string name="quality_desc_hires">Idéntico bit a bit al máster de estudio, muestreado por encima de las frecuencias de CD y de streaming.</string>

@@ -304,6 +304,26 @@ class AmpEngine(private val cfg: AmpConfig) {
     suspend fun playlistTracksPage(playlistId: String, offset: Int): JSONObject? =
         get("playlists/$playlistId/tracks?limit=100&offset=$offset&extend=extendedAssetUrls")
 
+    /** Fetches the next batch of tracks for an Apple Music radio station (`POST /v1/me/stations/next-tracks/{id}`). */
+    suspend fun stationNextTracks(stationId: String): JSONObject? = withContext(Dispatchers.IO) {
+        if (mediaToken.isBlank()) return@withContext null
+        val url = ME_BASE + "stations/next-tracks/$stationId?extend=extendedAssetUrls"
+        val sentIn = gate.acquire()
+        val reply = runCatching {
+            Http.send(url, "POST", "{}", headers("application/json"))
+        }.onFailure { CadenceLog.i("amp", "FAILED POST stations/next-tracks/$stationId: ${it.javaClass.simpleName}: ${it.message}") }
+            .getOrNull()
+        if (reply == null || reply.code !in 200..299) {
+            if (reply != null && reply.code != 404) {
+                CadenceLog.e("amp", "POST stations/next-tracks/$stationId -> ${reply.code} ${reply.body.take(160)}")
+            }
+            return@withContext null
+        }
+        gate.succeeded(sentIn)
+        CadenceLog.i("amp", "POST stations/next-tracks/$stationId -> ${reply.code} bytes=${reply.body.length}")
+        runCatching { JSONObject(reply.body) }.getOrNull()
+    }
+
     /**
      * Everything the artist page shows, in one request: biography, origin, and the views Apple
      * curates (top songs, latest release, albums, singles, similar artists, featured playlists).

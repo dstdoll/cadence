@@ -108,7 +108,16 @@ class RealCatalog(
         if (!forceRefresh) {
             existing?.takeIf { it.trackIds.isNotEmpty() }?.let { return@withLock it.trackIds.mapNotNull(::track) }
         }
-        if (playlistId.startsWith("st:")) return@withLock emptyList()
+        if (playlistId.startsWith("st:")) {
+            val ids = loadStationTracks(playlistId.removePrefix("st:"), existing)
+                ?: return@withLock existing?.trackIds?.mapNotNull(::track).orEmpty()
+            synchronized(playlistsLock) {
+                personalPlaylists = personalPlaylists.map { if (it.id == playlistId) it.copy(trackIds = ids) else it }
+            }
+            changes.value += 1
+            CadenceLog.i("playlist", "open $playlistId (station) tracks=${ids.size}")
+            return@withLock ids.mapNotNull(::track)
+        }
         if (playlistId.startsWith("lp:")) {
             val ids = libraryPlaylistSongs(playlistId)
                 ?: return@withLock existing?.trackIds?.mapNotNull(::track).orEmpty()
@@ -582,6 +591,31 @@ class RealCatalog(
             offset += rows
         }
         return ids
+    }
+
+    private suspend fun loadStationTracks(appleId: String, existing: Playlist?): List<String>? {
+        val candidates = buildList {
+            add(appleId)
+            if (existing != null) {
+                val newer = synchronized(playlistsLock) {
+                    personalPlaylists.firstOrNull {
+                        it.id.startsWith("st:") &&
+                            it.id.removePrefix("st:") != appleId &&
+                            it.title.equals(existing.title, ignoreCase = true)
+                    }
+                }
+                if (newer != null) add(newer.id.removePrefix("st:"))
+            }
+        }
+        for (candidate in candidates) {
+            val data = engine.stationNextTracks(candidate)?.optJSONArray("data") ?: continue
+            val ids = ArrayList<String>(data.length())
+            for (i in 0 until data.length()) {
+                data.optJSONObject(i)?.let(::mapPlaylistTrack)?.let(ids::add)
+            }
+            if (ids.isNotEmpty()) return ids
+        }
+        return null
     }
 
     override suspend fun prepareTracks(ids: Collection<String>) {
