@@ -28,12 +28,17 @@ object LogExport {
             val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
             val name = "Cadence-logs-$stamp.txt"
             val logDir = File(context.filesDir, "logs")
+            val engineLog = File(logDir, "cadence.log").takeIf { it.isFile }?.readText().orEmpty()
+            val header = listOf(
+                "generated=${Date()}",
+                "package=${context.packageName} version=${versionName(context)}",
+                "device=${Build.MANUFACTURER} ${Build.MODEL} sdk=${Build.VERSION.SDK_INT}",
+            )
             val text = buildString {
                 appendLine("Cadence diagnostics")
-                appendLine("generated=${Date()}")
-                appendLine("package=${context.packageName}")
-                appendLine("version=${versionName(context)}")
-                appendLine("device=${Build.MANUFACTURER} ${Build.MODEL} sdk=${Build.VERSION.SDK_INT}")
+                header.forEach { appendLine(it) }
+                appendLine()
+                appendLine(app.cadence.backend.engine.LogSummary.build(engineLog.takeLast(MAX_CHARS), header))
                 for (file in listOf("cadence.log", "native-crash.log")) {
                     appendLine()
                     appendLine("===== $file =====")
@@ -48,6 +53,16 @@ object LogExport {
                     } else {
                         appendLine("(missing: the engine log appears after the first download)")
                     }
+                }
+                // Apple's libraries write their own diagnostics (FairPlay*, SVError ...) to logcat only, which is
+                // what explains a rejected key; the app may read its own process's logcat without permission.
+                // Normally the live capture already put Apple's lines (A/ lines) into cadence.log. Only when it did
+                // not (logcat unavailable at start-up) is a snapshot of the process's logcat added.
+                if (!Regex("""(?m)^\S+ \S+ A/""").containsMatchIn(engineLog)) {
+                    appendLine()
+                    appendLine("===== apple-libs logcat snapshot (live capture empty; filtered, redacted) =====")
+                    val lines = appleLibLines(ownLogcat())
+                    appendLine(if (lines.isEmpty()) "(none)" else lines.joinToString("\n"))
                 }
             }
             val resolver = context.contentResolver
@@ -74,6 +89,24 @@ object LogExport {
             Exported("cache/share/$name", fileUri)
         }.getOrNull()
     }
+
+    /** The snapshot fallback's filter is the live capture's ([app.cadence.backend.engine.AppleLogcat]). */
+    internal fun appleLibLines(logcat: List<String>): List<String> =
+        logcat.filter { l -> app.cadence.backend.engine.AppleLogcat.parse(l)?.let(app.cadence.backend.engine.AppleLogcat::accepts) == true }
+            .takeLast(LIMIT).map { app.cadence.backend.engine.LogRedactor.clean(it) }
+
+    private const val LIMIT = 400
+
+    /** Reads logcat with a hard deadline: a stuck logcat is killed, what was read so far is kept. */
+    private fun ownLogcat(): List<String> = runCatching {
+        val proc = ProcessBuilder("logcat", "-d", "-v", "threadtime", "-t", "6000", "--pid=${android.os.Process.myPid()}")
+            .redirectErrorStream(true).start()
+        val lines = java.util.Collections.synchronizedList(ArrayList<String>())
+        val reader = Thread({ runCatching { proc.inputStream.bufferedReader().forEachLine { lines += it } } }, "logcat-read").apply { isDaemon = true; start() }
+        reader.join(4_000)
+        if (reader.isAlive) { proc.destroy(); reader.join(500) }
+        synchronized(lines) { lines.toList() }
+    }.getOrDefault(emptyList())
 
     fun share(context: Context, exported: Exported) {
         val send = Intent(Intent.ACTION_SEND).apply {

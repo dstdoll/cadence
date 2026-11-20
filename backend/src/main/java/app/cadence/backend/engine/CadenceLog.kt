@@ -29,6 +29,7 @@ object CadenceLog {
             file?.let { trimToTail(it) }
             file?.appendText("\n=== start ${Date()} ===\n")
         }
+        AppleLogcat.start()
     }
 
     fun i(tag: String, rawMessage: String) {
