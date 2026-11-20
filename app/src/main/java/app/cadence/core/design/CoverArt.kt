@@ -107,9 +107,12 @@ private fun VideoCover(uri: String, playing: Boolean, modifier: Modifier) {
     )
 }
 
+/** The grayscale effect for monochrome mode; null before Android 12 (no RenderEffect), where covers stay in colour. */
 private val grayscaleEffect by lazy {
-    val m = android.graphics.ColorMatrix().apply { setSaturation(0f) }
-    RenderEffect.createColorFilterEffect(ColorMatrixColorFilter(m)).asComposeRenderEffect()
+    if (app.cadence.core.theme.ApiCompat.supportsRenderEffect()) {
+        val m = android.graphics.ColorMatrix().apply { setSaturation(0f) }
+        RenderEffect.createColorFilterEffect(ColorMatrixColorFilter(m)).asComposeRenderEffect()
+    } else null
 }
 
 /**

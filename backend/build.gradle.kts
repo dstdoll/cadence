@@ -9,7 +9,7 @@ android {
     namespace = "app.cadence.backend"
     compileSdk = 37
     defaultConfig {
-        minSdk = 31
+        minSdk = 29
         consumerProguardFiles("consumer-rules.pro")
     }
     defaultConfig {

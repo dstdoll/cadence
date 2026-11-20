@@ -36,7 +36,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         requestHighestRefreshRate()
         handle(intent)
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) {}.launch(Manifest.permission.POST_NOTIFICATIONS)
+        if (app.cadence.core.theme.ApiCompat.needsNotificationPermission()) {
+            registerForActivityResult(ActivityResultContracts.RequestPermission()) {}.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
 
         val container = container
         setContent {
@@ -70,7 +72,9 @@ class MainActivity : ComponentActivity() {
      * Pin the window to the panel's fastest mode at native resolution so scrolling and springs run at 120 Hz.
      */
     private fun requestHighestRefreshRate() {
-        val display = display ?: return
+        // Context.getDisplay() is public from Android 11; on Android 10 it is a hidden API, so use the window manager there.
+        @Suppress("DEPRECATION")
+        val display = (if (app.cadence.core.theme.ApiCompat.hasPublicContextDisplay()) display else windowManager.defaultDisplay) ?: return
         val current = display.mode
         val best = display.supportedModes
             .filter { it.physicalWidth == current.physicalWidth && it.physicalHeight == current.physicalHeight }

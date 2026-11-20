@@ -297,7 +297,7 @@ fun VolumeSlider(modifier: Modifier = Modifier) {
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(c: Context?, i: Intent?) { volume = audio.getStreamVolume(AudioManager.STREAM_MUSIC) / max }
         }
-        context.registerReceiver(receiver, IntentFilter("android.media.VOLUME_CHANGED_ACTION"), Context.RECEIVER_NOT_EXPORTED)
+        androidx.core.content.ContextCompat.registerReceiver(context, receiver, IntentFilter("android.media.VOLUME_CHANGED_ACTION"), androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED)
         onDispose { context.unregisterReceiver(receiver) }
     }
     Row(modifier.fillMaxWidth().padding(horizontal = PlayerGutter), verticalAlignment = Alignment.CenterVertically) {

@@ -14,7 +14,7 @@ android {
 
     defaultConfig {
         applicationId = "app.cadence"
-        minSdk = 31
+        minSdk = 29
         targetSdk = 37
         versionCode = providers.gradleProperty("cadence.versionCode").orNull?.toInt() ?: 9
         versionName = providers.gradleProperty("cadence.versionName").orNull ?: "0.2.0-dev.1"

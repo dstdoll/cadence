@@ -68,7 +68,7 @@ internal fun AppearancePanel(onBack: () -> Unit) {
             SettingsGroup {
                 Label(
                     stringResource(R.string.set_color_source),
-                    when (s.colorSource) {
+                    when (app.cadence.core.theme.ApiCompat.effectiveColorSource(s.colorSource)) {
                         ColorSource.Wallpaper -> stringResource(R.string.set_source_hint_wallpaper)
                         ColorSource.Artwork -> stringResource(R.string.set_source_hint_album)
                         ColorSource.Custom -> null // the seed picker right below says it
@@ -76,7 +76,7 @@ internal fun AppearancePanel(onBack: () -> Unit) {
                     },
                 )
                 Connected(
-                    ColorSource.entries, s.colorSource,
+                    app.cadence.core.theme.ApiCompat.availableColorSources(), app.cadence.core.theme.ApiCompat.effectiveColorSource(s.colorSource),
                     { sourceLabel(it) },
                 ) { v -> set { it.copy(colorSource = v) } }
             }

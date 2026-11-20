@@ -7,7 +7,7 @@ processing chain (equalizer, tone, replay gain, dither). The interface is availa
 - **UI:** Kotlin and Jetpack Compose (`app/`).
 - **Data and engine:** catalogue, search, sign-in and downloads (`backend/`), on top of a native engine
   written in Rust (`native/`) that drives Apple's own libraries for sign-in and playback.
-- **Platform:** Android 12 or newer (API 31+), arm64 devices only.
+- **Platform:** Android 10 or newer (API 29+), arm64 devices only.
 
 ## Build
 

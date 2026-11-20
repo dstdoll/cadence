@@ -81,7 +81,15 @@ private fun applyStartScreenMode(context: android.content.Context, mode: DarkMod
         DarkMode.Light -> android.app.UiModeManager.MODE_NIGHT_NO
         DarkMode.Dark -> android.app.UiModeManager.MODE_NIGHT_YES
     }
-    runCatching { ui.setApplicationNightMode(night) }
+    // setApplicationNightMode is Android 12+; before that the AppCompat default is the closest thing.
+    if (android.os.Build.VERSION.SDK_INT >= 31) runCatching { ui.setApplicationNightMode(night) }
+    else androidx.appcompat.app.AppCompatDelegate.setDefaultNightMode(
+        when (mode) {
+            DarkMode.System -> androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+            DarkMode.Light -> androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_NO
+            DarkMode.Dark -> androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_YES
+        },
+    )
 }
 
 @Composable
@@ -97,9 +105,11 @@ fun CadenceTheme(settings: UserSettings, artworkSeed: Color?, content: @Composab
     val target = remember(settings.colorSource, settings.customSeed, settings.pureBlack, contrast, dark, artworkSeed) {
         fun seeded(seed: Color, style: PaletteStyle) =
             seed.toDynamicScheme(dark, style, contrast).toColorScheme(dark && settings.pureBlack) { it }
-        when (settings.colorSource) {
+        when (ApiCompat.effectiveColorSource(settings.colorSource)) {
             ColorSource.Wallpaper ->
-                (if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context))
+                // effectiveColorSource already maps this to Artwork before Android 12; the explicit check keeps the API call guarded.
+                (if (!ApiCompat.supportsWallpaperColors()) seeded(artworkSeed ?: Color(settings.customSeed), PaletteStyle.Vibrant)
+                else if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context))
                     .let { if (dark && settings.pureBlack) it.pureBlack() else it }
             ColorSource.Artwork -> seeded(artworkSeed ?: Color(settings.customSeed), PaletteStyle.Vibrant)
             ColorSource.Custom -> seeded(Color(settings.customSeed), PaletteStyle.TonalSpot)
