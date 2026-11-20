@@ -1,0 +1,12 @@
+[workspace]
+
+[package]
+name = "vectors-fixture"
+description = "Carga vectors.json para los tests de los ports, sin falsos verdes"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+rust-version = "1.85"
+
+[dependencies]
+serde_json = "1.0.145"

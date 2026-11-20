@@ -1,0 +1,13 @@
+[workspace]
+
+[package]
+name = "apple-ss-sys"
+description = "Bindings a las librerias cerradas de Apple Music Android (57 simbolos)"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+rust-version = "1.85"
+
+[lints.rust]
+# los externos no se resuelven al compilar para host; es esperado
+unexpected_cfgs = "allow"

@@ -1,98 +1,30 @@
-//! ABI primitives for calling Apple's StoreServices C++ libraries from Rust, replacing the former
-//! C/C++ glue (see native/RUST_MIGRATION.md). Everything here is `unsafe`: raw pointers into closed
-//! libraries by mangled symbol, with hand-matched libc++ layouts. Rust does not make this safer than
-//! the C it replaces — it localises the unsafe seam and lets us build with cargo alone.
+//! Seam ABI hacia las librerias cerradas de StoreServices, bajo el guard de excepciones.
 //!
-//! Phase 0 (scaffolding): the core types, the std::string view, the symbol resolver, and the
-//! sret-return mechanism with a few representative bindings. The C/C++ remains the live path until
-//! each piece is ported and verified on-device (Phases 2+).
+//! Los **tipos** (layout de libc++ y los portadores sret) ya no se definen aca: vienen del
+//! crate `apple-ss-sys`, que es el catalogo auditado de los 62 simbolos y la unica fuente
+//! de verdad del layout. Antes estaban duplicados en los dos lados, que es justo donde un
+//! desajuste de un campo corrompe memoria sin avisar.
+//!
+//! Las **llamadas** sí se declaran aca, y a proposito: `apple_externs!` las envuelve en
+//! `cxx_guard`, que atrapa los `throw` de C++ de Apple y los convierte en un retorno en
+//! cero. `apple-ss-sys` declara los externs crudos (`extern "C-unwind"`, que permite el
+//! unwind pero no lo atrapa), asi que no se puede llamar directo desde la ruta viva: un
+//! throw subiria por frames de Rust. Si hace falta un simbolo nuevo, se copia su firma
+//! desde `apple-ss-sys` a este bloque, no se llama alla.
+//!
+//! Todo lo de aca es `unsafe`: punteros crudos a librerias cerradas por simbolo mangled,
+//! con layouts de libc++ calzados a mano. Rust no lo hace mas seguro que el C que
+//! reemplazo; localiza la costura y deja construir con cargo solo.
 #![allow(dead_code)]
 
 use std::ffi::{c_char, c_int, c_void, CStr};
 
-/// libc++ `std::shared_ptr<T>`: `{ T* obj; __shared_weak_count* ctrl }`.
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct SharedPtr {
-    pub obj: *mut c_void,
-    pub ctrl: *mut c_void,
-}
-impl SharedPtr {
-    pub const NULL: SharedPtr = SharedPtr { obj: std::ptr::null_mut(), ctrl: std::ptr::null_mut() };
-    pub fn is_null(&self) -> bool { self.obj.is_null() }
-}
+// Tipos del ABI: una sola definicion, en apple-ss-sys. `StdString::borrow` alla toma
+// `&str`; la ruta viva usa `borrow_cstr`, que toma el `CStr` que ya armo la capa JNI.
+pub use apple_ss_sys::abi::{
+    DevGuidConf256, ReqCtxInit88, SharedPtr, SretData, SretShared, StdString, StdVector,
+};
 
-/// libc++ `std::vector`: `{ begin, end, end_cap }`.
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct StdVector {
-    pub begin: *mut c_void,
-    pub end: *mut c_void,
-    pub end_cap: *mut c_void,
-}
-
-/// A non-owning libc++ `std::string` argument, matching the C `new_std_string`: long mode with the
-/// capacity's low bit set so the library reads `data`. The borrowed bytes must outlive the call.
-#[repr(C)]
-pub struct StdString {
-    cap: usize,
-    size: usize,
-    data: *const u8,
-}
-impl StdString {
-    /// Borrow a NUL-terminated C string as a `std::string` argument (non-owning).
-    pub fn borrow(s: &CStr) -> StdString {
-        StdString { cap: 1, size: s.to_bytes().len(), data: s.as_ptr().cast() }
-    }
-    /// Read a `std::string`'s bytes (short or long mode), as the C `std_string_data` did.
-    pub unsafe fn data(p: *const StdString) -> *const c_char {
-        let first = *(p as *const u8);
-        if first & 1 == 0 {
-            (p as *const u8).add(1) as *const c_char // short mode: inline bytes after the length byte
-        } else {
-            (*p).data as *const c_char
-        }
-    }
-}
-
-// ---- sret returns -------------------------------------------------------------------------------
-// A C++ function returning a non-trivial type (shared_ptr, std::string, Data) returns it indirectly
-// through the x8 register on AArch64. Rust returns any `repr(C)` struct larger than 16 bytes the same
-// way — so if we declare the FFI return type as >16 bytes, the call conventions line up: the callee
-// writes its (≤16-byte) value into our slot and we read the leading bytes. No inline asm needed.
-
-/// 24-byte carrier for a returned `shared_ptr` (16 bytes used, 8 padding to force x8-indirect return).
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct SretShared {
-    pub sp: SharedPtr,
-    _pad: usize,
-}
-
-/// 24-byte carrier for a returned `mediaplatform::Data` (`{ bytes*, size }`, 16 bytes used).
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct SretData {
-    pub bytes: *mut c_char,
-    pub size: usize,
-    _pad: usize,
-}
-
-/// `RequestContext::init(...)` returns an 88-byte result by value (sret); we only need the side
-/// effect, so the bytes are opaque. >16 → x8-indirect, matching the C++ shim's struct.
-#[repr(C)]
-pub struct ReqCtxInit88 {
-    _b: [u8; 88],
-}
-
-/// `DeviceGUID::configure(...)` returns a 256-byte result by value (sret), used only for its side
-/// effect. Opaque.
-#[repr(C)]
-pub struct DevGuidConf256 {
-    _b: [u8; 256],
-}
-
-// ---- symbol resolution --------------------------------------------------------------------------
 extern "C" {
     fn dlsym(handle: *mut c_void, symbol: *const c_char) -> *mut c_void;
 }
