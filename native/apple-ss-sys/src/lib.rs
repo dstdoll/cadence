@@ -1,35 +1,34 @@
-//! Bindings a las librerías cerradas de Apple Music para Android.
+//! Bindings to the closed Apple Music for Android libraries.
 //!
-//! Son los **57 símbolos** que el cliente realmente usa, de un total de ~7000 que
-//! exportan las librerías. Se declararon a partir del inventario en
-//! `~/labs/re/cadence-nativas/api_surface.json`.
+//! These are the **57 symbols** the client actually uses, out of ~7000 exported by the
+//! libraries. Declared from the inventory in `~/labs/re/cadence-nativas/api_surface.json`.
 //!
-//! | librería | símbolos usados | de |
+//! | library | symbols used | total |
 //! |----------|-----------------|-----|
 //! | `libstoreservicescore.so` | 38 | 1702 |
 //! | `libandroidappmusic.so`   | 17 | 4005 |
 //! | `libmediaplatform.so`     |  2 | 1419 |
 //!
-//! (Los otros 10 que aparecían en el análisis eran `_Unwind_*` de libunwind, que las
-//! aporta el runtime y en Rust no existen.)
+//! (The other 10 appearing in the analysis were `_Unwind_*` from libunwind, provided by the
+//! runtime and unused in Rust.)
 //!
-//! ## Qué queda cerrado
+//! ## What remains closed
 //!
-//! Sólo dos cosas, ambas dentro de `libandroidappmusic.so`:
+//! Only two things, both inside `libandroidappmusic.so`:
 //!
-//! * la generación del SPC, detrás de `SVFootHillPExchange::spc()`;
-//! * los campos F1/F2 del GUID, detrás de `FairPlayGetAndroidGUIDFields`.
+//! * SPC generation, behind `SVFootHillPExchange::spc()`;
+//! * GUID F1/F2 fields, behind `FairPlayGetAndroidGUIDFields`.
 //!
-//! Todo lo demás del camino de reproducción está portado en los crates `device-guid`,
-//! `fairplay-proto` y `store-config`.
+//! Everything else in the playback path is ported in the `device-guid`, `fairplay-proto`, and
+//! `store-config` crates.
 //!
-//! ## Símbolos obfuscados
+//! ## Obfuscated symbols
 //!
-//! Apple renombró parte de la API de key delivery. El mapeo se recuperó correlacionando
-//! el orden de las llamadas con el de los strings de error que la propia librería
-//! imprime (ver `~/labs/re/cadence-nativas/DEOBFUSCACION.md`):
+//! Apple renamed part of the key-delivery API. The mapping was recovered by correlating call
+//! order with error strings printed by the library itself
+//! (see `~/labs/re/cadence-nativas/DEOBFUSCACION.md`):
 //!
-//! | nombre real | símbolo |
+//! | real name | symbol |
 //! |---|---|
 //! | `KDDecryptSample` | `NfcRKVnxuKZy04KWbdFu71Ou` |
 //! | `KDPersistFromCKCWithAT` | `MYiCHr2n1RFBPK6tHo` |
@@ -45,17 +44,16 @@
 #![allow(non_snake_case)]
 
 // ---------------------------------------------------------------------------------------
-// SEGURIDAD: estas funciones son C++ de Apple y **lanzan excepciones**.
+// SAFETY: these are Apple C++ functions and they **throw exceptions**.
 //
-// Por eso los bloques se declaran `extern "C-unwind"` y no `extern "C"`: una excepcion
-// cruzando un borde `extern "C"` es comportamiento indefinido en Rust y aborta el
-// proceso. `C-unwind` permite que el unwind pase.
+// That is why the blocks are declared `extern "C-unwind"` instead of `extern "C"`: an
+// exception crossing an `extern "C"` boundary is UB in Rust and aborts the process.
+// `C-unwind` lets unwinding pass through.
 //
-// Permitir el unwind no es atraparlo. Quien llame a cualquiera de estas funciones en
-// produccion tiene que envolverla en el guard de excepciones (`cxx_guard` del crate
-// `cadence-native-rs`, macro `apple_externs!`), que convierte un `throw` en un retorno
-// en cero en vez de dejarlo subir por frames de Rust. Este crate declara el ABI; no lo
-// protege.
+// Allowing unwind is not catching it. Any production caller of these functions must wrap them
+// in the exception guard (`cxx_guard` in `cadence-native-rs`, macro `apple_externs!`), which
+// turns a `throw` into a zero return instead of letting it unwind through Rust frames. This
+// crate declares the ABI; it does not guard it.
 // ---------------------------------------------------------------------------------------
 
 pub mod abi;
@@ -63,22 +61,22 @@ pub mod abi;
 use abi::{DevGuidConf256, ReqCtxInit88, SharedPtr, SretData, SretShared, StdString, StdVector};
 use core::ffi::{c_char, c_int, c_long, c_ulong, c_void};
 
-/// Modo de descifrado que usa Apple Music para content keys.
+/// Decryption mode used by Apple Music for content keys.
 pub const DECRYPT_MODE_CONTENT_KEY: u32 = 5;
 
-/// Respuesta de `AuthenticateResponse::responseType()` cuando la sesión quedó iniciada.
+/// `AuthenticateResponse::responseType()` value when sign-in succeeded.
 pub const AUTH_RESPONSE_SIGNED_IN: c_int = 6;
 
 // =====================================================================================
-// libandroidappmusic.so -- FairPlay y lease de reproducción
+// libandroidappmusic.so -- FairPlay and playback lease
 // =====================================================================================
 
 unsafe extern "C-unwind" {
     /// `KDDecryptSample(ctx, mode, in, out, len) -> status`
     ///
-    /// Descifra un sample de audio. Con `mode` = [`DECRYPT_MODE_CONTENT_KEY`] y
-    /// `input == output` trabaja in-place, que es como lo llama la app: se observaron
-    /// 30 267 llamadas para un álbum, con `len` entre 8500 y 10500 bytes.
+    /// Decrypts an audio sample. With `mode` = [`DECRYPT_MODE_CONTENT_KEY`] and
+    /// `input == output` it works in-place, which is how the app calls it: 30,267 calls
+    /// were observed for one album, with `len` between 8500 and 10500 bytes.
     #[link_name = "NfcRKVnxuKZy04KWbdFu71Ou"]
     pub fn KDDecryptSample(
         ctx: *mut c_void,
@@ -90,7 +88,7 @@ unsafe extern "C-unwind" {
 
     /// `KDPersistFromCKCWithAT(kdExchange, ckc, ckcLen, 0, 0, &outKey, &outLen) -> status`
     ///
-    /// Convierte un CKC en clave persistente. Sólo se llama en la rama offline.
+    /// Converts a CKC into a persistent key. Only called on the offline branch.
     #[link_name = "MYiCHr2n1RFBPK6tHo"]
     pub fn KDPersistFromCKCWithAT(
         kd_exchange: *mut c_void,
@@ -112,12 +110,12 @@ unsafe extern "C-unwind" {
 
     /// `SVFootHillSessionCtrl::getPersistentKey(this, 8 × std::string const&)`
     ///
-    /// Los ocho argumentos, en orden, verificados contra tráfico real:
-    /// `defaultId`, `adamId` (el mismo valor repetido), `keyUri`, `keyFormat`
+    /// The eight arguments, in order, verified against real traffic:
+    /// `defaultId`, `adamId` (same value repeated), `keyUri`, `keyFormat`
     /// (`"com.apple.streamingkeydelivery"`), `keyFormatVersion` (`"1"`), `serverUri`,
-    /// `protocolType` (`"simplified"`) y el certificado FPS en base64.
+    /// `protocolType` (`"simplified"`), and the base64 FPS certificate.
     ///
-    /// Devuelve `shared_ptr<SVFootHillPKey>` por valor (sret).
+    /// Returns `shared_ptr<SVFootHillPKey>` by value (sret).
     #[link_name = "_ZN21SVFootHillSessionCtrl16getPersistentKeyERKNSt6__ndk112basic_stringIcNS0_11char_traitsIcEENS0_9allocatorIcEEEES8_S8_S8_S8_S8_S8_S8_"]
     pub fn SVFootHillSessionCtrl_getPersistentKey(
         this: *mut c_void,
@@ -214,7 +212,7 @@ unsafe extern "C-unwind" {
 }
 
 // =====================================================================================
-// libstoreservicescore.so -- identidad, contexto, HTTP y autenticación
+// libstoreservicescore.so -- identity, context, HTTP, and authentication
 // =====================================================================================
 
 unsafe extern "C-unwind" {
@@ -228,9 +226,9 @@ unsafe extern "C-unwind" {
 
     /// `DeviceGUID::configure(id, serial, apiNum, forceConfig)`
     ///
-    /// `id` es el Android ID, `apiNum` el nivel de SDK. El algoritmo que arma el GUID a
-    /// partir de esto está portado en el crate `device-guid`; esta llamada sigue siendo
-    /// necesaria porque dos de los seis campos vienen de FairPlay.
+    /// `id` is the Android ID, `apiNum` is the SDK level. The algorithm that builds the GUID from
+    /// this is ported in `device-guid`; this call is still needed because two of the six fields
+    /// come from FairPlay.
     #[link_name = "_ZN17storeservicescore10DeviceGUID9configureERKNSt6__ndk112basic_stringIcNS1_11char_traitsIcEENS1_9allocatorIcEEEES9_RKjRKb"]
     pub fn DeviceGUID_configure(
         this: *mut c_void,
@@ -280,8 +278,8 @@ unsafe extern "C-unwind" {
     #[link_name = "_ZN17storeservicescore10URLRequestC2ERKNSt6__ndk110shared_ptrIN13mediaplatform11HTTPMessageEEERKNS2_INS_14RequestContextEEE"]
     pub fn URLRequest_new(this: *mut c_void, message: *mut SharedPtr, context: *mut SharedPtr);
 
-    /// Ejecuta el request. Acá es donde la librería inyecta las cabeceras de
-    /// autenticación y Anisette (`X-Dsid`, `X-Token`, `X-Apple-AMD`, ...).
+    /// Executes the request. This is where the library injects auth and Anisette headers
+    /// (`X-Dsid`, `X-Token`, `X-Apple-AMD`, ...).
     #[link_name = "_ZN17storeservicescore10URLRequest3runEv"]
     pub fn URLRequest_run(this: *mut c_void);
 
@@ -299,7 +297,7 @@ unsafe extern "C-unwind" {
     #[link_name = "_ZNK17storeservicescore11URLResponse18underlyingResponseEv"]
     pub fn URLResponse_underlyingResponse(this: *mut c_void) -> *mut SharedPtr;
 
-    // ---- autenticación ----
+    // ---- authentication ----
     #[link_name = "_ZNSt6__ndk110shared_ptrIN17storeservicescore16AuthenticateFlowEE11make_sharedIJRNS0_INS1_14RequestContextEEEEEES3_DpOT_"]
     pub fn make_authenticate_flow(ctx: *const SharedPtr) -> SretShared;
 
@@ -308,7 +306,7 @@ unsafe extern "C-unwind" {
     #[link_name = "_ZNK17storeservicescore16AuthenticateFlow8responseEv"]
     pub fn AuthenticateFlow_response(this: *mut c_void) -> *mut SharedPtr;
 
-    /// Devuelve [`AUTH_RESPONSE_SIGNED_IN`] cuando la sesión quedó iniciada.
+    /// Returns [`AUTH_RESPONSE_SIGNED_IN`] when sign-in succeeded.
     #[link_name = "_ZNK17storeservicescore20AuthenticateResponse12responseTypeEv"]
     pub fn AuthenticateResponse_responseType(this: *mut c_void) -> c_int;
 
@@ -324,7 +322,7 @@ unsafe extern "C-unwind" {
     #[link_name = "_ZN17storeservicescore19CredentialsResponse15setResponseTypeENS0_12ResponseTypeE"]
     pub fn CredentialsResponse_setResponseType(this: *mut c_void, ty: c_int);
 
-    // ---- diálogos del protocolo ----
+    // ---- protocol dialogs ----
     #[link_name = "_ZNK17storeservicescore14ProtocolDialog5titleEv"]
     pub fn ProtocolDialog_title(this: *mut c_void) -> *mut StdString;
     #[link_name = "_ZNK17storeservicescore14ProtocolDialog7buttonsEv"]
@@ -363,13 +361,13 @@ unsafe extern "C-unwind" {
     pub fn Data_bytes(this: *mut c_void) -> *const c_char;
 }
 
-/// Resuelve un símbolo en cualquier librería ya cargada.
+/// Resolves a symbol in any already-loaded library.
 ///
-/// Útil para comprobar, antes de llamar nada, que la blob esperada está presente: si
-/// esto devuelve `None` para `SVFootHillSessionCtrl_instance`, no tiene sentido seguir.
+/// Useful for checking before calling anything that the expected native library is present: if
+/// this returns `None` for `SVFootHillSessionCtrl_instance`, there is no point continuing.
 ///
 /// # Safety
-/// `name` tiene que terminar en NUL.
+/// `name` must be NUL-terminated.
 pub unsafe fn resolve(name: &core::ffi::CStr) -> Option<*mut c_void> {
     unsafe extern "C-unwind" {
         fn dlsym(handle: *mut c_void, symbol: *const c_char) -> *mut c_void;

@@ -1,15 +1,14 @@
-//! Validación contra el GUID real capturado en el dispositivo.
+//! Validation against the real GUID captured on the device.
 //!
-//! `vectors.json` lo produce `export-vectors.js` enganchando `DeviceGUID::configure`
-//! (los insumos: Android ID y serial) y el tráfico al key server (el GUID resultante,
-//! que es donde el valor realmente importa). Con ambos se comprueba el port de punta a
-//! punta: mismos insumos -> mismo GUID, carácter por carácter.
+//! `vectors.json` is produced by `export-vectors.js` hooking `DeviceGUID::configure` (inputs:
+//! Android ID and serial) and key-server traffic (the resulting GUID, where the value actually
+//! matters). With both, the port is tested end to end: same inputs -> same GUID, char for char.
 //!
-//! **Sin dispositivo los tests se saltan; con un `vectors.json` incompleto fallan.** Un
-//! archivo al que le falta una sección significa que ese hook no funcionó, y eso tiene
-//! que verse en rojo: un salto silencioso se lee como validación y no lo es.
+//! **Without a device the tests are skipped; with an incomplete `vectors.json` they fail.** A file
+//! missing a section means that hook did not fire, which must show red: a silent skip looks like
+//! validation when it is not.
 //!
-//! OPSEC: el GUID identifica al dispositivo. Los mensajes de error no lo imprimen.
+//! OPSEC: the GUID identifies the device. Error messages must not print it.
 
 use device_guid::*;
 
@@ -17,20 +16,20 @@ fn vectors() -> Option<serde_json::Value> {
     vectors_fixture::load(env!("CARGO_MANIFEST_DIR"))
 }
 
-/// El GUID tal como viajó al key server.
+/// The GUID as sent to the key server.
 fn guid_capturado(v: &serde_json::Value) -> String {
-    let reqs = v["ckcRequests"].as_array().expect("vectors.json sin ckcRequests");
-    let primero = reqs.first().expect("vectors.json sin ningún cuerpo CKC");
+    let reqs = v["ckcRequests"].as_array().expect("vectors.json missing ckcRequests");
+    let primero = reqs.first().expect("vectors.json has no CKC request body");
     primero["parsed"]["guid"]
         .as_str()
-        .expect("el cuerpo CKC no trae guid")
+        .expect("CKC body missing guid")
         .to_owned()
 }
 
-/// Los insumos que recibió `DeviceGUID::configure`.
+/// Inputs received by `DeviceGUID::configure`.
 ///
-/// Se aceptan en dos lugares porque el harness los emite por separado desde que el hook
-/// de `guid()` resultó frágil.
+/// Accepted in two places because the harness emits them separately since hooking `guid()` proved
+/// fragile.
 fn insumos(v: &serde_json::Value) -> (String, String) {
     let i = if v["deviceGuidInputs"].is_object() {
         &v["deviceGuidInputs"]
@@ -40,35 +39,35 @@ fn insumos(v: &serde_json::Value) -> (String, String) {
     let id = i["androidId"].as_str().unwrap_or_default().to_owned();
     assert!(
         !id.is_empty(),
-        "vectors.json no trae el Android ID: el hook de DeviceGUID::configure no capturó \
-         nada, así que este test no puede validar el port. Volvé a correr el harness."
+        "vectors.json is missing Android ID: the DeviceGUID::configure hook captured nothing, so \
+         this test cannot validate the port. Re-run the harness."
     );
     (id, i["serial"].as_str().unwrap_or_default().to_owned())
 }
 
-/// La estructura observada es la que declara el crate.
+/// Observed structure matches what the crate declares.
 #[test]
 fn la_estructura_capturada_tiene_seis_campos_de_ancho_fijo() {
     let Some(v) = vectors() else {
-        eprintln!("sin vectors.json: salteado");
+        eprintln!("no vectors.json: skipped");
         return;
     };
     let guid = guid_capturado(&v);
-    assert_eq!(guid.len(), GUID_LEN, "el largo del GUID capturado");
+    assert_eq!(guid.len(), GUID_LEN, "captured GUID length");
     let anchos: Vec<usize> = guid.split('.').map(str::len).collect();
     assert_eq!(anchos, vec![36, 14, 14, 14, 14, 14]);
 }
 
-/// Con los mismos insumos, el port produce el mismo GUID. Byte a byte.
+/// Given the same inputs, the port produces the exact same GUID byte for byte.
 ///
-/// Es la prueba de fuego: el único campo que no se puede derivar sin la blob (el
-/// primero) se toma del capturado; todo lo demás lo calcula el port.
+/// The acid test: the only field that cannot be derived without the blob (the first) is taken
+/// from the capture; everything else is computed by the port.
 #[test]
 fn reproduce_el_guid_capturado() {
     let Some(v) = vectors() else { return };
     let guid = guid_capturado(&v);
     let (android_id, serial) = insumos(&v);
-    let parts = parse(&guid).expect("el capturado debe parsear");
+    let parts = parse(&guid).expect("captured GUID must parse");
 
     let nuestro = build(&DeviceInfo {
         android_id,
@@ -78,13 +77,13 @@ fn reproduce_el_guid_capturado() {
     });
     assert!(
         nuestro == guid,
-        "el GUID generado no coincide con el capturado (largos {} vs {})",
+        "generated GUID does not match captured GUID (lengths {} vs {})",
         nuestro.len(),
         guid.len()
     );
 }
 
-/// El cuarto campo es `sha1(androidId)` recortado, y nada más.
+/// The fourth field is truncated `sha1(androidId)` and nothing else.
 #[test]
 fn el_hash_corresponde_al_android_id_de_los_insumos() {
     let Some(v) = vectors() else { return };
@@ -94,7 +93,7 @@ fn el_hash_corresponde_al_android_id_de_los_insumos() {
     assert!(parts.matches_android_id(&android_id));
 }
 
-/// Los rellenos vinieron en ceros, y el campo 1 trae los datos de FairPlay.
+/// Fillers came in as zeros, and field 1 carries FairPlay data.
 #[test]
 fn los_rellenos_capturados_estan_en_ceros() {
     let Some(v) = vectors() else { return };
@@ -102,7 +101,7 @@ fn los_rellenos_capturados_estan_en_ceros() {
     assert_eq!(parts.filler1, "0".repeat(FIELD_LEN));
     assert_eq!(parts.filler2, "0".repeat(FIELD_LEN));
     assert!(parts.looks_valid());
-    assert!(parts.tiene_fairplay(), "el GUID capturado tiene que traer los datos de la blob");
+    assert!(parts.tiene_fairplay(), "captured GUID must carry FairPlay blob data");
 }
 
 /// El campo 1 mide lo que da el base16 de los 18 bytes que entrega FairPlay.
