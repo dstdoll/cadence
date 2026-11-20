@@ -105,6 +105,13 @@ impl StdString {
         }
     }
 
+    /// Los bytes de un `std::string` de libc++, en short o long mode, copiados a un `Vec`.
+    ///
+    /// Devuelve `None` para un puntero nulo o un short mode con un largo imposible.
+    ///
+    /// # Safety
+    /// `p` tiene que ser nulo o apuntar a un `std::string` valido de libc++ que siga vivo durante
+    /// la llamada; en long mode, su puntero de datos tiene que cubrir los bytes que declara.
     pub unsafe fn read(p: *const StdString) -> Option<Vec<u8>> {
         if p.is_null() {
             return None;
@@ -269,7 +276,7 @@ mod tests {
     /// es el camino que usa la capa JNI, que ya trae `CString`.
     #[test]
     fn borrow_cstr_equivale_a_borrow() {
-        let c = core::ffi::CStr::from_bytes_with_nul(b"Music\0").unwrap();
+        let c = c"Music";
         let a = StdString::borrow_cstr(c);
         let b = StdString::borrow("Music");
         assert_eq!(a.size, b.size, "el largo no incluye el NUL");
@@ -280,7 +287,7 @@ mod tests {
     /// `data()` sobre un prestado (long mode) devuelve el puntero original.
     #[test]
     fn data_en_long_mode_devuelve_el_puntero() {
-        let c = core::ffi::CStr::from_bytes_with_nul(b"Pixel 8\0").unwrap();
+        let c = c"Pixel 8";
         let s = StdString::borrow_cstr(c);
         let p = unsafe { StdString::data(&s as *const StdString) };
         assert_eq!(p, c.as_ptr(), "en long mode sale el puntero prestado tal cual");
