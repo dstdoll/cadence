@@ -59,11 +59,15 @@ jobs:
         timeout-minutes: 5
         run: |
           mkdir -p ~/.local/bin
-          if curl -fsSL --retry 3 --max-time 60 \
+          if curl -fsSL --retry 2 --max-time 60 \
             https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz \
-            | tar -xJ --wildcards --strip-components=2 -C ~/.local/bin '*/bin/ffmpeg'; then
-            chmod +x ~/.local/bin/ffmpeg
+            -o /tmp/ffmpeg.tar.xz && \
+            tar -xJf /tmp/ffmpeg.tar.xz --wildcards --strip-components=2 -C ~/.local/bin '*/bin/ffmpeg' && \
+            chmod +x ~/.local/bin/ffmpeg && \
+            ~/.local/bin/ffmpeg -version > /dev/null; then
+            rm -f /tmp/ffmpeg.tar.xz
           else
+            rm -f /tmp/ffmpeg.tar.xz ~/.local/bin/ffmpeg
             sudo apt-get -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 -o Acquire::Retries=3 update -qq
             sudo apt-get -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 -o Acquire::Retries=3 install -y -qq --no-install-recommends ffmpeg
           fi
