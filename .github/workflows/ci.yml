@@ -74,7 +74,9 @@ jobs:
 
       - name: Run Rust E-AC-3 tests
         run: |
-          export PATH="$HOME/.local/bin:$PATH"
+          if [ ! -x /usr/bin/ffmpeg ] && [ -x "$HOME/.local/bin/ffmpeg" ]; then
+            sudo ln -sf "$HOME/.local/bin/ffmpeg" /usr/bin/ffmpeg
+          fi
           cargo test --manifest-path native/cadence-eac3/Cargo.toml
 
       - name: Upload Gradle test reports on failure
