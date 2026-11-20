@@ -32,10 +32,10 @@ const ANDROID_ID: &str = "0123456789abcdef";
 const FAIRPLAY_FIELD1: &str = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6";
 
 /// Deterministic base64 bytes matching the length of a trimmed real SPC.
-fn spc_sintetico(semilla: u8, largo: usize) -> String {
+fn synthetic_spc(seed: u8, len: usize) -> String {
     const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let data: Vec<u8> = (0..largo)
-        .map(|i| (i as u8).wrapping_mul(31).wrapping_add(semilla))
+    let data: Vec<u8> = (0..len)
+        .map(|i| (i as u8).wrapping_mul(31).wrapping_add(seed))
         .collect();
     let mut s = String::new();
     for c in data.chunks(3) {
@@ -80,7 +80,7 @@ fn main() {
             guid: guid.clone(),
             adam_id: (*adam).to_owned(),
             key_uri: (*uri).to_owned(),
-            spc_base64: spc_sintetico(i as u8 + 1, 96),
+            spc_base64: synthetic_spc(i as u8 + 1, 96),
             offline: *offline,
         };
         let cuerpo = req.to_json(Protocol::Simplified).expect("to_json");

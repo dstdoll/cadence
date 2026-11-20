@@ -381,8 +381,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn las_constantes_coinciden_con_lo_observado() {
-        // mode=5 e in-place, verificado en 30 267 llamadas reales
+    fn constants_match_observed_values() {
+        // mode=5 and in-place, verified across 30,267 real calls
         assert_eq!(DECRYPT_MODE_CONTENT_KEY, 5);
         assert_eq!(AUTH_RESPONSE_SIGNED_IN, 6);
     }

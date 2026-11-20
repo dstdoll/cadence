@@ -274,7 +274,7 @@ pub const CONTENT_TYPE: (&str, &str) = ("Content-Type", "application/json");
 pub enum Error {
     #[error("json: {0}")]
     Json(#[from] serde_json::Error),
-    #[error("la respuesta no traía ninguna streaming key")]
+    #[error("response contained no streaming key")]
     EmptyStreamingKeys,
 }
 
@@ -300,34 +300,34 @@ mod tests {
     }
 
     #[test]
-    fn el_simplified_reproduce_el_cuerpo_capturado() {
+    fn simplified_reproduces_captured_body() {
         let r = req(PRESHARE_ADAM_ID, "skd://itunes.apple.com/P000000000/s1/e1", true);
         assert_eq!(r.to_json(Protocol::Simplified).unwrap(), CAPTURADO_PRESHARE);
     }
 
     #[test]
-    fn el_simplified_reproduce_el_cuerpo_de_un_track() {
+    fn simplified_reproduces_track_body() {
         let r = req("1632087479", "skd://itunes.apple.com/p1492777545/c6", true);
         assert_eq!(r.to_json(Protocol::Simplified).unwrap(), CAPTURADO_TRACK);
     }
 
     #[test]
-    fn sin_offline_la_clave_no_aparece() {
+    fn without_offline_key_is_omitted() {
         let r = req("123", "skd://x", false);
         let json = r.to_json(Protocol::Simplified).unwrap();
-        assert!(!json.contains("offline"), "el original omite la clave en vez de mandar false");
+        assert!(!json.contains("offline"), "original omits the key instead of sending false");
         assert_eq!(json, r#"{"guid":"G","adamId":"123","spc":"S","keyUri":"skd://x"}"#);
     }
 
     #[test]
-    fn offline_viaja_como_string_no_como_booleano() {
+    fn offline_is_sent_as_string_not_boolean() {
         let json = req("1", "skd://x", true).to_json(Protocol::Simplified).unwrap();
         assert!(json.contains(r#""offline":"true""#));
         assert!(!json.contains(r#""offline":true"#));
     }
 
     #[test]
-    fn el_legacy_anida_en_streaming_keys() {
+    fn legacy_nests_under_streaming_keys() {
         let json = req("1", "skd://x", true).to_json(Protocol::Legacy).unwrap();
         assert_eq!(
             json,
@@ -336,7 +336,7 @@ mod tests {
     }
 
     #[test]
-    fn el_legacy_ignora_el_flag_offline() {
+    fn legacy_ignores_offline_flag() {
         // Nested format has nowhere to put it; the original omits it too.
         let a = req("1", "skd://x", true).to_json(Protocol::Legacy).unwrap();
         let b = req("1", "skd://x", false).to_json(Protocol::Legacy).unwrap();
@@ -344,28 +344,28 @@ mod tests {
     }
 
     #[test]
-    fn el_tipo_de_protocolo_selecciona_el_formato() {
+    fn protocol_type_selects_format() {
         assert_eq!(Protocol::from_type("simplified"), Protocol::Simplified);
         assert_eq!(Protocol::from_type("standard"), Protocol::Legacy);
         assert_eq!(Protocol::from_type(""), Protocol::Legacy);
     }
 
     #[test]
-    fn parsea_una_respuesta_simplified() {
+    fn parses_simplified_response() {
         let k = parse_response(r#"{"status":0,"ckc":"AAAAAQ"}"#, Protocol::Simplified).unwrap();
         assert_eq!(k.status, 0);
         assert_eq!(k.ckc, "AAAAAQ");
     }
 
     #[test]
-    fn parsea_una_respuesta_legacy() {
+    fn parses_legacy_response() {
         let body = r#"{"fairplay-streaming-response":{"streaming-keys":[{"status":0,"ckc":"AAAAAQ"}]}}"#;
         let k = parse_response(body, Protocol::Legacy).unwrap();
         assert_eq!(k.ckc, "AAAAAQ");
     }
 
     #[test]
-    fn una_lista_vacia_es_error() {
+    fn empty_list_returns_error() {
         let body = r#"{"fairplay-streaming-response":{"streaming-keys":[]}}"#;
         assert!(matches!(
             parse_response(body, Protocol::Legacy),
@@ -374,14 +374,14 @@ mod tests {
     }
 
     #[test]
-    fn el_slot_error_dispara_el_reintento() {
+    fn slot_error_triggers_retry() {
         let k = StreamingKey { status: CKC_STATUS_SLOT_ERROR, ckc: String::new() };
         assert!(k.is_slot_error());
         assert_eq!(evaluate(k, true), Outcome::RetryWithoutOfflineSlot);
     }
 
     #[test]
-    fn el_slot_error_sin_haber_pedido_offline_no_reintenta() {
+    fn slot_error_without_offline_request_does_not_retry() {
         // If offline was not requested, the original does not enter the retry loop.
         let k = StreamingKey { status: CKC_STATUS_SLOT_ERROR, ckc: "X".into() };
         assert_eq!(
@@ -391,19 +391,19 @@ mod tests {
     }
 
     #[test]
-    fn un_status_cualquiera_devuelve_la_clave() {
+    fn other_status_returns_key() {
         let k = StreamingKey { status: 0, ckc: "CKC".into() };
         assert_eq!(evaluate(k, true), Outcome::Key { ckc_base64: "CKC".into(), status: 0 });
     }
 
     #[test]
-    fn reconoce_el_contexto_compartido() {
+    fn recognizes_shared_context() {
         assert!(req(PRESHARE_ADAM_ID, "skd://x", false).is_preshare());
         assert!(!req("1632087479", "skd://x", false).is_preshare());
     }
 
     #[test]
-    fn la_caja_de_la_letra_distingue_los_dos_tipos_de_uri() {
+    fn letter_case_distinguishes_both_uri_kinds() {
         assert_eq!(
             classify_key_uri("skd://itunes.apple.com/P000000000/s1/e1"),
             Some(KeyUriKind::SharedContext)
@@ -412,20 +412,20 @@ mod tests {
             classify_key_uri("skd://itunes.apple.com/p1000000001/c23"),
             Some(KeyUriKind::Track)
         );
-        // la misma ruta con la caja cambiada no es ninguna de las dos
+        // same path with swapped case is neither
         assert_eq!(classify_key_uri("skd://itunes.apple.com/p000000000/s1/e1"), None);
         assert_eq!(classify_key_uri("skd://itunes.apple.com/P1000000001/c23"), None);
-        assert_eq!(classify_key_uri("skd://otro.host/p1/c1"), None);
+        assert_eq!(classify_key_uri("skd://other.host/p1/c1"), None);
         assert_eq!(classify_key_uri("skd://itunes.apple.com/pXYZ/c1"), None);
     }
 
     #[test]
-    fn el_uri_tiene_que_concordar_con_el_adam_id() {
+    fn uri_must_match_adam_id() {
         assert!(req(PRESHARE_ADAM_ID, "skd://itunes.apple.com/P000000000/s1/e1", true)
             .uri_matches_adam_id());
         assert!(req("100000001", "skd://itunes.apple.com/p1000000001/c23", true)
             .uri_matches_adam_id());
-        // cruzados: no
+        // mismatched: false
         assert!(!req(PRESHARE_ADAM_ID, "skd://itunes.apple.com/p1000000001/c23", true)
             .uri_matches_adam_id());
         assert!(!req("100000001", "skd://itunes.apple.com/P000000000/s1/e1", true)

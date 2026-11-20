@@ -223,74 +223,74 @@ mod tests {
     use super::*;
 
     #[test]
-    fn una_cadena_prestada_queda_en_long_mode() {
-        let s = StdString::borrow("hola");
-        assert_eq!(s.cap & 1, 1, "el bit bajo marca long mode");
-        assert_eq!(s.size, 4);
+    fn borrowed_string_is_in_long_mode() {
+        let s = StdString::borrow("hello");
+        assert_eq!(s.cap & 1, 1, "low bit marks long mode");
+        assert_eq!(s.size, 5);
     }
 
     #[test]
-    fn lee_long_mode() {
-        let bytes = b"contenido largo que no entra inline";
+    fn reads_long_mode() {
+        let bytes = b"long content that does not fit inline";
         let s = StdString::borrow_bytes(bytes);
         let got = unsafe { StdString::read(&s as *const _) }.unwrap();
         assert_eq!(got, bytes);
     }
 
     #[test]
-    fn lee_short_mode() {
+    fn reads_short_mode() {
         // hand-crafted short mode: first byte = len << 1, followed by the bytes
         let mut buf = [0u8; 24];
         buf[0] = 5 << 1;
-        buf[1..6].copy_from_slice(b"corto");
+        buf[1..6].copy_from_slice(b"short");
         let got = unsafe { StdString::read(buf.as_ptr() as *const StdString) }.unwrap();
-        assert_eq!(got, b"corto");
+        assert_eq!(got, b"short");
     }
 
     #[test]
-    fn un_short_mode_imposible_se_rechaza() {
-        // 30 bytes no caben en el buffer inline de 22
+    fn impossible_short_mode_is_rejected() {
+        // 30 bytes do not fit in the 22-byte inline buffer
         let mut buf = [0u8; 24];
         buf[0] = 30 << 1;
         assert!(unsafe { StdString::read(buf.as_ptr() as *const StdString) }.is_none());
     }
 
     #[test]
-    fn un_puntero_nulo_no_explota() {
+    fn null_pointer_does_not_crash() {
         assert!(unsafe { StdString::read(core::ptr::null()) }.is_none());
     }
 
     #[test]
-    fn el_shared_ptr_nulo_se_reconoce() {
+    fn null_shared_ptr_is_recognized() {
         assert!(SharedPtr::NULL.is_null());
     }
 
-    /// `borrow_cstr` tiene que dar exactamente lo mismo que `borrow` para el mismo texto:
-    /// es el camino que usa la capa JNI, que ya trae `CString`.
+    /// `borrow_cstr` must produce the exact same layout as `borrow` for the same text:
+    /// this is the path used by the JNI layer, which already holds a `CString`.
     #[test]
-    fn borrow_cstr_equivale_a_borrow() {
+    fn borrow_cstr_matches_borrow() {
         let c = c"Music";
         let a = StdString::borrow_cstr(c);
         let b = StdString::borrow("Music");
-        assert_eq!(a.size, b.size, "el largo no incluye el NUL");
+        assert_eq!(a.size, b.size, "length excludes NUL");
         assert_eq!(a.cap, b.cap);
         assert_eq!(unsafe { core::slice::from_raw_parts(a.data, a.size) }, b"Music");
     }
 
-    /// `data()` sobre un prestado (long mode) devuelve el puntero original.
+    /// `data()` on a borrowed string (long mode) returns the original pointer.
     #[test]
-    fn data_en_long_mode_devuelve_el_puntero() {
+    fn data_in_long_mode_returns_pointer() {
         let c = c"Pixel 8";
         let s = StdString::borrow_cstr(c);
         let p = unsafe { StdString::data(&s as *const StdString) };
-        assert_eq!(p, c.as_ptr(), "en long mode sale el puntero prestado tal cual");
+        assert_eq!(p, c.as_ptr(), "long mode returns the borrowed pointer as-is");
         assert_eq!(unsafe { core::ffi::CStr::from_ptr(p) }.to_bytes(), b"Pixel 8");
     }
 
-    /// `data()` sobre un short mode apunta al byte siguiente al de largo.
+    /// `data()` on a short-mode string points to the byte right after the length byte.
     #[test]
-    fn data_en_short_mode_apunta_en_sitio() {
-        // short mode: primer byte = largo<<1 (bit 0 en cero), luego los bytes.
+    fn data_in_short_mode_points_inline() {
+        // short mode: first byte = len<<1 (bit 0 cleared), followed by the bytes.
         let mut raw = [0u8; 24];
         raw[0] = 3 << 1;
         raw[1..4].copy_from_slice(b"abc");
