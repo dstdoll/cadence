@@ -35,6 +35,7 @@ object NativeNoticeToasts {
             "SIGN_IN" -> R.string.native_notice_sign_in
             "TOKEN_MINT" -> R.string.native_notice_token_mint
             "ENGINE_INIT" -> R.string.native_notice_engine_init
+            "LIBRARY_UNAVAILABLE" -> R.string.native_notice_library_unavailable
             "OUT_OF_MEMORY" -> R.string.native_notice_out_of_memory
             "PREVIOUS_CRASH" -> R.string.native_notice_previous_crash
             else -> R.string.native_notice_unknown

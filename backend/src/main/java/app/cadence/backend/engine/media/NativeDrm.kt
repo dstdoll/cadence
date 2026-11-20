@@ -1,7 +1,7 @@
 package app.cadence.backend.engine.media
 
 object NativeDrm {
-    init { System.loadLibrary("cadence_android_drm") }
+    init { NativeLibrary.loadOrThrow("cadence_android_drm") }
     external fun decryptFile(templateJson: String, inputPath: String, outputPath: String): Int
     external fun decryptFileWithKd(kd: Long, inputPath: String, outputPath: String): Int
     external fun decryptFileWithKdPlan(kds: LongArray, inputPath: String, outputPath: String): Int

@@ -38,6 +38,12 @@ sealed class AuthError(message: String) : Exception(message) {
     class TooManyAttempts : AuthError("Too many attempts. Request a new code.")
     class RateLimited(val retryAtMs: Long) : AuthError("Please wait before requesting another code.")
     class Network : AuthError("Can't reach the server. Check your connection.")
+    /** The sign-in reached Apple (the network is fine) but Apple did not accept it: usually a wrong email or password. */
+    class SignInRejected : AuthError("Apple didn't accept that sign-in. Check your email and password and try again.")
+    /** Apple was reachable but did not answer the sign-in in time. */
+    class SignInTimedOut : AuthError("Apple took too long to answer. Try again in a moment.")
+    /** The native playback/sign-in engine could not be loaded on this device (see the [NATIVE-LOAD] log line for why). */
+    class EngineUnavailable : AuthError("Sign-in isn't available on this device: the playback engine couldn't start. The log has the details.")
     /** The Apple ID code was accepted but the MusicKit token exchange failed. */
     class SignInIncomplete(message: String) : AuthError(message)
 }

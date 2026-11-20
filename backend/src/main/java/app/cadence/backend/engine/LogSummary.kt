@@ -22,6 +22,7 @@ object LogSummary {
         return null
     }
     private val nativeClass = Regex("""\[CXX-[A-Z]+\] class=([A-Z_]+)""")
+    private val nativeLoad = Regex("""\[NATIVE-LOAD\] (lib\S+\.so) (ok|FAILED cause=([A-Z_]+))""")
     private val raise = Regex("""\[CXX-RAISE\] type=(\S+) x\d+ at """)
 
     fun build(log: String, header: List<String>, lastErrors: Int = 5): String {
@@ -34,7 +35,9 @@ object LogSummary {
         var storefront: String? = null
         var appleLines = 0
         val raised = LinkedHashMap<String, Int>()
+        val loads = LinkedHashMap<String, String>()
         var hook: String? = null
+        var signIn: String? = null
         var starts = 0
         for (l in lines) {
             if (l.startsWith("=== start")) starts++
@@ -42,7 +45,9 @@ object LogSummary {
             if (level == "A") appleLines++
             if (level == "E") { errors++; errorLines += "$time $tag $msg".take(200) }
             nativeClass.find(msg)?.let { classes.merge(it.groupValues[1], 1, Int::plus) }
+            nativeLoad.find(msg)?.let { loads[it.groupValues[1]] = if (it.groupValues[2] == "ok") "ok" else "FAILED(${it.groupValues[3]})" }
             raise.find(msg)?.let { raised.merge(it.groupValues[1], 1, Int::plus) }
+            if (tag == "auth" && (msg.startsWith("sign-in failed:") || msg.startsWith("sign-in refused:"))) signIn = "$time ${msg.substringBefore(" (the [native]")}"
             if (msg.startsWith("[HOOK] logger=")) hook = msg.removePrefix("[HOOK] ")
             if (tag == "provisioning") provisioning = "$time $msg"
             if (tag == "auth" && msg.startsWith("subscription:")) subscription = msg.removePrefix("subscription:").trim()
@@ -53,13 +58,15 @@ object LogSummary {
             header.forEach { appendLine(it) }
             appendLine("process starts in this log=$starts  error lines=$errors  apple/native logcat lines=$appleLines")
             appendLine("native error classes: " + if (classes.isEmpty()) "none" else classes.entries.joinToString(" ") { "${it.key}=${it.value}" })
+            appendLine("sign-in: ${signIn ?: "no failure recorded"}")
+            appendLine("native libraries: " + if (loads.isEmpty()) "not reported" else loads.entries.joinToString(" ") { "${it.key}=${it.value}" })
             appendLine("native hooks: ${hook ?: "not reported (older build, or the library did not load)"}")
             appendLine("exceptions thrown inside Apple's libraries (full records, first 3 per site): " +
                 if (raised.isEmpty()) "none recorded" else raised.entries.joinToString(" ") { "${it.key}=${it.value}" })
             appendLine("storefront=${storefront ?: "unknown"}")
             appendLine("subscription: ${subscription ?: "not recorded"}")
             appendLine("provisioning: ${provisioning ?: "not recorded"}")
-            val hints = hints(classes, subscription, provisioning)
+            val hints = hints(classes, subscription, provisioning, loads)
             if (hints.isNotEmpty()) { appendLine("hints:"); hints.forEach { appendLine("  - $it") } }
             appendLine("last errors:")
             errorLines.takeLast(lastErrors).forEach { appendLine("  $it") }
@@ -68,11 +75,14 @@ object LogSummary {
         }.trimEnd()
     }
 
-    private fun hints(classes: Map<String, Int>, subscription: String?, provisioning: String?): List<String> = buildList {
+    private fun hints(classes: Map<String, Int>, subscription: String?, provisioning: String?, loads: Map<String, String>): List<String> = buildList {
         if ((classes["KEY_REJECTED"] ?: 0) > 0) {
             if (subscription == null) add("keys were rejected and the subscription state was never recorded: check the account has an active Apple Music subscription")
             else if (Regex("""active=false""").containsMatchIn(subscription)) add("keys were rejected and Apple reports the subscription as NOT active")
             if (provisioning != null && Regex("""fsi\.pdat=missing|adi\.pb=missing""").containsMatchIn(provisioning)) add("keys were rejected and FairPlay/device state files are missing: provisioning did not complete")
+        }
+        loads.filterValues { it.startsWith("FAILED") }.forEach { (lib, v) ->
+            add("$lib did not load ($v): the playback engine (sign-in, keys, decoding) is unavailable; the [NATIVE-LOAD] line names the exact cause")
         }
         if ((classes["RUST-PANIC"] ?: 0) > 0 || log("CXX-TERMINATE", classes)) add("the native layer panicked or terminated: see the [RUST-PANIC]/[CXX-TERMINATE] line and the A/ lines before it")
     }

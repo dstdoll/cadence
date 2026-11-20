@@ -5,7 +5,7 @@ import app.cadence.backend.engine.NativeNotice
 import app.cadence.backend.engine.NativeNotices
 
 object NativeWrapper {
-    init { System.loadLibrary("cadence-native") }
+    init { NativeLibrary.loadOrThrow("cadence-native") }
 
     /**
      * Called by the native layer (never from Kotlin) for every native error line: `[CXX-THROW]`,

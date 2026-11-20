@@ -32,7 +32,7 @@ object LogExport {
             val header = listOf(
                 "generated=${Date()}",
                 "package=${context.packageName} version=${versionName(context)}",
-                "device=${Build.MANUFACTURER} ${Build.MODEL} sdk=${Build.VERSION.SDK_INT}",
+                "device=${Build.MANUFACTURER} ${Build.MODEL} sdk=${Build.VERSION.SDK_INT} abis=${Build.SUPPORTED_ABIS.joinToString(",")}",
             )
             val text = buildString {
                 appendLine("Cadence diagnostics")

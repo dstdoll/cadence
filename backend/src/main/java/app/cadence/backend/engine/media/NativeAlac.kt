@@ -4,7 +4,7 @@ import java.nio.ByteBuffer
 
 internal object NativeAlac {
     init {
-        System.loadLibrary("cadence-native")
+        NativeLibrary.loadOrThrow("cadence-native")
     }
 
     external fun create(cookie: ByteArray): Long

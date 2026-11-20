@@ -158,4 +158,32 @@ class LogCaptureTest {
             assertTrue(l, l.contains(" A/FairPlay [") && l.contains("dsid=<id>") && !l.contains("me@example.com"))
         } finally { LogSink.file = null; dir.deleteRecursively() }
     }
+
+    @Test fun platformNoiseIsFilteredButRealDiagnosesAreKept() {
+        fun ok(s: String) = AppleLogcat.accepts(AppleLogcat.parse(s)!!)
+        assertFalse(ok(l("W", "app.cadence", "Accessing hidden method Landroid/content/ContextWrapper;->getDisplay()Landroid/view/Display; (greylist, linking, allowed)")))
+        assertFalse(ok(l("E", "app.cadence", "Unknown bits set in runtime_flags: 0x8000")))
+        assertFalse(ok(l("W", "app.cadence", "Unexpected CPU variant for X86 using defaults: x86_64")))
+        assertTrue("an SELinux denial can explain a failure", ok(l("W", "RenderThread", "type=1400 audit(0.0:23): avc: denied { write } for name=\"x\"")))
+        assertTrue(ok(l("E", "KeyStore", "generateKeyInternal failed on request -68")))
+        assertTrue(ok(l("W", "FairPlay", "Accessing hidden state")))
+    }
+
+    @Test fun summaryReportsNativeLibraryLoadAndExplainsAFailure() {
+        val failed = listOf(
+            "2026-11-20 12:28:08.000 E/native [cadence-native-init] [NATIVE-LOAD] libcadence-native.so FAILED cause=ABI_MISMATCH: this device runs a CPU architecture the app ships no native libraries for | sdk=29 abis=[x86_64, x86] | linker: couldn't find",
+        ).joinToString("\n")
+        val s = LogSummary.build(failed, emptyList())
+        assertTrue(s, s.contains("native libraries: libcadence-native.so=FAILED(ABI_MISMATCH)"))
+        assertTrue(s, s.contains("did not load") && s.contains("playback engine"))
+        val ok = LogSummary.build("2026-11-20 12:28:08.000 I/native [main] [NATIVE-LOAD] libcadence-native.so ok sdk=34 abis=[arm64-v8a]", emptyList())
+        assertTrue(ok, ok.contains("native libraries: libcadence-native.so=ok") && !ok.contains("hints:"))
+    }
+
+    @Test fun summaryShowsWhyTheLastSignInFailed() {
+        val log = "2026-11-20 12:40:13.811 E/auth [io] sign-in failed: Apple answered with a failure, network=Reachable -> SignInRejected (the [native] auth: lines above say what StoreServices reported)"
+        val s = LogSummary.build(log, emptyList())
+        assertTrue(s, s.contains("sign-in: 12:40:13.811 sign-in failed: Apple answered with a failure, network=Reachable -> SignInRejected"))
+        assertTrue(LogSummary.build("", emptyList()).contains("sign-in: no failure recorded"))
+    }
 }

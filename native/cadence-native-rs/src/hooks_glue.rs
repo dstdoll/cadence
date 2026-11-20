@@ -9,6 +9,7 @@
 use crate::events::{self, Level};
 use cadence_hooks::{plt, Output};
 use std::ffi::c_char;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// `struct __android_log_message` from `<android/log.h>` (API 30).
 #[repr(C)]
@@ -22,9 +23,16 @@ struct AndroidLogMessage {
     message: *const c_char,
 }
 
-extern "C" {
-    fn __android_log_set_logger(logger: extern "C" fn(*const AndroidLogMessage));
-    fn __android_log_logd_logger(message: *const AndroidLogMessage);
+type SetLoggerFn = unsafe extern "C" fn(extern "C" fn(*const AndroidLogMessage));
+type LogdLoggerFn = unsafe extern "C" fn(*const AndroidLogMessage);
+
+/// liblog's default logger (`__android_log_logd_logger`), found at run time: both functions exist from
+/// Android 11 (API 30) only. A hard import would make the whole library fail to load on Android 10.
+static LOGD_LOGGER: AtomicUsize = AtomicUsize::new(0);
+
+fn lookup(name: &std::ffi::CStr) -> usize {
+    // SAFETY: dlsym with RTLD_DEFAULT and a NUL-terminated name.
+    unsafe { libc::dlsym(libc::RTLD_DEFAULT, name.as_ptr()) as usize }
 }
 
 /// Every library that imports `__cxa_throw` through its PLT (checked with readelf and by
@@ -37,7 +45,11 @@ const THROW_LIBS: [&str; 6] = [
 extern "C" fn our_logger(message: *const AndroidLogMessage) {
     // SAFETY: liblog passes a valid message for the duration of the call.
     unsafe {
-        __android_log_logd_logger(message); // first: logcat must behave exactly as without the hook
+        let logd = LOGD_LOGGER.load(Ordering::Relaxed);
+        if logd != 0 {
+            // first: logcat must behave exactly as without the hook
+            std::mem::transmute::<usize, LogdLoggerFn>(logd)(message);
+        }
         if message.is_null() {
             return;
         }
@@ -67,9 +79,17 @@ pub fn install() {
             return;
         }
         cadence_hooks::init();
-        cadence_hooks::set_logging(true);
-        // SAFETY: `our_logger` has the signature liblog expects and stays valid for the process lifetime.
-        unsafe { __android_log_set_logger(our_logger) };
+        // The liblog logger API is Android 11+; on Android 10 the library still loads and only this hook is off.
+        let (set_logger, logd) = (lookup(c"__android_log_set_logger"), lookup(c"__android_log_logd_logger"));
+        let logger = if set_logger != 0 && logd != 0 {
+            LOGD_LOGGER.store(logd, Ordering::SeqCst);
+            cadence_hooks::set_logging(true);
+            // SAFETY: `set_logger` is liblog's function of that name; `our_logger` has the signature it expects and lives for the process.
+            unsafe { std::mem::transmute::<usize, SetLoggerFn>(set_logger)(our_logger) };
+            "on".to_string()
+        } else {
+            "off (liblog has no __android_log_set_logger before Android 11)".to_string()
+        };
         let report = cadence_hooks::install_throw_hook(&THROW_LIBS, plt::JUMP_SLOT);
         cadence_hooks::spawn_drain(|out| match out {
             Output::Apple { tag, line } => events::apple_log(&tag, &line),
@@ -82,7 +102,7 @@ pub fn install() {
         };
         let missing = if report.missing.is_empty() { String::new() } else { format!(" missing={}", report.missing.join(",")) };
         // Kotlin reads the "logger=on" prefix to stop its own logcat follower (this replaces it).
-        events::emit(Level::Info, "native", &format!("[HOOK] logger=on throw={throw}{missing}"));
+        events::emit(Level::Info, "native", &format!("[HOOK] logger={logger} throw={throw}{missing}"));
     });
 }
 

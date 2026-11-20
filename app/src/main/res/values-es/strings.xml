@@ -704,6 +704,7 @@
     <string name="native_notice_decrypt">Una canción no se pudo descifrar y se omitió.</string>
     <string name="native_notice_sign_in">El inicio de sesión tuvo un error dentro de la biblioteca de Apple. Inténtalo de nuevo.</string>
     <string name="native_notice_token_mint">No se pudo renovar tu sesión de Apple Music. Intenta iniciar sesión de nuevo.</string>
+    <string name="native_notice_library_unavailable">El motor de reproducción no puede ejecutarse en este dispositivo, así que el inicio de sesión y la reproducción no están disponibles. El registro explica el motivo.</string>
     <string name="native_notice_engine_init">El motor de reproducción tuvo un error al iniciar. Reinicia la app si no suena nada.</string>
     <string name="native_notice_out_of_memory">El motor de reproducción se quedó con poca memoria. Cierra otras apps si la reproducción se entrecorta.</string>
     <string name="native_notice_previous_crash">Cadence se cerró inesperadamente la última vez. Los detalles se guardaron en el registro.</string>

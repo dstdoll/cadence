@@ -4,7 +4,7 @@ import java.nio.ByteBuffer
 
 internal object NativeEac3 {
     init {
-        System.loadLibrary("cadence-native")
+        NativeLibrary.loadOrThrow("cadence-native")
     }
 
     external fun create(sampleRate: Int, channels: Int): Long

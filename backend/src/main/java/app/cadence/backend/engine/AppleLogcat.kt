@@ -23,8 +23,16 @@ object AppleLogcat {
     fun parse(line: String): Entry? =
         THREADTIME.matchEntire(line)?.let { Entry(it.groupValues[1], it.groupValues[2][0], it.groupValues[3].trim(), it.groupValues[4]) }
 
+    // Warnings the platform prints about every app: they bury the lines that explain a failure.
+    private val NOISE = listOf(
+        "Accessing hidden ", "Unknown bits set in runtime_flags", "Unexpected CPU variant for",
+        "Unable to set property \"qemu.", "mapper 3.x is not supported",
+    )
+
     fun accepts(e: Entry): Boolean {
         if (e.tag == "Cadence") return false
+        val apple = APPLE_TAGS.any { e.tag.contains(it, ignoreCase = true) }
+        if (!apple && NOISE.any { e.message.startsWith(it) }) return false
         return e.priority in "WEF" || APPLE_TAGS.any { e.tag.contains(it, ignoreCase = true) || e.message.contains(it, ignoreCase = true) }
     }
 

@@ -70,11 +70,16 @@ class RealAuthService(
     override suspend fun requestCode(email: String, password: String): Result<OtpChallenge> =
         withContext(Dispatchers.IO) {
             pendingEmail = email
+            if (!app.cadence.backend.engine.media.NativeLibrary.available("cadence-native")) {
+                CadenceLog.e("auth", "sign-in refused: the native library did not load (see the [NATIVE-LOAD] line)")
+                return@withContext Result.failure(AuthError.EngineUnavailable())
+            }
             // Sign in through the StoreServices libraries (the genuine Apple binaries) rather than the
             // headless HTTP MusicKit exchange Apple refuses. Bring the native engine up first.
             if (!EngineDownloader.initNative(context)) {
+                // Not a connection problem: the engine itself did not start (the [native] lines say why).
                 CadenceLog.e("auth", "native engine init failed")
-                return@withContext Result.failure(AuthError.Network())
+                return@withContext Result.failure(AuthError.EngineUnavailable())
             }
             NativeWrapper.setCredentials(email, password)
             // login() drives the account sign-in and blocks in the credential handler until the 2FA
@@ -102,7 +107,14 @@ class RealAuthService(
                     finishNative()?.let {
                         Result.success(OtpChallenge("native-done", mask(email), 6, System.currentTimeMillis(), System.currentTimeMillis()))
                     } ?: Result.failure(AuthError.SignInIncomplete("Signed in, but the session could not be read."))
-                else -> Result.failure(AuthError.Network())
+                else -> {
+                    // login() answered false, or never answered in 45 s. Do not call that a connection problem unless it is one.
+                    val timedOut = !job.isCompleted
+                    val reach = SignInFailure.reach(context)
+                    val error = SignInFailure.classify(timedOut, reach)
+                    CadenceLog.e("auth", SignInFailure.describe(timedOut, reach, error) + " (the [native] auth: lines above say what StoreServices reported)")
+                    Result.failure(error)
+                }
             }
         }
 

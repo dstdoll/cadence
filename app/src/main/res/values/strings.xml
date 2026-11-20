@@ -706,6 +706,7 @@
     <string name="native_notice_decrypt">A track couldn\'t be decrypted and was skipped.</string>
     <string name="native_notice_sign_in">Sign-in hit an error inside Apple\'s library. Please try again.</string>
     <string name="native_notice_token_mint">Couldn\'t refresh your Apple Music session. Try signing in again.</string>
+    <string name="native_notice_library_unavailable">The playback engine can\'t run on this device, so sign-in and playback are unavailable. The log says why.</string>
     <string name="native_notice_engine_init">The playback engine hit an error while starting. Restart the app if nothing plays.</string>
     <string name="native_notice_out_of_memory">The playback engine ran low on memory. Close other apps if playback stutters.</string>
     <string name="native_notice_previous_crash">Cadence closed unexpectedly last time. Details were saved to the log.</string>
