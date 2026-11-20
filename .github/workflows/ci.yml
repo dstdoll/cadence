@@ -22,5 +22,8 @@ jobs:
       - name: Run unit tests
         run: ./gradlew :backend:testDebugUnitTest :app:testDebugUnitTest --no-daemon
 
+      - name: Install ffmpeg for E-AC-3 reference tests
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
       - name: Run Rust E-AC-3 tests
         run: cargo test --manifest-path native/cadence-eac3/Cargo.toml
