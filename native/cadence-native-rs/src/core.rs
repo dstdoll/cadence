@@ -276,9 +276,10 @@ pub fn configure(base_dir_in: &str, dns_servers: &str, android_id_in: &str) {
         let c = g.as_ref().unwrap();
         (c.base_dir.clone(), c.dns_servers.clone(), c.android_id.clone())
     };
-    nlog(&format!("init: dns={dns}"));
+    let dns_count = if dns.is_empty() { 0 } else { dns.split(',').count() };
+    nlog(&format!("init: dns_count={dns_count}"));
     nlog(&format!("init: start base={base}"));
-    nlog(&format!("init: android_id={aid}"));
+    nlog(&format!("init: android_id=<redacted len={}>", aid.len()));
 
     unsafe {
         let mode = CString::new("ANDROID_DNS_MODE").unwrap();
@@ -494,7 +495,7 @@ pub fn set_credentials(user: &str, pass: &str) {
     st.code.clear();
     st.code_ready = false;
     st.code_wanted = false;
-    nlog(&format!("auth: credentials set user={user}"));
+    nlog(&format!("auth: credentials set user=<redacted len={}>", user.len()));
 }
 
 pub fn submit_code(code: &str) {
@@ -573,7 +574,8 @@ pub fn m3u8(adam: c_ulong) -> Option<String> {
             return None;
         }
         let s = CStr::from_ptr(data).to_string_lossy().into_owned();
-        nlog(&format!("m3u8: url={s}"));
+        let safe_url = s.split('?').next().unwrap_or(&s);
+        nlog(&format!("m3u8: url={safe_url} (query redacted)"));
         Some(s)
     }
 }
@@ -769,7 +771,8 @@ pub fn m4p_asset(adam_id: c_ulong) -> Option<(String, *mut c_void)> {
             guard.get_or_insert_with(Default::default).insert(id, M4pEntry { sp: decryptor });
         }
         let ctx = id as *mut c_void;
-        nlog(&format!("m4p_asset: url={url} sinf_len={sinf_len} dp_len={dp_len} ctx_id={id}"));
+        let safe_url = url.split('?').next().unwrap_or(&url);
+        nlog(&format!("m4p_asset: url={safe_url} sinf_len={sinf_len} dp_len={dp_len} ctx_id={id}"));
         Some((url, ctx))
     }
 }
@@ -1050,7 +1053,7 @@ pub fn mint_music_token() -> Option<String> {
             match body.as_deref().and_then(|b| json_str(b, "token")) {
                 Some(t) => sf_token = t,
                 None => {
-                    nlog(&format!("mint: no dev token from apiToken: {:.200}", body.as_deref().unwrap_or("(null)")));
+                    nlog(&format!("mint: no dev token from apiToken (body_len={})", body.as_deref().map_or(0, str::len)));
                     return None;
                 }
             }
@@ -1089,7 +1092,7 @@ pub fn mint_music_token() -> Option<String> {
                 Some(t)
             }
             _ => {
-                nlog(&format!("mint: createMusicToken response (no token): {:.300}", rbody.as_deref().unwrap_or("(null)")));
+                nlog(&format!("mint: createMusicToken response (no token, body_len={})", rbody.as_deref().map_or(0, str::len)));
                 None
             }
         }

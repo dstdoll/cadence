@@ -29,7 +29,7 @@ class SessionStore(context: Context) {
                 .put("storefront", storefront)
                 .put("savedAt", System.currentTimeMillis())
             SecretFiles.write(file, o.toString())
-            CadenceLog.i("auth", "session saved for ${session.email.ifBlank { session.userId }}")
+            CadenceLog.i("auth", "session saved")
         }.onFailure { CadenceLog.e("auth", "save failed", it) }
     }
 
