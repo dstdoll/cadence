@@ -13,6 +13,10 @@ on:
         description: 'Strictly monotonic integer versionCode (e.g. 9)'
         required: true
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
@@ -77,7 +81,7 @@ jobs:
           EOF
           echo "CADENCE_SIGNING=$RUNNER_TEMP/signing.properties" >> "$GITHUB_ENV"
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
@@ -85,22 +89,41 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Run unit tests
-        run: ./gradlew :backend:testDebugUnitTest :app:testDebugUnitTest --no-daemon
+        run: ./gradlew :backend:testDebugUnitTest :app:testDebugUnitTest --build-cache --no-daemon
 
       - name: Build optimized release APK
         run: >
           ./gradlew :app:assembleRelease
           -Pcadence.versionCode=${{ steps.meta.outputs.version_code }}
           -Pcadence.versionName=${{ steps.meta.outputs.version_name }}
+          --build-cache
           --no-daemon
 
-      - name: Verify APK signature and alignment
+      - name: Verify APK alignment, signature, native libs, and checksum
         run: |
           APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -n1)
           ZIPALIGN=$(find "$ANDROID_HOME/build-tools" -name zipalign | sort -V | tail -n1)
           APK="app/build/outputs/apk/release/app-release.apk"
+
           "$ZIPALIGN" -c -P 16 -v 4 "$APK" > /dev/null
           "$APKSIGNER" verify --verbose "$APK"
+
+          for lib in libcadence-native.so libcadence_android_drm.so libc++_shared.so; do
+            unzip -l "$APK" | grep -q "lib/arm64-v8a/$lib" || {
+              echo "Missing required native library: lib/arm64-v8a/$lib" >&2
+              exit 1
+            }
+          done
+
+          (cd app/build/outputs/apk/release && sha256sum app-release.apk > app-release.apk.sha256)
+          SIZE_MB=$(awk "BEGIN { printf \"%.2f\", $(stat -c%s "$APK") / 1048576 }")
+          {
+            echo "### Release \`${{ steps.meta.outputs.tag }}\`"
+            echo "- **versionCode:** \`${{ steps.meta.outputs.version_code }}\`"
+            echo "- **prerelease:** \`${{ steps.meta.outputs.prerelease }}\`"
+            echo "- **APK size:** ${SIZE_MB} MB"
+            echo "- **SHA-256:** \`$(cat app/build/outputs/apk/release/app-release.apk.sha256)\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
@@ -109,4 +132,6 @@ jobs:
           name: ${{ steps.meta.outputs.tag }}
           prerelease: ${{ steps.meta.outputs.prerelease }}
           generate_release_notes: true
-          files: app/build/outputs/apk/release/app-release.apk
+          files: |
+            app/build/outputs/apk/release/app-release.apk
+            app/build/outputs/apk/release/app-release.apk.sha256

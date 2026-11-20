@@ -3,8 +3,18 @@ name: CI
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - '.gitignore'
   pull_request:
     branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - '.gitignore'
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -12,18 +22,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
 
       - uses: gradle/actions/setup-gradle@v4
 
+      - name: Cache Rust E-AC-3 build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            native/cadence-eac3/target
+          key: ${{ runner.os }}-cargo-eac3-${{ hashFiles('native/cadence-eac3/Cargo.lock', 'native/cadence-eac3/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-eac3-
+
       - name: Run unit tests
-        run: ./gradlew :backend:testDebugUnitTest :app:testDebugUnitTest --no-daemon
+        run: ./gradlew :backend:testDebugUnitTest :app:testDebugUnitTest --build-cache --no-daemon
 
       - name: Install ffmpeg for E-AC-3 reference tests
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg
 
       - name: Run Rust E-AC-3 tests
         run: cargo test --manifest-path native/cadence-eac3/Cargo.toml
