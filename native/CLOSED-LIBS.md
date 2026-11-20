@@ -115,13 +115,44 @@ O sea: las tres librerías compran **exactamente una cosa**, la reproducción, y
 17.47 MB. Todo lo demás de la app funciona sin ellas. El fallo es limpio y localizado — el
 intercambio de clave —, no un cuelgue ni un crash.
 
+### Y una por una
+
+Sacarlas juntas no dice cuál pesa. Se repitió con cada una por separado:
+
+| sin… | APK | arranca | reproduce |
+|---|---|---|---|
+| `libCoreADI.so` | 150.89 MB | sí | **no**: 0 claves, 13 fallos de intercambio |
+| `libCoreLSKD.so` | 144.69 MB | sí | **no**: `Key exchange for e1 failed` |
+| `libCoreFP.so` | 144.78 MB | **no**: el proceso muere al arrancar | — |
+
+**Ninguna de las tres se puede sacar.** El mínimo sigue siendo las 21 librerías, 70.18 MB.
+
+`libCoreFP.so` es el caso más duro: no es que falle la reproducción, es que la app no
+arranca. `libstoreservicescore.so` también nombra ese archivo, no sólo
+`libandroidappmusic.so`, así que lo abre durante la inicialización y el fallo es fatal.
+
+`libCoreADI.so` merece una nota porque casi se cuela como removible. En la primera pasada
+pareció reproducir: el detector vio `state=PlaybackState {state=3}` y lo dio por bueno. Pero
+estaba reproduciendo con una **clave que quedó en caché** de la sesión anterior, y se cortaba a
+mitad de tema. Repetido desde un arranque limpio: 0 claves obtenidas y 13 fallos. O sea que
+CoreADI no sólo aprovisiona `adi.pb` la primera vez — participa en cada intercambio de clave,
+que es coherente con que aporte los datos de máquina que autentican la petición al key
+server.
+
+**La trampa de medición, para no repetirla:** que empiece a sonar justo después de instalar
+no prueba nada. Hay que arrancar limpio, reproducir, y **saltar de tema** para forzar una
+clave nueva sin caché posible. Medir `state=3` a secas es la versión de reproducción del
+mismo falso-verde que tenían los tests de vectores.
+
 Dos consecuencias prácticas:
 
 1. **El parche de `DT_NEEDED` está validado.** No hay que adivinar si bionic acepta el
-   binario operado: acepta. Lo que falta para poder sacarlas de verdad es reemplazar el
-   intercambio de clave, no resolver un problema de enlace.
+   binario operado: acepta, y la app arranca sin CoreADI y sin CoreLSKD. Lo que falta para
+   poder sacarlas de verdad es reemplazar el intercambio de clave, no resolver un problema
+   de enlace. Con CoreFP ni siquiera eso: habría que cubrir además lo que
+   `libstoreservicescore` le pide al inicializar.
 2. **Hay espacio para un modo degradado** (explorar la biblioteca sin reproducir) sin
-   embarcar 17.47 MB, si alguna vez hiciera falta.
+   embarcar 17.47 MB, si alguna vez hiciera falta. Es lo único que la medición habilita hoy.
 
 ### Reproducir el experimento
 
