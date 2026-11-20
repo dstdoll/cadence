@@ -22,6 +22,8 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -137,8 +139,13 @@ fun NowPlaying(onCollapse: () -> Unit, modifier: Modifier = Modifier) {
                                 )
                                 PlayerMode.Artwork -> Unit
                             }
-                            TitleRow(info)
-                            Controls(mode = mode, onMode = { mode = it }, clock = clock, showVolume = mode == PlayerMode.Artwork)
+                            // Title and controls scroll: together they need about 436.dp, and a
+                            // phone held sideways leaves the pane far shorter than that, which used
+                            // to squeeze them until the volume slider and the toolbar were clipped.
+                            Column(Modifier.verticalScroll(rememberScrollState())) {
+                                TitleRow(info)
+                                Controls(mode = mode, onMode = { mode = it }, clock = clock, showVolume = mode == PlayerMode.Artwork)
+                            }
                         }
                     }
                 } else {
