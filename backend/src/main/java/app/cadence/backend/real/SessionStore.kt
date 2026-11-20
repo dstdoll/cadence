@@ -20,9 +20,9 @@ class SessionStore(context: Context) {
     private val dir = File(context.filesDir, "sessions").apply { mkdirs() }
     private val file = File(dir, "active.json")
 
-    // Fuente de verdad del Session para el flujo de UI: cualquier save/clear la actualiza, y el
-    // AuthService expone esto directo en lugar de capturar un load() one-shot que podria preceder
-    // al seedIfEmpty.
+    // Single source of truth for Session in the UI flow: any save/clear updates it, and
+    // AuthService exposes this directly instead of capturing a one-shot load() that might
+    // precede seedIfEmpty.
     private val _sessions = MutableStateFlow(readFromDisk())
     val sessions: StateFlow<Session?> = _sessions
 

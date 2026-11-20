@@ -90,32 +90,32 @@ pub const KEY_URI_HOST: &str = "skd://itunes.apple.com/";
 ///
 /// Returns `None` if it matches neither of the two known forms.
 pub fn classify_key_uri(key_uri: &str) -> Option<KeyUriKind> {
-    let resto = key_uri.strip_prefix(KEY_URI_HOST)?;
-    let (primero, cola) = resto.split_once('/')?;
-    let inicial = primero.get(0..1)?;
-    let id = primero.get(1..)?;
+    let rest = key_uri.strip_prefix(KEY_URI_HOST)?;
+    let (first, tail) = rest.split_once('/')?;
+    let initial = first.get(0..1)?;
+    let id = first.get(1..)?;
     if id.is_empty() || !id.chars().all(|c| c.is_ascii_digit()) {
         return None;
     }
-    match inicial {
-        "P" if cola.starts_with('s') && cola.contains("/e") => Some(KeyUriKind::SharedContext),
-        "p" if cola.starts_with('c') => Some(KeyUriKind::Track),
+    match initial {
+        "P" if tail.starts_with('s') && tail.contains("/e") => Some(KeyUriKind::SharedContext),
+        "p" if tail.starts_with('c') => Some(KeyUriKind::Track),
         _ => None,
     }
 }
 
-/// Lo necesario para pedir una clave.
+/// Inputs needed to request a key.
 #[derive(Debug, Clone)]
 pub struct KeyRequest {
-    /// El GUID del dispositivo (ver el crate `device-guid`).
+    /// Device GUID (see the `device-guid` crate).
     pub guid: String,
-    /// `adamId` del track, o [`PRESHARE_ADAM_ID`] para el contexto compartido.
+    /// Track `adamId`, or [`PRESHARE_ADAM_ID`] for the shared context.
     pub adam_id: String,
-    /// El `skd://` que viene del playlist HLS.
+    /// The `skd://` URI from the HLS playlist.
     pub key_uri: String,
-    /// El SPC ya en base64, tal como lo entrega la blob.
+    /// Base64-encoded SPC as returned by the blob.
     pub spc_base64: String,
-    /// Si pedir una clave persistible (requiere que el device tenga slot offline).
+    /// Whether to request a persistent key (requires an offline slot on the device).
     pub offline: bool,
 }
 
@@ -257,8 +257,8 @@ pub enum Outcome {
 /// Applies `_getCKC`'s retry policy.
 ///
 /// The original only retries when offline was **requested** and received
-/// [`CKC_STATUS_SLOT_ERROR`]; con cualquier otro status se queda con la clave tal cual,
-/// incluso si el status no es cero (quien decide si sirve es la blob, al procesarla).
+/// [`CKC_STATUS_SLOT_ERROR`]; for any other status it keeps the key as-is, even if status is
+/// non-zero (the blob decides whether it is usable when processing it).
 pub fn evaluate(key: StreamingKey, requested_offline: bool) -> Outcome {
     if requested_offline && key.is_slot_error() {
         Outcome::RetryWithoutOfflineSlot

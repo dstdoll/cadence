@@ -17,9 +17,9 @@ crate-type = ["cdylib"]
 cadence-alac = { path = "../cadence-alac" }
 cadence-eac3 = { path = "../cadence-eac3" }
 cadence-hooks = { path = "../cadence-hooks" }
-# Los ports que reemplazan logica de las librerias cerradas. apple-ss-sys aporta el ABI
-# (los tipos de layout y el catalogo de los 62 simbolos); los otros tres son Rust puro y
-# son la fuente de verdad de los valores que antes estaban a mano en core.rs.
+# Ports that replace logic from the closed libraries. apple-ss-sys provides the ABI
+# (layout types and the 62-symbol catalog); the other three are pure Rust and serve
+# as the single source of truth for values previously hardcoded in core.rs.
 apple-ss-sys = { path = "../apple-ss-sys" }
 device-guid = { path = "../device-guid" }
 fairplay-proto = { path = "../fairplay-proto" }

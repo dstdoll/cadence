@@ -24,8 +24,8 @@ object NativeData {
         val skipped = names.filter { it in DEVICE_BOUND }
         if (skipped.isNotEmpty()) AppLog.log("NativeData", "not seeding device-bound ${skipped.joinToString()}")
         for (name in names - DEVICE_BOUND) copy(assets, "native-data/$name", File(root, name), name) { copied++ }
-        // Tambien siembra los secretos de engine/* (amp.json con mediaUserToken) si vienen en assets.
-        // SecretFiles los sella en-sitio la primera vez que los lee.
+        // Also seed secrets from engine/* (amp.json with mediaUserToken) if bundled in assets.
+        // SecretFiles seals them in-place the first time it reads them.
         val engineNames = runCatching { assets.list("engine")?.toList().orEmpty() }.getOrDefault(emptyList())
         for (name in engineNames) copy(assets, "engine/$name", File(root, "engine/$name"), "engine/$name") { copied++ }
         AppLog.log("NativeData", "seeded $copied files into ${root.absolutePath}")

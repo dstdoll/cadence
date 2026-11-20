@@ -19,8 +19,8 @@
 
 use std::ffi::{c_char, c_int, c_void, CStr};
 
-// Tipos del ABI: una sola definicion, en apple-ss-sys. `StdString::borrow` alla toma
-// `&str`; la ruta viva usa `borrow_cstr`, que toma el `CStr` que ya armo la capa JNI.
+// ABI types: single definition in apple-ss-sys. `StdString::borrow` takes `&str` there;
+// the live path uses `borrow_cstr`, which takes the `CStr` already built by the JNI layer.
 pub use apple_ss_sys::abi::{
     DevGuidConf256, ReqCtxInit88, SharedPtr, SretData, SretShared, StdString, StdVector,
 };

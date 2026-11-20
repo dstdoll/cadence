@@ -2,7 +2,7 @@
 
 [package]
 name = "vectors-sample"
-description = "Genera native/vectors.sample.json: la captura de referencia sin datos del dispositivo"
+description = "Generates native/vectors.sample.json: reference capture without device data"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
@@ -13,6 +13,6 @@ publish = false
 device-guid = { path = "../device-guid" }
 fairplay-proto = { path = "../fairplay-proto" }
 store-config = { path = "../store-config" }
-# preserve_order: el cuerpo CKC lleva las claves en el orden del struct, no alfabetico.
-# Sin esto la muestra describiria un orden que la app nunca manda.
+# preserve_order: the CKC body keeps keys in struct order, not alphabetical.
+# Without this, the sample would describe an order the app never sends.
 serde_json = { version = "1.0.145", features = ["preserve_order"] }

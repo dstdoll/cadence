@@ -62,8 +62,8 @@ fun MiniPlayer(onExpand: () -> Unit, dragModifier: Modifier, modifier: Modifier 
         shadowElevation = 6.dp,
         modifier = modifier
             .fillMaxWidth()
-            // Con el rail lateral (horizontal) nadie consume el inset de abajo y la pildora quedaba
-            // debajo de la barra de navegacion del sistema.
+            // With the side navigation rail (landscape) nothing consumes the bottom inset, so the
+            // pill would otherwise sit underneath the system navigation bar.
             .navigationBarsPadding()
             .widthIn(max = 640.dp)
             .padding(horizontal = 10.dp, vertical = 6.dp)

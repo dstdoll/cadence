@@ -137,15 +137,15 @@ unsafe extern "C-unwind" {
         flag: *const bool,
     ) -> SretShared;
 
-    /// `SVFootHillPContext::kdContext() const` -- devuelve el handle que consume
+    /// `SVFootHillPContext::kdContext() const` -- returns the handle consumed by
     /// [`KDDecryptSample`].
     #[link_name = "_ZNK18SVFootHillPContext9kdContextEv"]
     pub fn SVFootHillPContext_kdContext(this: *mut c_void) -> *mut *mut c_void;
 
     /// `SVPlaybackLeaseManager::SVPlaybackLeaseManager(std::function const&, std::function const&)`
     ///
-    /// Los dos callbacks son `std::function`, que hay que construir respetando el ABI de
-    /// libc++ (buffer de 24 bytes + puntero, con la vtable de `__func`).
+    /// Both callbacks are `std::function`, which must be constructed matching the libc++ ABI
+    /// (24-byte buffer + pointer, with the `__func` vtable).
     #[link_name = "_ZN22SVPlaybackLeaseManagerC2ERKNSt6__ndk18functionIFvRKiEEERKNS1_IFvRKNS0_10shared_ptrIN17storeservicescore19StoreErrorConditionEEEEEE"]
     pub fn SVPlaybackLeaseManager_new(
         this: *mut c_void,
@@ -219,7 +219,7 @@ unsafe extern "C-unwind" {
     #[link_name = "_ZN17storeservicescore10DeviceGUID8instanceEv"]
     pub fn DeviceGUID_instance() -> SretShared;
 
-    /// `DeviceGUID::guid()` -- el GUID ya armado, como `mediaplatform::Data`.
+    /// `DeviceGUID::guid()` -- the built GUID, as `mediaplatform::Data`.
     #[link_name = "_ZN17storeservicescore10DeviceGUID4guidEv"]
     pub fn DeviceGUID_guid(this: *mut c_void) -> SretData;
 
@@ -237,7 +237,7 @@ unsafe extern "C-unwind" {
         force_config: *const bool,
     ) -> DevGuidConf256;
 
-    // ---- RequestContextConfig: los nueve setters ----
+    // ---- RequestContextConfig: the nine setters ----
     #[link_name = "_ZN17storeservicescore20RequestContextConfigC2Ev"]
     pub fn RequestContextConfig_new(this: *mut c_void);
     #[link_name = "_ZN17storeservicescore20RequestContextConfig20setBaseDirectoryPathERKNSt6__ndk112basic_stringIcNS1_11char_traitsIcEENS1_9allocatorIcEEEE"]

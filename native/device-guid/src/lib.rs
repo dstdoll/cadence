@@ -159,18 +159,18 @@ pub fn build(info: &DeviceInfo) -> String {
     .join(".")
 }
 
-/// Los seis campos de un GUID.
+/// The six fields of a GUID.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GuidParts {
-    /// Base16 del primer blob de FairPlay.
+    /// Base16 of the first FairPlay blob.
     pub fairplay1: String,
-    /// Base16 del segundo campo de FairPlay; en ceros en todo lo observado.
+    /// Base16 of the second FairPlay field; zeroed in everything observed.
     pub fairplay2: String,
     pub serial: String,
     pub android_id_hash: String,
-    /// Relleno. Siempre en ceros en lo observado.
+    /// Padding. Always zeroed in observed captures.
     pub filler1: String,
-    /// Relleno. Siempre en ceros en lo observado.
+    /// Padding. Always zeroed in observed captures.
     pub filler2: String,
 }
 
@@ -229,14 +229,14 @@ mod tests {
     const ANDROID_ID: &str = "0123456789abcdef";
 
     /// `sha1("0123456789abcdef")`, matching what the library computes.
-    /// `mediaplatform::CryptoHexStringFromData` sobre el ID en ASCII.
+    /// `mediaplatform::CryptoHexStringFromData` over the ASCII ID.
     const OBSERVED_SHA1: &str = "fe5567e8d769550852182cdf69d74bb16dff8e29";
 
-    /// Campo 4 = los ultimos 7 bytes de ese digest, en hex.
+    /// Field 4 = last 7 bytes of that digest, in hex.
     const OBSERVED_FIELD4: &str = "d74bb16dff8e29";
 
-    /// 18 bytes sinteticos con la forma de los que deja `FairPlayGetAndroidGUIDFields`, y
-    /// el campo 1 que resulta de ellos.
+    /// 18 synthetic bytes shaped like what `FairPlayGetAndroidGUIDFields` outputs, and
+    /// the resulting field 1.
     const FP1_BYTES: [u8; FAIRPLAY_FIELD1_BYTES] = [
         0xa1, 0xb2, 0xc3, 0xd4, 0xe5, 0xf6, 0xa1, 0xb2, 0xc3, 0xd4, 0xe5, 0xf6, 0xa1, 0xb2, 0xc3,
         0xd4, 0xe5, 0xf6,

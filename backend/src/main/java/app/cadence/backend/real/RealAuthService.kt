@@ -36,8 +36,8 @@ class RealAuthService(
     private val store: SessionStore,
 ) : AuthService {
 
-    // La sesion vive en SessionStore (unica fuente de verdad); exponemos su flow directo para
-    // que seedIfEmpty/importSession/sign-out notifiquen a la UI sin re-leer el archivo.
+    // The session lives in SessionStore (single source of truth); expose its flow directly so
+    // seedIfEmpty/importSession/sign-out notify the UI without re-reading the file.
     override val session: StateFlow<Session?> = store.sessions
 
     private var pendingEmail: String = ""

@@ -2,7 +2,7 @@
 
 [package]
 name = "vectors-fixture"
-description = "Carga vectors.json para los tests de los ports, sin falsos verdes"
+description = "Loads vectors.json for port tests, without false passes"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
