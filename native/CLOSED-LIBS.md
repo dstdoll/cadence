@@ -94,10 +94,49 @@ tres sólo dependen de librerías del sistema (`liblog`, `libdl`, `libc`, `libz`
 | parchear el `DT_NEEDED` y sacar sólo CoreADI | 20 | 68.47 MB | aprovisionamiento de `adi.pb` |
 | parchear el `DT_NEEDED` y sacar las tres | 18 | 52.73 MB | reproducción: la primera clave falla |
 
-La tabla es la que vale la pena medir empíricamente, porque dice qué compra cada librería.
-El experimento es reversible (se parchea una copia) y es la única forma de saber si el login
-y el catálogo siguen funcionando sin FairPlay, que es lo que decidiría si tiene sentido un
-modo degradado.
+## El experimento, ya corrido
+
+`./native/surgery-drop-closed.sh` quita las tres del `DT_NEEDED` de `libandroidappmusic.so`
+con `patchelf` y produce un árbol `jniLibs` sin ellas. El parche es quirúrgico: el archivo
+queda del **mismo tamaño** (patchelf corre las entradas en sitio), con la cabecera ELF y los
+program headers idénticos, y `.dynamic` en el mismo offset con 48 → 45 entradas.
+
+Se instaló en una tablet Android 10 (API 29) y esto es lo que pasó:
+
+| | con las 3 | sin las 3 |
+|---|---|---|
+| APK | 152.61 MB | **135.14 MB** (−17.47 MB, −11.4%) |
+| arranca | sí | **sí**, sin `UnsatisfiedLinkError` ni fallo del linker |
+| sesión / login | sí | **sí** |
+| biblioteca, catálogo, letras, carátulas | sí | **sí** (`me/library/songs -> 200`, `syllable-lyrics -> 200`) |
+| reproducción | sí | **no**: `Key exchange for e1 failed` |
+
+O sea: las tres librerías compran **exactamente una cosa**, la reproducción, y cuestan
+17.47 MB. Todo lo demás de la app funciona sin ellas. El fallo es limpio y localizado — el
+intercambio de clave —, no un cuelgue ni un crash.
+
+Dos consecuencias prácticas:
+
+1. **El parche de `DT_NEEDED` está validado.** No hay que adivinar si bionic acepta el
+   binario operado: acepta. Lo que falta para poder sacarlas de verdad es reemplazar el
+   intercambio de clave, no resolver un problema de enlace.
+2. **Hay espacio para un modo degradado** (explorar la biblioteca sin reproducir) sin
+   embarcar 17.47 MB, si alguna vez hiciera falta.
+
+### Reproducir el experimento
+
+```sh
+./native/surgery-drop-closed.sh /tmp/jnilibs-sin-cerradas
+cp /tmp/jnilibs-sin-cerradas/*.so backend/src/main/jniLibs/arm64-v8a/   # sobre una copia
+rm -f app/build/outputs/apk/debug/app-debug.apk   # si no, AGP reempaqueta dejando huecos
+./gradlew :app:assembleDebug
+git checkout -- backend/src/main/jniLibs/arm64-v8a                      # restaurar
+```
+
+El `rm` del APK no es opcional: el empaquetado incremental de AGP reescribe el zip dejando
+los bytes de las entradas borradas como relleno no referenciado, y el archivo sale del mismo
+tamaño aunque el contenido sea 17 MB menor. Medido: 160 562 499 contra 160 562 280 bytes,
+219 bytes de diferencia por 17.45 MB de librerías sacadas.
 
 Lo que sí cambió con los ports es que la superficie está **medida y es chica**: 11 funciones.
 Antes el número que se citaba era "las 11 librerías propietarias", que no dice nada sobre
