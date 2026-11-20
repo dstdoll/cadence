@@ -17,7 +17,20 @@ object NativeWrapper {
      */
     @JvmStatic
     fun onNativeEvent(level: Int, tag: String, message: String) {
+        // The native liblog hook says it is on: it replaces the logcat follower (same lines, no process spawn).
+        app.cadence.backend.engine.AppleLogcat.noteNativeEvent(message)
         if (level >= 1) CadenceLog.e(tag, message) else CadenceLog.i(tag, message)
+    }
+
+    /**
+     * Called by the native layer's drain thread for a line Apple's libraries wrote to liblog (`line` starts with
+     * the priority letter and thread id: `D t4300 message`). Written as an `A/<tag>` line of cadence.log.
+     * Keep the signature: the native side looks it up by name (see backend/consumer-rules.pro).
+     */
+    @JvmStatic
+    fun onAppleLog(tag: String, line: String) {
+        app.cadence.backend.engine.AppleLogcat.liveNative = true
+        app.cadence.backend.engine.AppleLogcat.write(tag, line)
     }
 
     /** Called by the native layer when an error reached the user (a track skipped, a sign-in failed). */

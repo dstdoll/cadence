@@ -12,6 +12,7 @@ mod logfmt;
 mod bridges;
 mod core;
 mod cppfn;
+mod hooks_glue;
 mod engine;
 mod identity;
 mod support;

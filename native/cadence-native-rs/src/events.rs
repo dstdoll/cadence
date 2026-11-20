@@ -128,6 +128,12 @@ pub fn notice(kind: &str, impact: &str, entry: &str, detail: &str) {
     let _ = call_kotlin("onNativeNotice", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V", None, &[kind, impact, entry, detail]);
 }
 
+/// A line Apple's libraries (or the platform) wrote to liblog, captured by the hooks: delivered to
+/// `NativeWrapper.onAppleLog(tag, "D t4300 message")`. No logcat fallback: it already is in logcat.
+pub fn apple_log(tag: &str, line: &str) {
+    let _ = call_kotlin("onAppleLog", "(Ljava/lang/String;Ljava/lang/String;)V", None, &[tag, line]);
+}
+
 fn to_logcat(level: Level, tag: &str, msg: &str) {
     let (Ok(t), Ok(m)) = (CString::new(format!("cadence-{tag}")), CString::new(logfmt::mask(msg))) else { return };
     let prio = if level == Level::Error { 6 } else { 4 };

@@ -16,6 +16,7 @@ crate-type = ["cdylib"]
 [dependencies]
 cadence-alac = { path = "../cadence-alac" }
 cadence-eac3 = { path = "../cadence-eac3" }
+cadence-hooks = { path = "../cadence-hooks" }
 jni = "0.21"
 libc = "0.2"
 

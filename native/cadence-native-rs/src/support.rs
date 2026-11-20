@@ -121,5 +121,7 @@ pub extern "C" fn JNI_OnLoad(vm: *mut c_void, _reserved: *mut c_void) -> c_int {
         "native",
         "[NATIVE-INFO] native layer loaded: C++ exception guard, terminate report, panic report and crash-line hooks are active; native error lines start with [CXX-THROW] [CXX-SKIP] [CXX-TERMINATE] [RUST-PANIC]",
     );
+    // Diagnostics inside Apple's libraries (liblog capture, __cxa_throw hook). Never fatal: any failure is reported and skipped.
+    crate::hooks_glue::install();
     JNI_VERSION_1_6
 }

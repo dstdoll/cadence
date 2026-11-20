@@ -26,11 +26,19 @@ name = "cadence-eac3"
 version = "0.1.0"
 
 [[package]]
+name = "cadence-hooks"
+version = "0.1.0"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "cadence-native-rs"
 version = "0.1.0"
 dependencies = [
  "cadence-alac",
  "cadence-eac3",
+ "cadence-hooks",
  "jni",
  "libc",
 ]

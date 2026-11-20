@@ -1,0 +1,11 @@
+[package]
+name = "cadence-hooks"
+version = "0.1.0"
+edition = "2021"
+description = "Diagnostics hooks for the Apple libraries: liblog capture and a __cxa_throw PLT hook, with the lock-free plumbing and ELF walker they need. No JNI: host-testable."
+
+[lib]
+name = "cadence_hooks"
+
+[dependencies]
+libc = "0.2"

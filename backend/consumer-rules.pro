@@ -5,4 +5,5 @@
 -keepclassmembers class app.cadence.backend.engine.media.NativeWrapper {
     public static void onNativeEvent(int, java.lang.String, java.lang.String);
     public static void onNativeNotice(java.lang.String, java.lang.String, java.lang.String, java.lang.String);
+    public static void onAppleLog(java.lang.String, java.lang.String);
 }

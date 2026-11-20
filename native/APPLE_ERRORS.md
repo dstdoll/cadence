@@ -85,3 +85,20 @@ std, non-std and `int` exceptions (type + message in the line, secrets scrubbed)
 inline-asm call path, 200,000 throws with flat memory, the `[RUST-PANIC]` line, the `[CXX-TERMINATE]`
 line for a throw on a thread with only C++ frames, and the fatal-signal line. After changing
 `cxx_trampoline.cpp`, regenerate its assembly with `native/regen-cxx-trampoline.sh` first.
+
+
+## Hooks inside Apple's libraries (`[HOOK]`, `[CXX-RAISE]`, `A/` lines)
+
+Built from `native/cadence-hooks` (host-tested) and `cadence-native-rs/src/hooks_glue.rs`; installed in `JNI_OnLoad`.
+
+| line | meaning |
+|---|---|
+| `[HOOK] logger=on throw=on slots=6 already=0` | both hooks installed; `slots` = `__cxa_throw` PLT slots patched (6 libraries expected). `throw=off (reason)` = the throw hook could not install (logging still works); `logger=off throw=off (files/hooks.off exists)` = switched off by the user's kill switch |
+| `[HOOK] N Apple/native log line(s) dropped in the last second (rate limit)` | more than 25 lines/s arrived; the rest were counted, not written |
+| `[HOOK] N record(s) lost so far because the hook queue was full` | the 512-entry queue overflowed (the drain thread was starved) |
+| `[CXX-RAISE] type=<mangled> xN at lib.so+0xOFF <- lib.so+0xOFF ... (thread name)` | a C++ exception was THROWN inside a patched library, whether or not anyone caught it. `type` is the mangled C++ type (`N11storeservices7SVErrorE` = `storeservices::SVError`); `xN` the count for this type at this call site (the first 3 per site are written in full); `at` is the code that threw, the rest is the call chain. Resolve `lib.so+0xOFF` against the shipped library with `llvm-symbolizer`/`addr2line` or `readelf -s` |
+| `[CXX-RAISE] summary: ... thrown N more time(s)` | every 10 s: throws beyond the first 3 per site, counted only |
+| `A/<tag> [thread] <P> t<tid> message` in cadence.log | a line an Apple library (or any warning/error of the process) wrote to Android's log, with its priority letter and thread id |
+
+Kill switch: create an empty file `files/hooks.off` in the app's private directory (`run-as app.cadence touch files/hooks.off` on a debug build, or clear app data to remove it) and restart the app.
+Design, audit and the facts it rests on: `docs/plan-native-hooks.md`.
