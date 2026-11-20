@@ -410,7 +410,7 @@ fn android_release() -> String {
 /// Es el port `store-config` (`storeservicescore::RequestContextConfig`). Importa que sea
 /// una sola instancia: estos nueve campos alimentan tanto los setters de
 /// `RequestContextConfig` en `init_ctx` como el `User-Agent` del mint, y antes se
-/// escribian por separado **y no coincidian** — la config decia `5.0.2 / Pixel 8 /
+/// escribian por separado **y no coincidian** -- la config decia `5.0.2 / Pixel 8 /
 /// 7663314` y la cabecera decia `Music/4.9 ... Samsung S9 ... 7663313`. Dos identidades
 /// distintas en la misma sesion son una huella trivial de detectar.
 fn store_cfg() -> &'static store_config::RequestContextConfig {
@@ -1007,7 +1007,7 @@ pub unsafe fn release_m4p_context(ctx: *mut c_void) {
 /// Fetch the FairPlay decrypt (kd) context for an adam id + key URI. The Apple key path can in
 /// principle throw a C++ exception, which Rust cannot catch; in practice it signals errors by
 /// returning null shared_ptrs, which `get_kd_context` checks at every step and turns into a null
-/// result (a skipped track) — the same graceful outcome the old C++ try/catch produced for the error
+/// result (a skipped track) -- the same graceful outcome the old C++ try/catch produced for the error
 /// path we have observed.
 pub fn kd(adam_id: &str, key_uri: &str) -> *mut c_void {
     nlog(&format!("kd: adam={adam_id}"));
@@ -1107,7 +1107,7 @@ pub fn login() -> bool {
             return false;
         }
     }
-    // Signed in — mint the token on this same thread and persist it for finishNative.
+    // Signed in -- mint the token on this same thread and persist it for finishNative.
     if let Some(tok) = mint_music_token() {
         let path = format!("{}/MUSIC_TOKEN", base_dir());
         if let Ok(mut f) = std::fs::File::create(&path) {

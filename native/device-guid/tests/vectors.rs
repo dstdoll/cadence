@@ -3,7 +3,7 @@
 //! `vectors.json` lo produce `export-vectors.js` enganchando `DeviceGUID::configure`
 //! (los insumos: Android ID y serial) y el tráfico al key server (el GUID resultante,
 //! que es donde el valor realmente importa). Con ambos se comprueba el port de punta a
-//! punta: mismos insumos → mismo GUID, carácter por carácter.
+//! punta: mismos insumos -> mismo GUID, carácter por carácter.
 //!
 //! **Sin dispositivo los tests se saltan; con un `vectors.json` incompleto fallan.** Un
 //! archivo al que le falta una sección significa que ese hook no funcionó, y eso tiene

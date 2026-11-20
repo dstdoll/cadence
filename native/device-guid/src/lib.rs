@@ -32,7 +32,7 @@
 //! Lo que **no** está confirmado:
 //!
 //! * El **campo 2** sale en catorce ceros en todas las capturas, y el descriptor que
-//!   sigue al primero en el buffer de FairPlay dice `len = 7` — siete bytes son
+//!   sigue al primero en el buffer de FairPlay dice `len = 7` -- siete bytes son
 //!   justo 14 chars en hex, así que lo más probable es que sea el segundo campo de
 //!   FairPlay y no un relleno. No se pudo leer su contenido (el puntero de ese
 //!   descriptor no resultó legible), así que queda como lectura, no como hecho. Por eso
@@ -56,13 +56,13 @@ pub const GUID_LEN: usize = FAIRPLAY_LEN + FIELD_LEN * 5 + (FIELD_COUNT - 1);
 
 /// Largo en bytes del blob que FairPlay entrega para el primer campo.
 ///
-/// 18 bytes → 36 chars en hex. Medido en el buffer de salida de
+/// 18 bytes -> 36 chars en hex. Medido en el buffer de salida de
 /// `FairPlayGetAndroidGUIDFields`.
 pub const FAIRPLAY_FIELD1_BYTES: usize = 18;
 
 /// Largo en bytes que el descriptor del segundo campo declara.
 ///
-/// 7 bytes → 14 chars en hex, que es justo el ancho del campo 2. Ver la nota del módulo:
+/// 7 bytes -> 14 chars en hex, que es justo el ancho del campo 2. Ver la nota del módulo:
 /// el contenido no se pudo leer.
 pub const FAIRPLAY_FIELD2_BYTES: usize = 7;
 

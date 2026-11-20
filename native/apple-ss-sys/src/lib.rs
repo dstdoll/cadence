@@ -70,7 +70,7 @@ pub const DECRYPT_MODE_CONTENT_KEY: u32 = 5;
 pub const AUTH_RESPONSE_SIGNED_IN: c_int = 6;
 
 // =====================================================================================
-// libandroidappmusic.so — FairPlay y lease de reproducción
+// libandroidappmusic.so -- FairPlay y lease de reproducción
 // =====================================================================================
 
 unsafe extern "C-unwind" {
@@ -140,7 +140,7 @@ unsafe extern "C-unwind" {
         flag: *const bool,
     ) -> SretShared;
 
-    /// `SVFootHillPContext::kdContext() const` — devuelve el handle que consume
+    /// `SVFootHillPContext::kdContext() const` -- devuelve el handle que consume
     /// [`KDDecryptSample`].
     #[link_name = "_ZNK18SVFootHillPContext9kdContextEv"]
     pub fn SVFootHillPContext_kdContext(this: *mut c_void) -> *mut *mut c_void;
@@ -214,7 +214,7 @@ unsafe extern "C-unwind" {
 }
 
 // =====================================================================================
-// libstoreservicescore.so — identidad, contexto, HTTP y autenticación
+// libstoreservicescore.so -- identidad, contexto, HTTP y autenticación
 // =====================================================================================
 
 unsafe extern "C-unwind" {
@@ -222,7 +222,7 @@ unsafe extern "C-unwind" {
     #[link_name = "_ZN17storeservicescore10DeviceGUID8instanceEv"]
     pub fn DeviceGUID_instance() -> SretShared;
 
-    /// `DeviceGUID::guid()` — el GUID ya armado, como `mediaplatform::Data`.
+    /// `DeviceGUID::guid()` -- el GUID ya armado, como `mediaplatform::Data`.
     #[link_name = "_ZN17storeservicescore10DeviceGUID4guidEv"]
     pub fn DeviceGUID_guid(this: *mut c_void) -> SretData;
 
@@ -281,7 +281,7 @@ unsafe extern "C-unwind" {
     pub fn URLRequest_new(this: *mut c_void, message: *mut SharedPtr, context: *mut SharedPtr);
 
     /// Ejecuta el request. Acá es donde la librería inyecta las cabeceras de
-    /// autenticación y Anisette (`X-Dsid`, `X-Token`, `X-Apple-AMD`, …).
+    /// autenticación y Anisette (`X-Dsid`, `X-Token`, `X-Apple-AMD`, ...).
     #[link_name = "_ZN17storeservicescore10URLRequest3runEv"]
     pub fn URLRequest_run(this: *mut c_void);
 

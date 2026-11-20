@@ -13,8 +13,8 @@
 //!
 //! Hay dos formatos de request según el `keyServerProtocolType`:
 //!
-//! * `"simplified"` — un objeto plano. Es el que usa Apple Music hoy.
-//! * cualquier otro — el wrapper `fairplay-streaming-request` anidado, que es el
+//! * `"simplified"` -- un objeto plano. Es el que usa Apple Music hoy.
+//! * cualquier otro -- el wrapper `fairplay-streaming-request` anidado, que es el
 //!   formato genérico de los key servers FPS.
 
 #![forbid(unsafe_code)]
@@ -47,7 +47,7 @@ pub const CKC_STATUS_SLOT_ERROR: i32 = -1004;
 pub enum Protocol {
     /// Objeto plano con `guid`/`offline`/`adamId`/`spc`/`keyUri`.
     Simplified,
-    /// Wrapper `fairplay-streaming-request` → `streaming-keys` → `[{id, spc, uri}]`.
+    /// Wrapper `fairplay-streaming-request` -> `streaming-keys` -> `[{id, spc, uri}]`.
     Legacy,
 }
 
@@ -229,7 +229,7 @@ struct LegacyResponse {
 /// Lee la respuesta del key server.
 ///
 /// En `simplified` el objeto raíz ya trae `status` y `ckc`. En legacy hay que bajar por
-/// `fairplay-streaming-response` → `streaming-keys` → primer elemento, que es
+/// `fairplay-streaming-response` -> `streaming-keys` -> primer elemento, que es
 /// exactamente el recorrido que hace `_getCKCFromResponse`.
 pub fn parse_response(body: &str, protocol: Protocol) -> Result<StreamingKey, Error> {
     match protocol {

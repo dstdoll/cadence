@@ -20,7 +20,7 @@ son superficie que nadie usa.
 ## Cómo se alcanzan (y por qué el dynsym engaña)
 
 Ninguna de las tres deja **un solo import estático** en el dynsym de nadie. Mirando sólo eso,
-el veredicto sería "nadie las usa, se pueden borrar" — y es falso: sacarlas rompe la
+el veredicto sería "nadie las usa, se pueden borrar" -- y es falso: sacarlas rompe la
 reproducción en runtime, no en el enlace.
 
 La vía real es dinámica. `libandroidappmusic.so` lleva los nombres de archivo
@@ -43,7 +43,7 @@ Dos detalles que conviene no olvidar:
   Es la que aprovisiona el estado de máquina (`adi.pb`).
 
 Los exports llevan sufijo de versión en algunos casos (`@@VERS_1.73.0` en CoreFP,
-`@@LIBXML2_…` en libxml2). Comparar nombres sin normalizar ese sufijo hace que la librería
+`@@LIBXML2_...` en libxml2). Comparar nombres sin normalizar ese sufijo hace que la librería
 parezca no usarse. El script lo normaliza; cualquier análisis a mano tiene que hacerlo
 también.
 
@@ -90,7 +90,7 @@ tres sólo dependen de librerías del sistema (`liblog`, `libdl`, `libc`, `libz`
 
 | escenario | libs | jniLibs | qué se pierde |
 |---|---|---|---|
-| hoy, sin tocar nada | 21 | 70.18 MB | — |
+| hoy, sin tocar nada | 21 | 70.18 MB | - |
 | parchear el `DT_NEEDED` y sacar sólo CoreADI | 20 | 68.47 MB | aprovisionamiento de `adi.pb` |
 | parchear el `DT_NEEDED` y sacar las tres | 18 | 52.73 MB | reproducción: la primera clave falla |
 
@@ -99,7 +99,7 @@ tres sólo dependen de librerías del sistema (`liblog`, `libdl`, `libc`, `libz`
 `./native/surgery-drop-closed.sh` quita las tres del `DT_NEEDED` de `libandroidappmusic.so`
 con `patchelf` y produce un árbol `jniLibs` sin ellas. El parche es quirúrgico: el archivo
 queda del **mismo tamaño** (patchelf corre las entradas en sitio), con la cabecera ELF y los
-program headers idénticos, y `.dynamic` en el mismo offset con 48 → 45 entradas.
+program headers idénticos, y `.dynamic` en el mismo offset con 48 -> 45 entradas.
 
 Se instaló en una tablet Android 10 (API 29) y esto es lo que pasó:
 
@@ -112,18 +112,18 @@ Se instaló en una tablet Android 10 (API 29) y esto es lo que pasó:
 | reproducción | sí | **no**: `Key exchange for e1 failed` |
 
 O sea: las tres librerías compran **exactamente una cosa**, la reproducción, y cuestan
-17.47 MB. Todo lo demás de la app funciona sin ellas. El fallo es limpio y localizado — el
-intercambio de clave —, no un cuelgue ni un crash.
+17.47 MB. Todo lo demás de la app funciona sin ellas. El fallo es limpio y localizado -- el
+intercambio de clave --, no un cuelgue ni un crash.
 
 ### Y una por una
 
 Sacarlas juntas no dice cuál pesa. Se repitió con cada una por separado:
 
-| sin… | APK | arranca | reproduce |
+| sin... | APK | arranca | reproduce |
 |---|---|---|---|
 | `libCoreADI.so` | 150.89 MB | sí | **no**: 0 claves, 13 fallos de intercambio |
 | `libCoreLSKD.so` | 144.69 MB | sí | **no**: `Key exchange for e1 failed` |
-| `libCoreFP.so` | 144.78 MB | **no**: el proceso muere al arrancar | — |
+| `libCoreFP.so` | 144.78 MB | **no**: el proceso muere al arrancar | - |
 
 **Ninguna de las tres se puede sacar.** El mínimo sigue siendo las 21 librerías, 70.18 MB.
 
@@ -135,7 +135,7 @@ arranca. `libstoreservicescore.so` también nombra ese archivo, no sólo
 pareció reproducir: el detector vio `state=PlaybackState {state=3}` y lo dio por bueno. Pero
 estaba reproduciendo con una **clave que quedó en caché** de la sesión anterior, y se cortaba a
 mitad de tema. Repetido desde un arranque limpio: 0 claves obtenidas y 13 fallos. O sea que
-CoreADI no sólo aprovisiona `adi.pb` la primera vez — participa en cada intercambio de clave,
+CoreADI no sólo aprovisiona `adi.pb` la primera vez -- participa en cada intercambio de clave,
 que es coherente con que aporte los datos de máquina que autentican la petición al key
 server.
 
@@ -196,7 +196,7 @@ Para que el 17.45 MB quede en perspectiva, en el APK de debug actual (153 MB):
 | `classes*.dex` | ~75 MB | build de debug sin R8; un release con minify lo baja mucho |
 | `lib/arm64-v8a` | 70 MB | de los cuales 17.45 MB son estas tres |
 | `libmedialibrarycore.so` | 13.21 MB | 614 símbolos usados de verdad: no es candidata |
-| `libicudata_sv_apple.so` | 9.75 MB | el blob de datos de ICU 57; se recorta, no se stubea — ver abajo |
+| `libicudata_sv_apple.so` | 9.75 MB | el blob de datos de ICU 57; se recorta, no se stubea -- ver abajo |
 | `assets/native-data` | 5.07 MB | datos de sesión para pruebas; `.gitignore` los deja fuera del repo y no deben ir en un release |
 
 Es decir: el bulto mayor de un release no son las librerías cerradas, es el DEX. Conviene
@@ -226,7 +226,7 @@ mide la herramienta: sacar los `.dict` ahorra 2.75 MB, sacar la colación de zh/
 **Por qué no está aplicado.** A diferencia de las librerías cerradas, recortar esto no
 rompe el enlace: rompe el texto, y tarde. Los `.dict` son lo que parte palabras en chino y
 japonés, y los `.res` llevan la colación con la que se ordenan los títulos. Apple Music
-tiene catálogo en esos idiomas, así que el fallo no es hipotético — aparece el día que
+tiene catálogo en esos idiomas, así que el fallo no es hipotético -- aparece el día que
 suene un tema con título en japonés, no el día del cambio. Hacerlo bien pide una lista
 explícita de lo que se conserva y pruebas con contenido en esos idiomas, no sólo comprobar
 que la app arranca.

@@ -73,7 +73,7 @@ def tabla(titulo, conj, borde):
         else:
             vs = borde.get(l, [])
             tipos = sorted({t for _, t in vs}); quien = sorted({w for w, _ in vs})
-            via = f"{'+'.join(tipos):<8} <- {', '.join(quien[:2])}{' …' if len(quien) > 2 else ''}"
+            via = f"{'+'.join(tipos):<8} <- {', '.join(quien[:2])}{' ...' if len(quien) > 2 else ''}"
         print(f"  {l:<30}{tam[l]/1048576:>7.2f} MB  {via}")
     print(f"  {'':<30}{'-'*10}")
     print(f"  {'TOTAL':<30}{s/1048576:>7.2f} MB   ({len(conj)} librerias)")

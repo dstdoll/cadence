@@ -12,7 +12,7 @@
 //! - el GUID lo calcula `device_guid::build`, asi que el campo del hash es el hash de
 //!   verdad del ANDROID_ID sintetico y `matches_android_id` comprueba el algoritmo;
 //! - los cuerpos CKC los serializa `fairplay_proto::KeyRequest::to_json`, asi que `keys`,
-//!   `parsed` y `raw_len` son por construccion lo que la app manda — incluido el detalle
+//!   `parsed` y `raw_len` son por construccion lo que la app manda -- incluido el detalle
 //!   de que la clave `offline` **no aparece** cuando es falsa, y que cuando aparece su
 //!   valor es el string `"true"` y no el booleano;
 //! - el User-Agent lo arma `store_config`.
