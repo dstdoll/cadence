@@ -5,7 +5,6 @@ import android.net.Uri
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import java.io.IOException
@@ -135,23 +134,42 @@ class HlsDownloader(private val context: Context) {
                 }
                 // Several segments travel at once and are written in playlist order. Fetching them
                 // one by one left most of the connection idle (measured: 11 segments, 6.6 s).
+                //
+                // A sliding window, not fixed groups. With `chunked` + `awaitAll` the whole group
+                // had to finish before the next one started, so one slow segment left the other
+                // connections idle waiting for it -- the tail of every group was dead time. Here a
+                // new segment starts the moment one is written, so PARALLEL_SEGMENTS of them are
+                // in flight continuously.
+                //
+                // The window also bounds memory: at most PARALLEL_SEGMENTS segments are held at
+                // once, because nothing is launched more than that far ahead of the write cursor.
                 var done = 0
-                for (group in segments.indices.chunked(PARALLEL_SEGMENTS)) {
-                    val fetched = coroutineScope {
-                        group.map { i -> async(Dispatchers.IO) { readBytes(URL(segments[i].url), starts[i], segments[i].length) } }.awaitAll()
-                    }
-                    for (bytes in fetched) stream.write(bytes)
-                    done += group.size
-                    AppLog.log("HLS", "segments $done/${segments.size} bytes=${fetched.sumOf { it.size }}")
-                    onState(
-                        DownloadState(
-                            running = true,
-                            phase = "downloading",
-                            progress = done.toFloat() / segments.size,
-                            message = "Segment $done/${segments.size}",
+                var bytesTotal = 0L
+                coroutineScope {
+                    val inFlight = ArrayDeque<kotlinx.coroutines.Deferred<ByteArray>>()
+                    var next = 0
+                    while (next < segments.size || inFlight.isNotEmpty()) {
+                        while (next < segments.size && inFlight.size < PARALLEL_SEGMENTS) {
+                            val i = next++
+                            inFlight.addLast(
+                                async(Dispatchers.IO) { readBytes(URL(segments[i].url), starts[i], segments[i].length) }
+                            )
+                        }
+                        val bytes = inFlight.removeFirst().await()
+                        stream.write(bytes)
+                        done++
+                        bytesTotal += bytes.size
+                        onState(
+                            DownloadState(
+                                running = true,
+                                phase = "downloading",
+                                progress = done.toFloat() / segments.size,
+                                message = "Segment $done/${segments.size}",
+                            )
                         )
-                    )
+                    }
                 }
+                AppLog.log("HLS", "segments $done/${segments.size} bytes=$bytesTotal parallel=$PARALLEL_SEGMENTS")
             }
         } catch (t: Throwable) {
             staging.delete()
@@ -171,7 +189,14 @@ class HlsDownloader(private val context: Context) {
 
     private companion object {
         /** Segments in flight together. Four fills the link without holding much in memory. */
-        const val PARALLEL_SEGMENTS = 4
+        /**
+         * Segments in flight at once.
+         *
+         * Six rather than four: with the sliding window above the connections stay busy, so a
+         * couple more of them fill the pipe on a fast link without asking the CDN for so many at
+         * once that it starts throttling. Memory stays bounded by this number of segments.
+         */
+        const val PARALLEL_SEGMENTS = 6
     }
 
     /** Drops stale packages from a previous crash (the normal path deletes them). */

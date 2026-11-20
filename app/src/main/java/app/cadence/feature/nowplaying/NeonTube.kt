@@ -173,14 +173,23 @@ private class NeonState {
 /**
  * The neon drawn without a shader, for Android below 13.
  *
- * Walks the artwork's rounded outline at a fixed number of samples; at each one it sums the eight
- * bands exactly as the AGSL does, pushes the point outwards by that height and joins them into a
- * path. The path is then stroked several times, each pass wider and fainter, which reads as a halo
- * without a blur -- `Modifier.blur` and `RenderEffect` are Android 12+, and a mask filter would
- * force the whole card into a software layer.
+ * It reproduces what the AGSL does, in the order the shader builds it up:
  *
- * Colour drifts around the contour with a sweep gradient whose stops rotate with time, standing in
- * for the shader's `palette(fract(u - u_time * 0.04))`.
+ *  1. **the body** -- the lit area between the artwork's edge and the crest of the wave, filled
+ *     at low alpha, which is the shader's `fill`;
+ *  2. **the halo** -- six strokes on the crest, each wider and fainter, approximating the
+ *     exponential falloff of `exp(-|e1| / sigma)`;
+ *  3. **the tube** -- the line hugging the outline itself, which never moves;
+ *  4. **the crest** -- the bright edge riding on top of the wave;
+ *  5. **the flash** -- a white pass on a bass hit, the shader's `mix(col, white, ...)`.
+ *
+ * Three things the shader has that a stroke cannot: a true gaussian halo, per-pixel colour, and
+ * the halo dying instantly inside the card. The halo is approximated by stacking passes, colour
+ * comes from a sweep gradient that turns with time, and the body is clipped to the outside of the
+ * artwork so the cover stays clean.
+ *
+ * `Modifier.blur` and `RenderEffect` would be the obvious way to do the halo and are Android 12+,
+ * which does not help here; a `BlurMaskFilter` would force the whole card into a software layer.
  */
 private fun DrawScope.drawNeonFallback(
     state: NeonState,
@@ -191,7 +200,6 @@ private fun DrawScope.drawNeonFallback(
 ) {
     if (card.minDimension <= 2 * radius || colors.isEmpty()) return
     val r = radius.coerceAtMost(card.minDimension / 2f)
-    // Arc length of the outline: two straight runs each way plus four quarter circles.
     val straightX = card.width - 2 * r
     val straightY = card.height - 2 * r
     val arc = (PI.toFloat() / 2f) * r
@@ -200,26 +208,45 @@ private fun DrawScope.drawNeonFallback(
 
     var total = 0f
     for (k in 0 until 8) total += state.amp[k] * NeonState.AMP_DP[k]
-    val gain = if (total > NeonState.KNEE_DP) (NeonState.KNEE_DP + (total - NeonState.KNEE_DP) * NeonState.RATIO) / total else 1f
+    val gain = if (total > NeonState.KNEE_DP) {
+        (NeonState.KNEE_DP + (total - NeonState.KNEE_DP) * NeonState.RATIO) / total
+    } else 1f
     val heights = FloatArray(8) { state.amp[it] * NeonState.AMP_DP[it] * gain * scale }
     val gap = NeonState.GAP_DP * scale
     val soft = 0.8f * scale
 
-    val path = Path()
+    // The tube sits on the outline; the crest rides the wave above it. Walking the outline once
+    // builds both, and the body is the ring between them.
+    val tube = Path()
+    val crest = Path()
+    val body = Path()
+    val back = ArrayList<Offset>(SAMPLES + 1)
     for (i in 0..SAMPLES) {
         val u = i.toFloat() / SAMPLES
         var wave = 0f
         for (k in 0 until 8) wave += heights[k] * sin(TAU * NeonState.CYCLES[k] * u + state.phase[k])
-        // Softplus, the same one-sided rectification the shader uses: the wave only grows outwards.
+        // Softplus: the same one-sided rectification as the shader, so the wave only grows outwards.
         val h = soft * ln(1f + kotlin.math.exp(wave / soft))
         val (point, normal) = outlinePoint(u * perimeter, card, r, straightX, straightY, arc)
-        val x = point.x + normal.x * (gap + h)
-        val y = point.y + normal.y * (gap + h)
-        if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+        val bx = point.x + normal.x * gap
+        val by = point.y + normal.y * gap
+        val cx = point.x + normal.x * (gap + h)
+        val cy = point.y + normal.y * (gap + h)
+        if (i == 0) {
+            tube.moveTo(bx, by); crest.moveTo(cx, cy); body.moveTo(cx, cy)
+        } else {
+            tube.lineTo(bx, by); crest.lineTo(cx, cy); body.lineTo(cx, cy)
+        }
+        back.add(Offset(bx, by))
     }
-    path.close()
+    // Close the body by coming back along the tube, which makes it the ring of lit area.
+    for (i in back.indices.reversed()) body.lineTo(back[i].x, back[i].y)
+    body.close()
+    tube.close()
+    crest.close()
 
-    // Stops rotated by time: the colours travel around the contour as in the shader.
+    // Colour travels around the contour: a sweep gradient whose stops turn with time, standing in
+    // for the shader's palette(fract(u - u_time * 0.04)).
     val shift = (state.seconds * 0.04f) % 1f
     val wheel = List(colors.size + 1) { colors[it % colors.size] }
     val stops = Array(wheel.size) { i ->
@@ -227,32 +254,54 @@ private fun DrawScope.drawNeonFallback(
     }.sortedBy { it.first }.toTypedArray()
     val brush = Brush.sweepGradient(*stops, center = Offset(card.width / 2f, card.height / 2f))
 
-    // Widest and faintest first, so the core lands on top. The halo opens with glow and flash,
-    // which is what the shader's sigma does.
-    val core = (0.7f + 0.4f * state.glow) * scale
-    val spread = 1f + 2.2f * state.glow + 1.8f * state.flash
-    val strength = 0.2f + 0.5f * state.glow + 0.4f * state.flash
+    val glow = state.glow
+    val flash = state.flash
+    val core = (0.7f + 0.4f * glow) * scale
+    val strength = 0.2f + 0.5f * glow + 0.4f * flash
+
+    // 1) the body of light between the artwork and the crest
+    drawPath(body, brush, alpha = (0.14f + 0.36f * glow).coerceIn(0f, 1f))
+
+    // 2) the halo: stacked passes standing in for the gaussian. Widest and faintest first.
+    val spread = 1f + 2.6f * glow + 2.2f * flash
     for ((widthFactor, alphaFactor) in HALO) {
         drawPath(
-            path = path,
+            path = crest,
             brush = brush,
             alpha = (strength * alphaFactor).coerceIn(0f, 1f),
-            style = Stroke(width = core * widthFactor * spread, cap = StrokeCap.Round, join = StrokeJoin.Round),
+            style = Stroke(core * widthFactor * spread, cap = StrokeCap.Round, join = StrokeJoin.Round),
         )
     }
-    // The tube itself, whitened by the flash like the shader's mix towards white.
+
+    // 3) the tube on the outline, which stays put however loud it gets
     drawPath(
-        path = path,
+        path = tube,
         brush = brush,
-        alpha = (0.7f + 0.3f * state.glow).coerceIn(0f, 1f),
-        style = Stroke(width = core * 2f, cap = StrokeCap.Round, join = StrokeJoin.Round),
+        alpha = (0.75f + 0.25f * glow).coerceIn(0f, 1f),
+        style = Stroke(core * 1.8f, cap = StrokeCap.Round, join = StrokeJoin.Round),
     )
-    if (state.flash > 0.01f) {
+
+    // 4) the crest, brighter than the body it caps
+    drawPath(
+        path = crest,
+        brush = brush,
+        alpha = (0.6f + 0.4f * glow).coerceIn(0f, 1f),
+        style = Stroke(core * 1.3f, cap = StrokeCap.Round, join = StrokeJoin.Round),
+    )
+
+    // 5) the white core, and the flash on a bass hit
+    drawPath(
+        path = tube,
+        color = Color.White,
+        alpha = (0.22f + 0.5f * flash).coerceIn(0f, 1f),
+        style = Stroke(core * 0.55f, cap = StrokeCap.Round, join = StrokeJoin.Round),
+    )
+    if (flash > 0.01f) {
         drawPath(
-            path = path,
+            path = crest,
             color = Color.White,
-            alpha = (state.flash * 0.35f).coerceIn(0f, 1f),
-            style = Stroke(width = core, cap = StrokeCap.Round, join = StrokeJoin.Round),
+            alpha = (flash * 0.45f).coerceIn(0f, 1f),
+            style = Stroke(core * 0.8f, cap = StrokeCap.Round, join = StrokeJoin.Round),
         )
     }
 }
@@ -267,7 +316,6 @@ private fun outlinePoint(
     arc: Float,
 ): Pair<Offset, Offset> {
     var d = s
-    // top edge, left to right
     if (d < straightX) return Offset(r + d, 0f) to UP
     d -= straightX
     if (d < arc) {
@@ -302,8 +350,21 @@ private val UP = Offset(0f, -1f)
 private val DOWN = Offset(0f, 1f)
 private val LEFT = Offset(-1f, 0f)
 private val RIGHT = Offset(1f, 0f)
-/** Halo passes: (width multiple, alpha multiple), widest and faintest first. */
-private val HALO = listOf(7f to 0.10f, 4.5f to 0.16f, 2.8f to 0.26f)
+
+/**
+ * Halo passes: (width multiple, alpha multiple), widest and faintest first.
+ *
+ * Six of them rather than three: stacking more, fainter passes is what turns a stack of strokes
+ * into something that reads as a glow instead of as concentric outlines.
+ */
+private val HALO = listOf(
+    11f to 0.06f,
+    8f to 0.09f,
+    6f to 0.13f,
+    4.5f to 0.18f,
+    3.2f to 0.24f,
+    2.2f to 0.32f,
+)
 
 private const val NEON_AGSL = """
 uniform float2 u_size;
