@@ -47,11 +47,31 @@ jobs:
       - name: Run unit tests
         run: ./gradlew :backend:testDebugUnitTest :app:testDebugUnitTest --build-cache --no-daemon
 
+      - name: Cache ffmpeg binary
+        uses: actions/cache@v4
+        id: ffmpeg-cache
+        with:
+          path: ~/.local/bin/ffmpeg
+          key: ${{ runner.os }}-ffmpeg-btbn-v1
+
       - name: Install ffmpeg for E-AC-3 reference tests
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 5
+        run: |
+          mkdir -p ~/.local/bin
+          if curl -fsSL --retry 3 --max-time 60 \
+            https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz \
+            | tar -xJ --wildcards --strip-components=2 -C ~/.local/bin '*/bin/ffmpeg'; then
+            chmod +x ~/.local/bin/ffmpeg
+          else
+            sudo apt-get -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 -o Acquire::Retries=3 update -qq
+            sudo apt-get -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 -o Acquire::Retries=3 install -y -qq --no-install-recommends ffmpeg
+          fi
 
       - name: Run Rust E-AC-3 tests
-        run: cargo test --manifest-path native/cadence-eac3/Cargo.toml
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          cargo test --manifest-path native/cadence-eac3/Cargo.toml
 
       - name: Upload Gradle test reports on failure
         if: failure()
