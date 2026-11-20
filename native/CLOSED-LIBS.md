@@ -196,8 +196,40 @@ Para que el 17.45 MB quede en perspectiva, en el APK de debug actual (153 MB):
 | `classes*.dex` | ~75 MB | build de debug sin R8; un release con minify lo baja mucho |
 | `lib/arm64-v8a` | 70 MB | de los cuales 17.45 MB son estas tres |
 | `libmedialibrarycore.so` | 13.21 MB | 614 símbolos usados de verdad: no es candidata |
-| `libicudata_sv_apple.so` | 9.75 MB | un solo símbolo importado, pero es el blob de datos de ICU; se recorta regenerándolo con filtro, no stubeando |
+| `libicudata_sv_apple.so` | 9.75 MB | el blob de datos de ICU 57; se recorta, no se stubea — ver abajo |
 | `assets/native-data` | 5.07 MB | datos de sesión para pruebas; `.gitignore` los deja fuera del repo y no deben ir en un release |
 
 Es decir: el bulto mayor de un release no son las librerías cerradas, es el DEX. Conviene
 medir un `assembleRelease` antes de operar nada nativo.
+
+## Lo otro que pesa: los datos de ICU
+
+`./native/icu-data-audit.py` lista lo que hay dentro de `libicudata_sv_apple.so` sin
+modificar nada. Es el segundo archivo más grande del APK y exporta un solo símbolo,
+`icudt__sv_apple57_dat`: un paquete de datos de ICU 57, cuyo formato es estándar y se puede
+listar sin las herramientas de ICU.
+
+9.73 MB de datos en 883 items:
+
+| tipo | items | MB | qué es |
+|---|---|---|---|
+| `.res` | 858 | 4.78 | recursos por locale: formatos, nombres, colación |
+| `.dict` | 5 | 2.75 | diccionarios de corte de palabra (CJK, khmer, birmano, tailandés) |
+| `.brk` | 14 | 1.46 | reglas de corte de línea y palabra |
+| `.icu` | 2 | 0.52 | datos base de colación |
+| `.nrm` | 3 | 0.16 | normalización Unicode |
+
+Un solo item, `brkitr/cjdict.dict`, pesa **1.96 MB**. Los tres escenarios de recorte que
+mide la herramienta: sacar los `.dict` ahorra 2.75 MB, sacar la colación de zh/ko/ja ahorra
+1.25 MB, y dejar sólo `root/en/en_US/es/es_419` en los `.res` ahorra 3.81 MB.
+
+**Por qué no está aplicado.** A diferencia de las librerías cerradas, recortar esto no
+rompe el enlace: rompe el texto, y tarde. Los `.dict` son lo que parte palabras en chino y
+japonés, y los `.res` llevan la colación con la que se ordenan los títulos. Apple Music
+tiene catálogo en esos idiomas, así que el fallo no es hipotético — aparece el día que
+suene un tema con título en japonés, no el día del cambio. Hacerlo bien pide una lista
+explícita de lo que se conserva y pruebas con contenido en esos idiomas, no sólo comprobar
+que la app arranca.
+
+Es, eso sí, el recorte **más viable** de los que hay: no depende de reimplementar
+criptografía, sólo de decidir qué idiomas se soportan.
