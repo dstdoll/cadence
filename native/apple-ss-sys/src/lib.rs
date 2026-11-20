@@ -1,7 +1,7 @@
 //! Bindings to the closed Apple Music for Android libraries.
 //!
 //! These are the **57 symbols** the client actually uses, out of ~7000 exported by the
-//! libraries. Declared from the inventory in `~/labs/re/cadence-nativas/api_surface.json`.
+//! libraries (audited from the symbol inventory of the shipped Apple `.so` files).
 //!
 //! | library | symbols used | total |
 //! |----------|-----------------|-----|
@@ -25,8 +25,7 @@
 //! ## Obfuscated symbols
 //!
 //! Apple renamed part of the key-delivery API. The mapping was recovered by correlating call
-//! order with error strings printed by the library itself
-//! (see `~/labs/re/cadence-nativas/DEOBFUSCACION.md`):
+//! order with error strings printed by the library itself:
 //!
 //! | real name | symbol |
 //! |---|---|
