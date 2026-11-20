@@ -215,7 +215,10 @@ private fun BigArtwork(info: TrackInfo, isPlaying: Boolean, modifier: Modifier =
     }
     val neonColors = remember(coverPalette, fallbackNeon) { coverPalette?.colors() ?: fallbackNeon }
     Box(
-        modifier.padding(horizontal = PlayerGutter, vertical = 12.dp).graphicsLayer { scaleX = scale; scaleY = scale }
+        // The vertical padding is the room the neon's wave and halo have to grow into. At 12.dp it
+        // was half the horizontal gutter, so the wave had space at the sides and was cut off flat
+        // against the top and bottom edges. It matches the gutter now.
+        modifier.padding(horizontal = PlayerGutter, vertical = PlayerGutter).graphicsLayer { scaleX = scale; scaleY = scale }
             .neonTube(settings.waveStyle == app.cadence.state.settings.WaveStyle.Neon, c.wave, isPlaying, neonColors, 28.dp),
     ) {
         CoverArt(

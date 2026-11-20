@@ -103,6 +103,16 @@ private class NeonState {
     private var lastNanos = 0L
     var seconds = 0f
         private set
+    /** Per-frame scratch for the scaled band heights; avoids an array per frame. */
+    val scratch = FloatArray(8)
+    private var geo: NeonGeometry? = null
+
+    /** The outline geometry, rebuilt only when the artwork's size or radius changes. */
+    fun geometry(card: Size, radius: Float): NeonGeometry {
+        val g = geo
+        if (g != null && g.card == card && g.radius == radius) return g
+        return NeonGeometry(card, radius).also { geo = it }
+    }
 
     fun tick(nanos: Long, levels: app.cadence.playback.WaveLevels, playing: Boolean) {
         val dt = if (lastNanos == 0L) 1f / 60f else min(0.05f, (nanos - lastNanos) / 1e9f)
@@ -171,25 +181,115 @@ private class NeonState {
 
 
 /**
+ * Everything the shader-free path reuses between frames.
+ *
+ * The outline does not move: for a given artwork size and corner radius the sample points and
+ * their outward normals are always the same, and only the wave height on top of them changes. The
+ * first version recomputed all of it every frame and allocated five `Path`s, 385 `Pair`s and 770
+ * `Offset`s each time -- about 69,000 objects a second at 60fps -- which is what made the effect
+ * stutter. Now the geometry is computed once per size and the paths are rewound and refilled.
+ */
+private class NeonGeometry(val card: Size, val radius: Float) {
+    val px = FloatArray(SAMPLES + 1)
+    val py = FloatArray(SAMPLES + 1)
+    val nx = FloatArray(SAMPLES + 1)
+    val ny = FloatArray(SAMPLES + 1)
+    val height = FloatArray(SAMPLES + 1)
+    /** Rewound and refilled every frame, never reallocated. */
+    val tube = Path()
+    val crest = Path()
+    val body = Path()
+
+    init {
+        val r = radius.coerceAtMost(card.minDimension / 2f)
+        val straightX = card.width - 2 * r
+        val straightY = card.height - 2 * r
+        val arc = (PI.toFloat() / 2f) * r
+        val perimeter = 2 * straightX + 2 * straightY + 4 * arc
+        for (i in 0..SAMPLES) {
+            var d = i.toFloat() / SAMPLES * perimeter
+            // Which run of the outline this sample falls on, and where on it.
+            var x: Float; var y: Float; var ux: Float; var uy: Float
+            if (d < straightX) { x = r + d; y = 0f; ux = 0f; uy = -1f }
+            else {
+                d -= straightX
+                if (d < arc) {
+                    val a = -PI.toFloat() / 2f + d / r
+                    ux = cos(a); uy = sin(a); x = card.width - r + r * ux; y = r + r * uy
+                } else {
+                    d -= arc
+                    if (d < straightY) { x = card.width; y = r + d; ux = 1f; uy = 0f }
+                    else {
+                        d -= straightY
+                        if (d < arc) {
+                            val a = d / r
+                            ux = cos(a); uy = sin(a)
+                            x = card.width - r + r * ux; y = card.height - r + r * uy
+                        } else {
+                            d -= arc
+                            if (d < straightX) { x = card.width - r - d; y = card.height; ux = 0f; uy = 1f }
+                            else {
+                                d -= straightX
+                                if (d < arc) {
+                                    val a = PI.toFloat() / 2f + d / r
+                                    ux = cos(a); uy = sin(a)
+                                    x = r + r * ux; y = card.height - r + r * uy
+                                } else {
+                                    d -= arc
+                                    if (d < straightY) { x = 0f; y = card.height - r - d; ux = -1f; uy = 0f }
+                                    else {
+                                        val a = PI.toFloat() + ((d - straightY) / r).coerceAtMost(PI.toFloat() / 2f)
+                                        ux = cos(a); uy = sin(a); x = r + r * ux; y = r + r * uy
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            px[i] = x; py[i] = y; nx[i] = ux; ny[i] = uy
+        }
+    }
+
+    /** The closed curve at [fraction] of the way from the artwork's edge out to the crest. */
+    fun curve(into: Path, gap: Float, fraction: Float): Path {
+        into.rewind()
+        for (i in 0..SAMPLES) {
+            val d = gap + height[i] * fraction
+            val x = px[i] + nx[i] * d
+            val y = py[i] + ny[i] * d
+            if (i == 0) into.moveTo(x, y) else into.lineTo(x, y)
+        }
+        into.close()
+        return into
+    }
+
+    /** The lit area between the artwork's edge and the crest. */
+    fun ring(into: Path, gap: Float): Path {
+        into.rewind()
+        for (i in 0..SAMPLES) {
+            val d = gap + height[i]
+            if (i == 0) into.moveTo(px[i] + nx[i] * d, py[i] + ny[i] * d)
+            else into.lineTo(px[i] + nx[i] * d, py[i] + ny[i] * d)
+        }
+        for (i in SAMPLES downTo 0) into.lineTo(px[i] + nx[i] * gap, py[i] + ny[i] * gap)
+        into.close()
+        return into
+    }
+}
+
+/**
  * The neon drawn without a shader, for Android below 13.
  *
- * It reproduces what the AGSL does, in the order the shader builds it up:
+ * It builds the effect the way the AGSL does: the lit body between the artwork's edge and the
+ * crest of the wave, a halo of stacked strokes standing in for the exponential falloff, the tube
+ * on the outline, and the crest riding the wave, with a white pass on a bass hit.
  *
- *  1. **the body** -- the lit area between the artwork's edge and the crest of the wave, filled
- *     at low alpha, which is the shader's `fill`;
- *  2. **the halo** -- six strokes on the crest, each wider and fainter, approximating the
- *     exponential falloff of `exp(-|e1| / sigma)`;
- *  3. **the tube** -- the line hugging the outline itself, which never moves;
- *  4. **the crest** -- the bright edge riding on top of the wave;
- *  5. **the flash** -- a white pass on a bass hit, the shader's `mix(col, white, ...)`.
- *
- * Three things the shader has that a stroke cannot: a true gaussian halo, per-pixel colour, and
- * the halo dying instantly inside the card. The halo is approximated by stacking passes, colour
- * comes from a sweep gradient that turns with time, and the body is clipped to the outside of the
- * artwork so the cover stays clean.
- *
- * `Modifier.blur` and `RenderEffect` would be the obvious way to do the halo and are Android 12+,
- * which does not help here; a `BlurMaskFilter` would force the whole card into a software layer.
+ * A stroke is not a gaussian and a fill is not a gradient, so the halo is approximated by stacking
+ * passes and the body is one fill rather than a ramp -- stacking fills instead was visibly
+ * smoother and visibly slower, and on a 60 Hz panel the frame budget wins. `Modifier.blur` and
+ * `RenderEffect` would do it properly and are Android 12+, which does not help here; a
+ * `BlurMaskFilter` would push the whole card into a software layer.
  */
 private fun DrawScope.drawNeonFallback(
     state: NeonState,
@@ -199,71 +299,49 @@ private fun DrawScope.drawNeonFallback(
     colors: List<Color>,
 ) {
     if (card.minDimension <= 2 * radius || colors.isEmpty()) return
-    val r = radius.coerceAtMost(card.minDimension / 2f)
-    val straightX = card.width - 2 * r
-    val straightY = card.height - 2 * r
-    val arc = (PI.toFloat() / 2f) * r
-    val perimeter = 2 * straightX + 2 * straightY + 4 * arc
-    if (perimeter <= 0f) return
+    val geo = state.geometry(card, radius)
 
     var total = 0f
     for (k in 0 until 8) total += state.amp[k] * NeonState.AMP_DP[k]
     val gain = if (total > NeonState.KNEE_DP) {
         (NeonState.KNEE_DP + (total - NeonState.KNEE_DP) * NeonState.RATIO) / total
     } else 1f
-    val heights = FloatArray(8) { state.amp[it] * NeonState.AMP_DP[it] * gain * scale }
-    val gap = NeonState.GAP_DP * scale
     val soft = 0.8f * scale
+    val gap = NeonState.GAP_DP * scale
+    for (k in 0 until 8) state.scratch[k] = state.amp[k] * NeonState.AMP_DP[k] * gain * scale
 
-    // The tube sits on the outline; the crest rides the wave above it. Walking the outline once
-    // builds both, and the body is the ring between them.
-    val tube = Path()
-    val crest = Path()
-    val body = Path()
-    val back = ArrayList<Offset>(SAMPLES + 1)
     for (i in 0..SAMPLES) {
         val u = i.toFloat() / SAMPLES
         var wave = 0f
-        for (k in 0 until 8) wave += heights[k] * sin(TAU * NeonState.CYCLES[k] * u + state.phase[k])
+        for (k in 0 until 8) wave += state.scratch[k] * sin(TAU * NeonState.CYCLES[k] * u + state.phase[k])
         // Softplus: the same one-sided rectification as the shader, so the wave only grows outwards.
-        val h = soft * ln(1f + kotlin.math.exp(wave / soft))
-        val (point, normal) = outlinePoint(u * perimeter, card, r, straightX, straightY, arc)
-        val bx = point.x + normal.x * gap
-        val by = point.y + normal.y * gap
-        val cx = point.x + normal.x * (gap + h)
-        val cy = point.y + normal.y * (gap + h)
-        if (i == 0) {
-            tube.moveTo(bx, by); crest.moveTo(cx, cy); body.moveTo(cx, cy)
-        } else {
-            tube.lineTo(bx, by); crest.lineTo(cx, cy); body.lineTo(cx, cy)
-        }
-        back.add(Offset(bx, by))
+        geo.height[i] = soft * ln(1f + kotlin.math.exp(wave / soft))
     }
-    // Close the body by coming back along the tube, which makes it the ring of lit area.
-    for (i in back.indices.reversed()) body.lineTo(back[i].x, back[i].y)
-    body.close()
-    tube.close()
-    crest.close()
 
-    // Colour travels around the contour: a sweep gradient whose stops turn with time, standing in
-    // for the shader's palette(fract(u - u_time * 0.04)).
+    // Colour travels around the contour, standing in for the shader's
+    // palette(fract(u - u_time * 0.04)).
+    //
+    // The stops sit at fixed, evenly spaced positions and it is the *colour* at each one that is
+    // sampled further along the palette as time passes. Moving the stop positions instead and
+    // sorting them, which is the obvious way to rotate a gradient, breaks their order where they
+    // wrap and leaves a hard seam travelling around the artwork.
     val shift = (state.seconds * 0.04f) % 1f
-    val wheel = List(colors.size + 1) { colors[it % colors.size] }
-    val stops = Array(wheel.size) { i ->
-        (((i.toFloat() / (wheel.size - 1)) + shift) % 1f) to wheel[i]
-    }.sortedBy { it.first }.toTypedArray()
+    val stops = Array(GRADIENT_STOPS + 1) { i ->
+        val at = i.toFloat() / GRADIENT_STOPS
+        at to paletteAt(at + shift, colors)
+    }
     val brush = Brush.sweepGradient(*stops, center = Offset(card.width / 2f, card.height / 2f))
 
     val glow = state.glow
     val flash = state.flash
     val core = (0.7f + 0.4f * glow) * scale
     val strength = 0.2f + 0.5f * glow + 0.4f * flash
+    // Bounded: the halo has only the padding around the artwork to grow into, and past that it is
+    // cut off flat against the edge instead of fading.
+    val spread = 1f + 1.6f * glow + 1.4f * flash
 
-    // 1) the body of light between the artwork and the crest
-    drawPath(body, brush, alpha = (0.14f + 0.36f * glow).coerceIn(0f, 1f))
-
-    // 2) the halo: stacked passes standing in for the gaussian. Widest and faintest first.
-    val spread = 1f + 2.6f * glow + 2.2f * flash
+    drawPath(geo.ring(geo.body, gap), brush, alpha = (0.16f + 0.30f * glow).coerceIn(0f, 1f))
+    val crest = geo.curve(geo.crest, gap, 1f)
     for ((widthFactor, alphaFactor) in HALO) {
         drawPath(
             path = crest,
@@ -272,29 +350,14 @@ private fun DrawScope.drawNeonFallback(
             style = Stroke(core * widthFactor * spread, cap = StrokeCap.Round, join = StrokeJoin.Round),
         )
     }
-
-    // 3) the tube on the outline, which stays put however loud it gets
-    drawPath(
-        path = tube,
-        brush = brush,
-        alpha = (0.75f + 0.25f * glow).coerceIn(0f, 1f),
-        style = Stroke(core * 1.8f, cap = StrokeCap.Round, join = StrokeJoin.Round),
-    )
-
-    // 4) the crest, brighter than the body it caps
-    drawPath(
-        path = crest,
-        brush = brush,
-        alpha = (0.6f + 0.4f * glow).coerceIn(0f, 1f),
-        style = Stroke(core * 1.3f, cap = StrokeCap.Round, join = StrokeJoin.Round),
-    )
-
-    // 5) the white core, and the flash on a bass hit
+    val tube = geo.curve(geo.tube, gap, 0f)
+    drawPath(tube, brush, alpha = 1f, style = Stroke(core * 2f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+    drawPath(crest, brush, alpha = 1f, style = Stroke(core * 1.5f, cap = StrokeCap.Round, join = StrokeJoin.Round))
     drawPath(
         path = tube,
         color = Color.White,
-        alpha = (0.22f + 0.5f * flash).coerceIn(0f, 1f),
-        style = Stroke(core * 0.55f, cap = StrokeCap.Round, join = StrokeJoin.Round),
+        alpha = (0.07f + 0.45f * flash).coerceIn(0f, 1f),
+        style = Stroke(core * 0.4f, cap = StrokeCap.Round, join = StrokeJoin.Round),
     )
     if (flash > 0.01f) {
         drawPath(
@@ -306,65 +369,39 @@ private fun DrawScope.drawNeonFallback(
     }
 }
 
-/** Point on the rounded outline at arc length [s], and the outward unit normal there. */
-private fun outlinePoint(
-    s: Float,
-    card: Size,
-    r: Float,
-    straightX: Float,
-    straightY: Float,
-    arc: Float,
-): Pair<Offset, Offset> {
-    var d = s
-    if (d < straightX) return Offset(r + d, 0f) to UP
-    d -= straightX
-    if (d < arc) {
-        val a = -PI.toFloat() / 2f + d / r
-        return Offset(card.width - r + r * cos(a), r + r * sin(a)) to Offset(cos(a), sin(a))
-    }
-    d -= arc
-    if (d < straightY) return Offset(card.width, r + d) to RIGHT
-    d -= straightY
-    if (d < arc) {
-        val a = d / r
-        return Offset(card.width - r + r * cos(a), card.height - r + r * sin(a)) to Offset(cos(a), sin(a))
-    }
-    d -= arc
-    if (d < straightX) return Offset(card.width - r - d, card.height) to DOWN
-    d -= straightX
-    if (d < arc) {
-        val a = PI.toFloat() / 2f + d / r
-        return Offset(r + r * cos(a), card.height - r + r * sin(a)) to Offset(cos(a), sin(a))
-    }
-    d -= arc
-    if (d < straightY) return Offset(0f, card.height - r - d) to LEFT
-    d -= straightY
-    val a = PI.toFloat() + (d / r).coerceAtMost(PI.toFloat() / 2f)
-    return Offset(r + r * cos(a), r + r * sin(a)) to Offset(cos(a), sin(a))
-}
-
-/** Samples around the outline. The fastest band closes 31 waves, so this leaves ~12 points each. */
-private const val SAMPLES = 384
+/**
+ * Samples around the outline.
+ *
+ * The fastest band closes 31 waves, so 192 leaves about six points each: enough for the ripple to
+ * read, and half the tessellation work of the 384 it started at.
+ */
+private const val SAMPLES = 192
 private const val TAU = (2.0 * PI).toFloat()
-private val UP = Offset(0f, -1f)
-private val DOWN = Offset(0f, 1f)
-private val LEFT = Offset(-1f, 0f)
-private val RIGHT = Offset(1f, 0f)
+
+/** Halo passes: (width multiple, alpha multiple), widest and faintest first. */
+private val HALO = listOf(
+    5.5f to 0.09f,
+    3.8f to 0.14f,
+    2.7f to 0.21f,
+    1.9f to 0.30f,
+)
+
+/** Stops around the sweep gradient. Enough that the palette reads as a smooth turn, not as bands. */
+private const val GRADIENT_STOPS = 24
 
 /**
- * Halo passes: (width multiple, alpha multiple), widest and faintest first.
+ * The palette sampled at [f], wrapping, with the two neighbouring colours blended.
  *
- * Six of them rather than three: stacking more, fainter passes is what turns a stack of strokes
- * into something that reads as a glow instead of as concentric outlines.
+ * This is the shader's `palette()`: the colours are a loop, not a list, so the last blends back
+ * into the first and a full turn leaves no edge anywhere.
  */
-private val HALO = listOf(
-    11f to 0.06f,
-    8f to 0.09f,
-    6f to 0.13f,
-    4.5f to 0.18f,
-    3.2f to 0.24f,
-    2.2f to 0.32f,
-)
+private fun paletteAt(f: Float, colors: List<Color>): Color {
+    val n = colors.size
+    if (n == 1) return colors[0]
+    val x = (((f % 1f) + 1f) % 1f) * n
+    val i = x.toInt() % n
+    return androidx.compose.ui.graphics.lerp(colors[i], colors[(i + 1) % n], x - x.toInt())
+}
 
 private const val NEON_AGSL = """
 uniform float2 u_size;
