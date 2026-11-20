@@ -31,6 +31,7 @@
                 <action android:name="app.cadence.DEBUG_LIBRARY" />
                 <action android:name="app.cadence.DEBUG_PALETTE" />
                 <action android:name="app.cadence.DEBUG_SESSION" />
+                <action android:name="app.cadence.DEBUG_IDENTITY" />
             </intent-filter>
         </receiver>
     </application>

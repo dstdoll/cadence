@@ -170,6 +170,21 @@ class DebugReceiver : BroadcastReceiver() {
             }
             return
         }
+        if (intent.action == "app.cadence.DEBUG_IDENTITY") {
+            // Replace the id the Apple libraries are configured with, or go back to the platform's.
+            // It takes effect on the next start: the old provisioning is set aside then.
+            //   adb shell am broadcast -n app.cadence/.DebugReceiver -a app.cadence.DEBUG_IDENTITY --es cmd rotate
+            //   adb shell am broadcast ... --es cmd clear | --es cmd show
+            val identity = app.cadence.backend.engine.media.DeviceIdentity
+            val done = when (intent.getStringExtra("cmd").orEmpty()) {
+                "rotate" -> identity.rotate(appContext)
+                "clear" -> identity.clear(appContext)
+                else -> true
+            }
+            // Never the id itself: only that there is one and whether it is a replacement.
+            CadenceLog.i("e2e", "identity ok=$done rotated=${identity.isRotated(appContext)} id=<${identity.describe(identity.id(appContext))}>")
+            return
+        }
         if (intent.action == "app.cadence.DEBUG_SESSION") {
             // Session file round trip for the device check (debug builds only).
             //   adb shell am broadcast -n app.cadence/.DebugReceiver -a app.cadence.DEBUG_SESSION --es cmd export

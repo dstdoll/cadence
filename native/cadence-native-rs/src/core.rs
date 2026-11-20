@@ -270,19 +270,24 @@ static CODE_CV: Condvar = Condvar::new();
 /// Vive junto a `ANDROID_ID`, al que esta atado y que ya se guarda igual de plano.
 const CACHE_CAMPO1: &str = "fairplay_f1";
 
-/// El campo 1 guardado, si esta y tiene la forma correcta.
-fn campo1_cacheado() -> Option<String> {
+/// El campo 1 guardado para `android_id`, si esta y tiene la forma correcta.
+///
+/// La cache guarda junto al campo el ID al que pertenece, y solo sirve para ese ID. El campo de
+/// FairPlay se deriva del ID con que se configuraron las librerias: si el ID cambia (identidad
+/// rotada, sesion importada de otro telefono) el campo viejo ya no corresponde, y un GUID armado
+/// con el hash del ID nuevo y el campo del viejo no es el de ningun dispositivo.
+fn campo1_cacheado(android_id: &str) -> Option<String> {
     let v = std::fs::read_to_string(std::path::Path::new(&base_dir()).join(CACHE_CAMPO1)).ok()?;
-    let v = v.trim().to_owned();
-    (v.len() == device_guid::FAIRPLAY_LEN && v.bytes().all(|b| b.is_ascii_hexdigit()))
-        .then_some(v)
+    let (id, campo) = v.trim().split_once(':')?;
+    (id == android_id && campo.len() == device_guid::FAIRPLAY_LEN && campo.bytes().all(|b| b.is_ascii_hexdigit()))
+        .then(|| campo.to_owned())
 }
 
-/// Guarda el campo 1 para los arranques siguientes. Un fallo no es grave: se vuelve a leer
-/// de la libreria la proxima vez.
-fn cachear_campo1(campo1: &str) {
+/// Guarda el campo 1 de `android_id` para los arranques siguientes. Un fallo no es grave: se
+/// vuelve a leer de la libreria la proxima vez.
+fn cachear_campo1(android_id: &str, campo1: &str) {
     let ruta = std::path::Path::new(&base_dir()).join(CACHE_CAMPO1);
-    match std::fs::write(&ruta, campo1) {
+    match std::fs::write(&ruta, format!("{android_id}:{campo1}")) {
         Ok(()) => nlog("guid: campo de FairPlay guardado, los proximos arranques no lo piden"),
         Err(e) => nlog(&format!("guid: no se pudo guardar el campo de FairPlay ({e})")),
     }
@@ -299,7 +304,7 @@ fn guid_del_port() -> Option<String> {
         let c = g.as_ref()?;
         (!c.android_id.is_empty()).then(|| c.android_id.clone())?
     };
-    let campo1 = campo1_cacheado()?;
+    let campo1 = campo1_cacheado(&android_id)?;
     Some(device_guid::build(&device_guid::DeviceInfo {
         android_id,
         serial: String::new(), // la mayoria de los Android no lo exponen
@@ -354,8 +359,8 @@ fn verificar_guid(de_la_libreria: &str) {
         ));
         // Recien ahora, con la igualdad comprobada en este dispositivo, se guarda el campo 1.
         // Guardarlo antes seria confiar en que el port acierta; asi se guarda porque acerto.
-        if campo1_cacheado().as_deref() != Some(campo1_leido.as_str()) {
-            cachear_campo1(&campo1_leido);
+        if campo1_cacheado(&android_id).as_deref() != Some(campo1_leido.as_str()) {
+            cachear_campo1(&android_id, &campo1_leido);
         }
         return;
     }
