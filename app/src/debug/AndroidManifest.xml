@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
-    <application>
+    <application
+        android:gwpAsanMode="always">
         <!-- Compose's preview host (ui-tooling, debug only) is exported by its library so Android Studio
              can run a preview on a device; left open, any app could launch any composable by name.
              DUMP keeps "run on device" working from adb and closes it to other apps. -->

@@ -10,6 +10,8 @@ extern "C" {
 }
 
 static CRASH_FD: AtomicI32 = AtomicI32::new(-1);
+const HANDLED_SIGS: [c_int; 5] = [libc::SIGSEGV, libc::SIGABRT, libc::SIGBUS, libc::SIGILL, libc::SIGFPE];
+static mut OLD_ACTIONS: [libc::sigaction; 5] = unsafe { std::mem::zeroed() };
 
 const JNI_VERSION_1_6: c_int = 0x0001_0006;
 
@@ -42,7 +44,16 @@ extern "C" fn native_signal_handler(sig: c_int) {
     let msg = b"native crash\0";
     unsafe {
         __android_log_write(6 /*FATAL*/, tag.as_ptr() as *const c_char, msg.as_ptr() as *const c_char);
-        libc::signal(sig, libc::SIG_DFL);
+        if let Some(idx) = HANDLED_SIGS.iter().position(|&s| s == sig) {
+            let old = std::ptr::addr_of!(OLD_ACTIONS[idx]);
+            libc::sigaction(sig, old, std::ptr::null_mut());
+        } else {
+            libc::signal(sig, libc::SIG_DFL);
+        }
+        let mut set: libc::sigset_t = std::mem::zeroed();
+        libc::sigemptyset(&mut set);
+        libc::sigaddset(&mut set, sig);
+        libc::sigprocmask(libc::SIG_UNBLOCK, &set, std::ptr::null_mut());
         libc::raise(sig);
     }
 }
@@ -56,8 +67,8 @@ fn install_crash_handlers() {
         sa.sa_sigaction = native_signal_handler as extern "C" fn(c_int) as usize;
         libc::sigemptyset(&mut sa.sa_mask);
         sa.sa_flags = libc::SA_RESETHAND;
-        for sig in [libc::SIGSEGV, libc::SIGABRT, libc::SIGBUS, libc::SIGILL, libc::SIGFPE] {
-            libc::sigaction(sig, &sa, std::ptr::null_mut());
+        for (idx, &sig) in HANDLED_SIGS.iter().enumerate() {
+            libc::sigaction(sig, &sa, std::ptr::addr_of_mut!(OLD_ACTIONS[idx]));
         }
     }
 }

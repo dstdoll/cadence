@@ -410,9 +410,12 @@ extern "C" fn dialog_handler(j: c_long, proto_dialog: *mut SharedPtr, _resp_hand
         let dialog_obj = (*proto_dialog).obj;
         let title = cstr_of(sys::StdString::data(dialog_title(dialog_obj)));
 
-        // ProtocolDialogResponse in place (stack buffer, like the C's ptr[72]).
-        let mut buf = [0u8; 72];
-        let resp = emplace(buf.as_mut_ptr(), ptr::addr_of!(_ZTVNSt6__ndk120__shared_ptr_emplaceIN17storeservicescore22ProtocolDialogResponseENS_9allocatorIS2_EEEE), 24);
+        // ProtocolDialogResponse in heap (libc::calloc so retaining the shared_ptr past return cannot UAF stack).
+        let buf = libc::calloc(1, 72) as *mut u8;
+        if buf.is_null() {
+            return;
+        }
+        let resp = emplace(buf, ptr::addr_of!(_ZTVNSt6__ndk120__shared_ptr_emplaceIN17storeservicescore22ProtocolDialogResponseENS_9allocatorIS2_EEEE), 24);
         dialog_response_ctor(resp.obj);
 
         if title == "Sign In" {

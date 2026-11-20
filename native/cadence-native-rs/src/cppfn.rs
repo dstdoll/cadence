@@ -59,9 +59,21 @@ const _: () = assert!(std::mem::size_of::<StdFunction>() == 48);
 const _: () = assert!(std::mem::offset_of!(StdFunction, f) == 32);
 const _: () = assert!(std::mem::size_of::<Func>() == 16);
 
+unsafe fn is_static_slot(this: *mut Func) -> bool {
+    let addr = this as usize;
+    let size = std::mem::size_of::<StdFunction>();
+    let end_lease = END_LEASE.0.get() as usize;
+    let pb_err = PB_ERR.0.get() as usize;
+    (addr >= end_lease && addr < end_lease + size) || (addr >= pb_err && addr < pb_err + size)
+}
+
 // ---- the __func vtable: operates on `this` == *mut Func ------------------------------------------
 unsafe extern "C" fn vt_dtor_complete(_this: *mut Func) {}
 unsafe extern "C" fn vt_dtor_deleting(this: *mut Func) {
+    debug_assert!(!is_static_slot(this), "attempted to free static StdFunction");
+    if is_static_slot(this) {
+        return;
+    }
     libc::free(this as *mut c_void);
 }
 unsafe extern "C" fn vt_clone_heap(this: *mut Func) -> *mut Func {
@@ -76,6 +88,10 @@ unsafe extern "C" fn vt_clone_place(this: *mut Func, dest: *mut Func) {
 }
 unsafe extern "C" fn vt_destroy(_this: *mut Func) {}
 unsafe extern "C" fn vt_destroy_deallocate(this: *mut Func) {
+    debug_assert!(!is_static_slot(this), "attempted to free static StdFunction");
+    if is_static_slot(this) {
+        return;
+    }
     libc::free(this as *mut c_void);
 }
 unsafe extern "C" fn vt_call(this: *mut Func, arg: *const c_void) {

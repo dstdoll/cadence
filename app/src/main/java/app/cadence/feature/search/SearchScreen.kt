@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
 import app.cadence.R
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -382,7 +383,7 @@ private fun HitRow(hit: SearchHit, nav: Navigator, c: AppContainer) {
             else -> null
         },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-        modifier = Modifier.clickable {
+        modifier = Modifier.semantics(mergeDescendants = true) {}.clickable {
             when (hit) {
                 is SearchHit.ArtistHit -> nav.artist(hit.artist.id)
                 is SearchHit.AlbumHit -> nav.album(hit.album.id)

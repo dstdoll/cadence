@@ -15,19 +15,66 @@ mod sys;
 use jni::objects::{JByteArray, JByteBuffer, JClass, JString};
 use jni::sys::{jboolean, jbyteArray, jint, jlong, jstring, JNI_FALSE, JNI_TRUE};
 use jni::JNIEnv;
+use std::collections::HashMap;
 use std::ffi::{c_int, c_void};
+use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
+
+struct M4pHandleGuard(*mut c_void);
+unsafe impl Send for M4pHandleGuard {}
+unsafe impl Sync for M4pHandleGuard {}
+impl Drop for M4pHandleGuard {
+    fn drop(&mut self) {
+        if !self.0.is_null() {
+            unsafe { engine::release_m4p_context(self.0) };
+        }
+    }
+}
+
+static NEXT_HANDLE: AtomicI64 = AtomicI64::new(1);
+
+fn next_handle() -> jlong {
+    let mut id = NEXT_HANDLE.fetch_add(1, Ordering::Relaxed);
+    if id <= 0 {
+        id = NEXT_HANDLE.fetch_add(1, Ordering::Relaxed).abs().max(1);
+    }
+    id
+}
+
+fn kd_handles() -> &'static Mutex<HashMap<jlong, usize>> {
+    static MAP: OnceLock<Mutex<HashMap<jlong, usize>>> = OnceLock::new();
+    MAP.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn m4p_handles() -> &'static Mutex<HashMap<jlong, Arc<M4pHandleGuard>>> {
+    static MAP: OnceLock<Mutex<HashMap<jlong, Arc<M4pHandleGuard>>>> = OnceLock::new();
+    MAP.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn alac_handles() -> &'static Mutex<HashMap<jlong, Arc<Mutex<cadence_alac::AlacSession>>>> {
+    static MAP: OnceLock<Mutex<HashMap<jlong, Arc<Mutex<cadence_alac::AlacSession>>>>> = OnceLock::new();
+    MAP.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn eac3_handles() -> &'static Mutex<HashMap<jlong, Arc<Mutex<cadence_eac3::Eac3Session>>>> {
+    static MAP: OnceLock<Mutex<HashMap<jlong, Arc<Mutex<cadence_eac3::Eac3Session>>>>> = OnceLock::new();
+    MAP.get_or_init(|| Mutex::new(HashMap::new()))
+}
 
 /// FairPlay per-sample decrypt — ported from native_core.c's `core_wrapper_decrypt_sample` (Rust
 /// migration Phase 2). Exported (`#[no_mangle]`, kept by export.map) for both the `decryptSample`
-/// JNI below and `NativeDrm`'s dlsym. `kd` is the `SVFootHillPContext*`; its first word is the 32-bit
-/// context id the per-sample server call takes. Decrypts in place; returns 0 once it ran (the C
-/// version ignored the server's rc and let the decoded audio be the judge).
+/// JNI below and `NativeDrm`'s dlsym. `kd` is the validated handle returned by `NativeWrapper.kd`.
 #[no_mangle]
 pub unsafe extern "C" fn core_wrapper_decrypt_sample(kd: *mut c_void, sample: *mut u8, size: usize) -> c_int {
     if kd.is_null() || sample.is_null() {
         return -1;
     }
-    let state = *(kd as *const *mut c_void);
+    let handle = kd as isize as jlong;
+    let ptr = match kd_handles().lock().unwrap_or_else(|e| e.into_inner()).get(&handle).copied() {
+        Some(p) if p != 0 => p as *mut c_void,
+        _ => return -1,
+    };
+    let state = *(ptr as *const *mut c_void);
     if state.is_null() {
         return -2;
     }
@@ -41,7 +88,15 @@ pub unsafe extern "C" fn core_wrapper_decrypt_m4p_sample(
     sample: *mut u8,
     size: usize,
 ) -> c_int {
-    core::decrypt_m4p_sample(ctx, sample, size)
+    if ctx.is_null() || sample.is_null() {
+        return -1;
+    }
+    let handle = ctx as isize as jlong;
+    let guard = match m4p_handles().lock().unwrap_or_else(|e| e.into_inner()).get(&handle).cloned() {
+        Some(g) => g,
+        None => return -1,
+    };
+    core::decrypt_m4p_sample(guard.0, sample, size)
 }
 
 /// Java string -> owned Rust String (empty on error), matching the old `from_jstring`.
@@ -140,7 +195,13 @@ pub extern "system" fn Java_app_cadence_backend_engine_media_NativeWrapper_kd(
 ) -> jlong {
     let adam = to_string(&mut env, &adam_id);
     let uri = to_string(&mut env, &key_uri);
-    engine::kd(&adam, &uri) as jlong
+    let ptr = engine::kd(&adam, &uri) as usize;
+    if ptr == 0 {
+        return 0;
+    }
+    let handle = next_handle();
+    kd_handles().lock().unwrap_or_else(|e| e.into_inner()).insert(handle, ptr);
+    handle
 }
 
 #[no_mangle]
@@ -176,11 +237,16 @@ pub extern "system" fn Java_app_cadence_backend_engine_media_NativeWrapper_m4pAs
     let adam = to_string(&mut env, &adam_id);
     match engine::m4p_asset(&adam) {
         Some((url, ctx)) => {
-            let encoded = format!("{}\n{}", ctx as isize, url);
+            let handle = next_handle();
+            m4p_handles()
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .insert(handle, Arc::new(M4pHandleGuard(ctx)));
+            let encoded = format!("{}\n{}", handle, url);
             match env.new_string(encoded) {
                 Ok(j) => j.into_raw(),
                 Err(_) => {
-                    unsafe { engine::release_m4p_context(ctx) };
+                    m4p_handles().lock().unwrap_or_else(|e| e.into_inner()).remove(&handle);
                     std::ptr::null_mut()
                 }
             }
@@ -196,7 +262,7 @@ pub extern "system" fn Java_app_cadence_backend_engine_media_NativeWrapper_relea
     ctx: jlong,
 ) {
     if ctx != 0 {
-        unsafe { engine::release_m4p_context(ctx as *mut c_void) };
+        m4p_handles().lock().unwrap_or_else(|e| e.into_inner()).remove(&ctx);
     }
 }
 
@@ -211,7 +277,14 @@ pub extern "system" fn Java_app_cadence_backend_engine_media_NativeAlac_create(
         Err(_) => return 0,
     };
     match cadence_alac::AlacSession::from_cookie(&bytes) {
-        Ok(session) => Box::into_raw(Box::new(session)) as jlong,
+        Ok(session) => {
+            let handle = next_handle();
+            alac_handles()
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .insert(handle, Arc::new(Mutex::new(session)));
+            handle
+        }
         Err(_) => 0,
     }
 }
@@ -223,10 +296,10 @@ pub extern "system" fn Java_app_cadence_backend_engine_media_NativeAlac_maxOutpu
     handle: jlong,
     float_out: jboolean,
 ) -> jint {
-    if handle == 0 {
+    let Some(entry) = alac_handles().lock().unwrap_or_else(|e| e.into_inner()).get(&handle).cloned() else {
         return -1;
-    }
-    let session = unsafe { &*(handle as *const cadence_alac::AlacSession) };
+    };
+    let session = entry.lock().unwrap_or_else(|e| e.into_inner());
     session.max_output_bytes(float_out == JNI_TRUE) as jint
 }
 
@@ -241,9 +314,9 @@ pub extern "system" fn Java_app_cadence_backend_engine_media_NativeAlac_decode(
     out: JByteBuffer,
     float_out: jboolean,
 ) -> jint {
-    if handle == 0 {
+    let Some(entry) = alac_handles().lock().unwrap_or_else(|e| e.into_inner()).get(&handle).cloned() else {
         return -1;
-    }
+    };
     if in_offset < 0 || in_len < 0 {
         return -2;
     }
@@ -261,7 +334,7 @@ pub extern "system" fn Java_app_cadence_backend_engine_media_NativeAlac_decode(
     }
     let pkt_slice = unsafe { std::slice::from_raw_parts(in_ptr.add(off), len) };
     let out_slice = unsafe { std::slice::from_raw_parts_mut(out_ptr, out_cap) };
-    let session = unsafe { &mut *(handle as *mut cadence_alac::AlacSession) };
+    let mut session = entry.lock().unwrap_or_else(|e| e.into_inner());
     let res = if float_out == JNI_TRUE {
         session.decode_to_f32(pkt_slice, out_slice)
     } else {
@@ -281,7 +354,7 @@ pub extern "system" fn Java_app_cadence_backend_engine_media_NativeAlac_destroy(
     handle: jlong,
 ) {
     if handle != 0 {
-        unsafe { drop(Box::from_raw(handle as *mut cadence_alac::AlacSession)) };
+        alac_handles().lock().unwrap_or_else(|e| e.into_inner()).remove(&handle);
     }
 }
 
@@ -298,7 +371,14 @@ pub unsafe extern "system" fn Java_app_cadence_backend_engine_media_NativeEac3_c
     let sr = if sample_rate > 0 { sample_rate as u32 } else { 48_000 };
     let ch = if channels > 0 { channels as usize } else { 2 };
     match cadence_eac3::Eac3Session::new(sr, ch) {
-        Ok(session) => Box::into_raw(Box::new(session)) as jni::sys::jlong,
+        Ok(session) => {
+            let handle = next_handle();
+            eac3_handles()
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .insert(handle, Arc::new(Mutex::new(session)));
+            handle
+        }
         Err(_) => 0,
     }
 }
@@ -310,10 +390,10 @@ pub unsafe extern "system" fn Java_app_cadence_backend_engine_media_NativeEac3_m
     handle: jni::sys::jlong,
     float_out: jni::sys::jboolean,
 ) -> jni::sys::jint {
-    if handle == 0 {
+    let Some(entry) = eac3_handles().lock().unwrap_or_else(|e| e.into_inner()).get(&handle).cloned() else {
         return -1;
-    }
-    let session = &*(handle as *const cadence_eac3::Eac3Session);
+    };
+    let session = entry.lock().unwrap_or_else(|e| e.into_inner());
     let f32_bytes = session.max_output_bytes();
     if float_out != 0 {
         f32_bytes as jni::sys::jint
@@ -333,9 +413,12 @@ pub unsafe extern "system" fn Java_app_cadence_backend_engine_media_NativeEac3_d
     out: jni::objects::JByteBuffer,
     float_out: jni::sys::jboolean,
 ) -> jni::sys::jint {
-    if handle == 0 || in_offset < 0 || in_len <= 0 {
+    if in_offset < 0 || in_len <= 0 {
         return -1;
     }
+    let Some(entry) = eac3_handles().lock().unwrap_or_else(|e| e.into_inner()).get(&handle).cloned() else {
+        return -1;
+    };
     let Ok(in_ptr) = env.get_direct_buffer_address(&packet) else {
         return -2;
     };
@@ -354,7 +437,7 @@ pub unsafe extern "system" fn Java_app_cadence_backend_engine_media_NativeEac3_d
         return -3;
     };
 
-    let session = &mut *(handle as *mut cadence_eac3::Eac3Session);
+    let mut session = entry.lock().unwrap_or_else(|e| e.into_inner());
     let in_slice = std::slice::from_raw_parts(in_ptr.add(off), len);
 
     if float_out != 0 {
@@ -395,9 +478,8 @@ pub unsafe extern "system" fn Java_app_cadence_backend_engine_media_NativeEac3_r
     _class: jni::objects::JClass,
     handle: jni::sys::jlong,
 ) {
-    if handle != 0 {
-        let session = &mut *(handle as *mut cadence_eac3::Eac3Session);
-        session.reset();
+    if let Some(entry) = eac3_handles().lock().unwrap_or_else(|e| e.into_inner()).get(&handle).cloned() {
+        entry.lock().unwrap_or_else(|e| e.into_inner()).reset();
     }
 }
 
@@ -408,6 +490,6 @@ pub unsafe extern "system" fn Java_app_cadence_backend_engine_media_NativeEac3_d
     handle: jni::sys::jlong,
 ) {
     if handle != 0 {
-        drop(Box::from_raw(handle as *mut cadence_eac3::Eac3Session));
+        eac3_handles().lock().unwrap_or_else(|e| e.into_inner()).remove(&handle);
     }
 }

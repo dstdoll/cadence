@@ -4,6 +4,7 @@ import androidx.compose.animation.core.RepeatMode
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
 import app.cadence.R
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -190,7 +191,7 @@ private val TileShape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bot
 
 @Composable
 fun AlbumTile(album: Album, subtitle: String, width: Dp = 156.dp, onClick: () -> Unit) {
-    Column(Modifier.width(width).clip(TileShape).clickable(onClick = onClick).alpha(if (album.available) 1f else 0.38f).padding(bottom = 8.dp)) {
+    Column(Modifier.width(width).clip(TileShape).semantics(mergeDescendants = true) {}.clickable(onClick = onClick).alpha(if (album.available) 1f else 0.38f).padding(bottom = 8.dp)) {
         Artwork(album.id, album.colors, Modifier.fillMaxWidth(), RoundedCornerShape(16.dp), coverUrl = album.cover)
         Text(album.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
         Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -199,7 +200,7 @@ fun AlbumTile(album: Album, subtitle: String, width: Dp = 156.dp, onClick: () ->
 
 @Composable
 fun PlaylistTile(playlist: Playlist, width: Dp = 156.dp, onClick: () -> Unit) {
-    Column(Modifier.width(width).clip(TileShape).clickable(onClick = onClick).alpha(if (playlist.available) 1f else 0.38f).padding(bottom = 8.dp)) {
+    Column(Modifier.width(width).clip(TileShape).semantics(mergeDescendants = true) {}.clickable(onClick = onClick).alpha(if (playlist.available) 1f else 0.38f).padding(bottom = 8.dp)) {
         Artwork(playlist.id, playlist.colors, Modifier.fillMaxWidth(), RoundedCornerShape(16.dp), coverUrl = playlist.cover)
         Text(playlist.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
         // Recommendation/radio cards carry no tracklist until opened, so a song count would read "0".
@@ -214,7 +215,7 @@ fun PlaylistTile(playlist: Playlist, width: Dp = 156.dp, onClick: () -> Unit) {
 @Composable
 fun ArtistAvatar(artist: Artist, size: Dp = 112.dp, onClick: () -> Unit) {
     val shape = MaterialShapes.Cookie9Sided.toShape()
-    Column(Modifier.width(size).clickable(onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(Modifier.width(size).semantics(mergeDescendants = true) {}.clickable(onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally) {
         Artwork(artist.id, listOf(artist.color, "#1B1B1F", artist.color), Modifier.size(size), shape, coverUrl = artist.cover)
         Text(artist.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
     }
@@ -291,7 +292,10 @@ fun TrackRow(
     val isFav = lib.isFavorite(info.id, c.repository.favoriteTrackIds)
     val available = info.track.available
     ListItem(
-        modifier = modifier.clickable(enabled = available, onClick = onClick).alpha(if (available) 1f else 0.38f),
+        modifier = modifier
+            .semantics(mergeDescendants = true) {}
+            .clickable(enabled = available, onClick = onClick)
+            .alpha(if (available) 1f else 0.38f),
         colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
         leadingContent = {
             Box(Modifier.size(if (showArtwork) 48.dp else 28.dp), contentAlignment = Alignment.Center) {

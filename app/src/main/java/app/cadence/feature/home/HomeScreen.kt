@@ -33,6 +33,7 @@ import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -139,6 +140,7 @@ fun HomeScreen() {
                     Box(
                         Modifier.width(300.dp).height(240.dp)
                             .clip(MaterialTheme.shapes.extraLarge)
+                            .semantics(mergeDescendants = true) {}
                             .clickable(onClick = pick.open),
                     ) {
                         // High-res artwork for the large hero (small tiles keep the 300px variant).
