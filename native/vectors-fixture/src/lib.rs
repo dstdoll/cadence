@@ -103,7 +103,16 @@ pub fn load_desde(manifest_dir: &str, exigir: bool, forzada: Option<PathBuf>) ->
 /// # Panics
 /// Si la captura existe y no trae `clave`: es justo el caso que antes daba verde.
 pub fn section(manifest_dir: &str, clave: &str) -> Option<serde_json::Value> {
-    let v = load(manifest_dir)?;
+    Some(seccion_en(&load(manifest_dir)?, clave))
+}
+
+/// Una seccion que es string (el caso de `userAgent`).
+pub fn string_section(manifest_dir: &str, clave: &str) -> Option<String> {
+    Some(cadena_en(&load(manifest_dir)?, clave))
+}
+
+/// La seccion `clave` de una captura ya cargada. Revienta si falta o viene en null.
+pub fn seccion_en(v: &serde_json::Value, clave: &str) -> serde_json::Value {
     let s = v.get(clave).unwrap_or_else(|| {
         panic!(
             "vectors.json no trae la seccion {clave:?} (tiene: {})",
@@ -113,17 +122,15 @@ pub fn section(manifest_dir: &str, clave: &str) -> Option<serde_json::Value> {
         )
     });
     assert!(!s.is_null(), "vectors.json trae {clave:?} en null");
-    Some(s.clone())
+    s.clone()
 }
 
-/// Una seccion que es string (el caso de `userAgent`).
-pub fn string_section(manifest_dir: &str, clave: &str) -> Option<String> {
-    let s = section(manifest_dir, clave)?;
-    Some(
-        s.as_str()
-            .unwrap_or_else(|| panic!("vectors.json: {clave:?} deberia ser string, es {s}"))
-            .to_owned(),
-    )
+/// [`seccion_en`] para una seccion que tiene que ser string.
+pub fn cadena_en(v: &serde_json::Value, clave: &str) -> String {
+    let s = seccion_en(v, clave);
+    s.as_str()
+        .unwrap_or_else(|| panic!("vectors.json: {clave:?} deberia ser string, es {s}"))
+        .to_owned()
 }
 
 #[cfg(test)]
@@ -160,12 +167,19 @@ mod tests {
         }
     }
 
+    /// La captura de un caso, **sin mirar el entorno**: estos tests corren tambien con
+    /// `CADENCE_VECTORS_FILE` y `CADENCE_VECTORS_REQUIRED` puestas (es como los lanza el runner
+    /// del dispositivo), y lo que prueban es este crate, no como esta configurada la shell.
+    fn aqui(c: &Caso) -> Option<serde_json::Value> {
+        load_desde(&c.manifest(), false, None)
+    }
+
     const BUENO: &str = r#"{"userAgent":"Music/5.0.2","ckcRequests":[1],"nulo":null}"#;
 
     #[test]
     fn lee_la_captura_real_cuando_esta() {
         let c = Caso::nuevo("real", Some(("vectors.json", BUENO)));
-        let v = load(&c.manifest()).expect("tiene que encontrarla");
+        let v = aqui(&c).expect("tiene que encontrarla");
         assert_eq!(v["userAgent"], "Music/5.0.2");
     }
 
@@ -173,7 +187,7 @@ mod tests {
     #[test]
     fn cae_a_la_muestra() {
         let c = Caso::nuevo("muestra", Some(("vectors.sample.json", BUENO)));
-        assert_eq!(load(&c.manifest()).expect("la muestra")["userAgent"], "Music/5.0.2");
+        assert_eq!(aqui(&c).expect("la muestra")["userAgent"], "Music/5.0.2");
     }
 
     /// Con las dos, manda la real: es la que corresponde al dispositivo que se esta probando.
@@ -181,7 +195,7 @@ mod tests {
     fn la_real_le_gana_a_la_muestra() {
         let c = Caso::nuevo("ambas", Some(("vectors.sample.json", r#"{"userAgent":"muestra"}"#)));
         std::fs::write(c.raiz.join("vectors.json"), r#"{"userAgent":"real"}"#).unwrap();
-        assert_eq!(load(&c.manifest()).expect("la real")["userAgent"], "real");
+        assert_eq!(aqui(&c).expect("la real")["userAgent"], "real");
     }
 
     /// Sin ninguna de las dos se salta, que es el unico caso en que un test puede no validar.
@@ -189,7 +203,7 @@ mod tests {
     fn sin_captura_devuelve_none() {
         let c = Caso::nuevo("ninguna", None);
         // explicito: sin exigir se salta, y es el unico caso en que un test no valida
-        assert!(load_exigiendo(&c.manifest(), false).is_none());
+        assert!(load_desde(&c.manifest(), false, None).is_none());
     }
 
     /// Una captura corrupta es un fallo, no un test que se salta: es justo el agujero que
@@ -198,7 +212,7 @@ mod tests {
     #[should_panic(expected = "no parsea")]
     fn una_captura_corrupta_revienta() {
         let c = Caso::nuevo("corrupta", Some(("vectors.json", "{ no soy json")));
-        let _ = load(&c.manifest());
+        let _ = aqui(&c);
     }
 
     /// Si la captura esta, la seccion que el test pide **tiene** que estar.
@@ -206,7 +220,7 @@ mod tests {
     #[should_panic(expected = "no trae la seccion")]
     fn una_seccion_que_falta_revienta() {
         let c = Caso::nuevo("sin-seccion", Some(("vectors.json", BUENO)));
-        let _ = section(&c.manifest(), "deviceGuid");
+        let _ = seccion_en(&aqui(&c).unwrap(), "deviceGuid");
     }
 
     /// Una seccion en null tampoco sirve para validar.
@@ -214,7 +228,7 @@ mod tests {
     #[should_panic(expected = "en null")]
     fn una_seccion_en_null_revienta() {
         let c = Caso::nuevo("null", Some(("vectors.json", BUENO)));
-        let _ = section(&c.manifest(), "nulo");
+        let _ = seccion_en(&aqui(&c).unwrap(), "nulo");
     }
 
     /// Y si se pide como string, tiene que serlo.
@@ -222,7 +236,7 @@ mod tests {
     #[should_panic(expected = "deberia ser string")]
     fn una_seccion_que_no_es_string_revienta() {
         let c = Caso::nuevo("no-string", Some(("vectors.json", BUENO)));
-        let _ = string_section(&c.manifest(), "ckcRequests");
+        let _ = cadena_en(&aqui(&c).unwrap(), "ckcRequests");
     }
 
     /// Con la captura exigida, que falte es un fallo y no un salto.
@@ -230,7 +244,7 @@ mod tests {
     #[should_panic(expected = "esta puesta y no hay")]
     fn sin_captura_pero_exigida_revienta() {
         let c = Caso::nuevo("exigida", None);
-        let _ = load_exigiendo(&c.manifest(), true);
+        let _ = load_desde(&c.manifest(), true, None);
     }
 
     /// La ruta indicada a mano manda sobre la captura del crate.
@@ -255,13 +269,13 @@ mod tests {
     #[test]
     fn una_seccion_string_se_lee() {
         let c = Caso::nuevo("string", Some(("vectors.json", BUENO)));
-        assert_eq!(string_section(&c.manifest(), "userAgent").unwrap(), "Music/5.0.2");
+        assert_eq!(cadena_en(&aqui(&c).unwrap(), "userAgent"), "Music/5.0.2");
     }
 
     /// `section` sobre una captura ausente se salta igual que `load`: no hay nada que exigir.
     #[test]
     fn seccion_sin_captura_devuelve_none() {
         let c = Caso::nuevo("sec-ninguna", None);
-        assert!(load_exigiendo(&c.manifest(), false).is_none());
+        assert!(load_desde(&c.manifest(), false, None).is_none());
     }
 }

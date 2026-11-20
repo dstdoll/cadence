@@ -33,7 +33,7 @@ trap 'adb shell "rm -rf $DIR" >/dev/null 2>&1' EXIT
 echo "device: $(adb shell getprop ro.product.cpu.abi | tr -d '\r'), Android $(adb shell getprop ro.build.version.release | tr -d '\r') (API $(adb shell getprop ro.build.version.sdk | tr -d '\r'))"
 echo "capture: $CAPTURE"
 adb shell "rm -rf $DIR && mkdir -p $DIR" >/dev/null
-adb push "$CAPTURE" "$DIR/vectors.json" >/dev/null
+adb push "$CAPTURE" "$DIR/vectors.json" >/dev/null 2>&1
 
 total=0; failed=0; suites=0
 for crate in apple-ss-sys device-guid fairplay-proto store-config vectors-fixture; do
@@ -47,7 +47,7 @@ for l in sys.stdin:
     if [ -z "$bins" ]; then echo "  FAIL  $crate: did not build for aarch64-linux-android"; failed=$((failed+1)); continue; fi
     for b in $bins; do
         name="$crate-$(basename "$b" | sed 's/-[0-9a-f]*$//')"
-        adb push "$b" "$DIR/$name" >/dev/null
+        adb push "$b" "$DIR/$name" >/dev/null 2>&1
         out=$(adb shell "cd $DIR && chmod 755 $name && CADENCE_VECTORS_FILE=$DIR/vectors.json CADENCE_VECTORS_REQUIRED=1 TMPDIR=$DIR ./$name 2>&1; echo EXIT=\$?" | tr -d '\r')
         rc=$(printf '%s\n' "$out" | sed -n 's/^EXIT=//p' | tail -1)
         n=$(printf '%s\n' "$out" | grep -oE '[0-9]+ passed' | awk '{s+=$1} END {print s+0}')
