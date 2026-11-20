@@ -17,7 +17,7 @@ use std::ffi::{c_char, c_int, c_long, c_ulong, c_void, CStr, CString};
 use std::io::Write;
 use std::ptr;
 use std::sync::atomic::{AtomicPtr, Ordering};
-use std::sync::{Condvar, Mutex};
+use std::sync::{Condvar, Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::cxx_guard;
@@ -259,6 +259,175 @@ static AUTH: Mutex<AuthState> = Mutex::new(AuthState {
 });
 static CODE_CV: Condvar = Condvar::new();
 
+/// Donde se guarda el campo 1 del GUID (los 36 hex de FairPlay).
+///
+/// Es el unico de los seis campos que el port no sabe calcular: sale de
+/// `FairPlayGetAndroidGUIDFields`, que es un stub de maquina virtual con aplanado de
+/// control de flujo y no se puede llamar fuera de su contexto (se intento: SIGSEGV). Pero
+/// es **estable para el dispositivo**, asi que basta leerlo una vez de la libreria y
+/// guardarlo; a partir de ahi el GUID lo construye el port entero.
+///
+/// Vive junto a `ANDROID_ID`, al que esta atado y que ya se guarda igual de plano.
+const CACHE_CAMPO1: &str = "fairplay_f1";
+
+/// El campo 1 guardado para `android_id`, si esta y tiene la forma correcta.
+///
+/// La cache guarda junto al campo el ID al que pertenece, y solo sirve para ese ID. El campo de
+/// FairPlay se deriva del ID con que se configuraron las librerias: si el ID cambia (identidad
+/// rotada, sesion importada de otro telefono) el campo viejo ya no corresponde, y un GUID armado
+/// con el hash del ID nuevo y el campo del viejo no es el de ningun dispositivo.
+fn campo1_cacheado(android_id: &str) -> Option<String> {
+    let v = std::fs::read_to_string(std::path::Path::new(&base_dir()).join(CACHE_CAMPO1)).ok()?;
+    let (id, campo) = v.trim().split_once(':')?;
+    (id == android_id && campo.len() == device_guid::FAIRPLAY_LEN && campo.bytes().all(|b| b.is_ascii_hexdigit()))
+        .then(|| campo.to_owned())
+}
+
+/// Guarda el campo 1 de `android_id` para los arranques siguientes. Un fallo no es grave: se
+/// vuelve a leer de la libreria la proxima vez.
+fn cachear_campo1(android_id: &str, campo1: &str) {
+    let ruta = std::path::Path::new(&base_dir()).join(CACHE_CAMPO1);
+    match std::fs::write(&ruta, format!("{android_id}:{campo1}")) {
+        Ok(()) => nlog("guid: campo de FairPlay guardado, los proximos arranques no lo piden"),
+        Err(e) => nlog(&format!("guid: no se pudo guardar el campo de FairPlay ({e})")),
+    }
+}
+
+/// El GUID del dispositivo construido **enteramente por el port**, sin llamar a `DeviceGUID`.
+///
+/// Devuelve `None` la primera vez (no hay campo 1 guardado todavia) y cada vez que falte el
+/// ANDROID_ID; el llamador cae a la libreria cerrada. Una vez que hay cache, esta es la ruta
+/// normal y no se toca codigo cerrado para armar el GUID.
+fn guid_del_port() -> Option<String> {
+    let android_id = {
+        let g = CONFIG.lock().ok()?;
+        let c = g.as_ref()?;
+        (!c.android_id.is_empty()).then(|| c.android_id.clone())?
+    };
+    let campo1 = campo1_cacheado(&android_id)?;
+    Some(device_guid::build(&device_guid::DeviceInfo {
+        android_id,
+        serial: String::new(), // la mayoria de los Android no lo exponen
+        fairplay_field1: Some(campo1),
+        fairplay_field2: None, // en el dispositivo de referencia sale en ceros
+    }))
+}
+
+/// Comprueba que el port `device-guid` reproduce el GUID que arma la libreria cerrada.
+///
+/// No llama a nada nuevo: toma el GUID que `DeviceGUID::guid()` ya devolvio, le saca el
+/// campo 1 (los 36 hex de FairPlay, lo unico del GUID que no esta portado) y reconstruye
+/// los otros cinco campos con el port. Si el resultado es identico, queda demostrado sobre
+/// el dispositivo real que el algoritmo del port es el correcto: el hash del ANDROID_ID, el
+/// ancho de los campos y el orden.
+///
+/// Es la comprobacion previa a dejar de llamar a `DeviceGUID`. Hacerlo asi, reusando el
+/// campo 1 en vez de pedirselo a `FairPlayGetAndroidGUIDFields`, es deliberado: esa funcion
+/// no se importa estaticamente en ningun lado, la resuelven por `dlsym` desde
+/// `libmedialibrarycore.so`, y llamarla sin las precondiciones de su caller real mata el
+/// proceso con SIGSEGV (probado). Mientras no se sepa como prepararla, el campo 1 se saca
+/// de donde ya esta.
+///
+/// **Nunca registra el GUID**, que identifica el dispositivo: solo el veredicto.
+fn verificar_guid(de_la_libreria: &str) {
+    let Some(partes) = device_guid::parse(de_la_libreria) else {
+        nlog("guid: la libreria devolvio algo que no tiene la forma esperada");
+        return;
+    };
+    let android_id = {
+        let Ok(g) = CONFIG.lock() else { return };
+        match g.as_ref() {
+            Some(c) if !c.android_id.is_empty() => c.android_id.clone(),
+            _ => {
+                nlog("guid: sin ANDROID_ID, no puedo reconstruirlo");
+                return;
+            }
+        }
+    };
+    let campo1_leido = de_la_libreria.split('.').next().unwrap_or_default().to_owned();
+    let nuestro = device_guid::build(&device_guid::DeviceInfo {
+        android_id: android_id.clone(),
+        serial: String::new(), // la mayoria de los Android no lo exponen
+        fairplay_field1: Some(campo1_leido.clone()),
+        fairplay_field2: None, // en el dispositivo de referencia sale en ceros
+    });
+    if nuestro == de_la_libreria {
+        nlog(&format!(
+            "guid: el port lo reproduce identico ({} chars, {} campos, hash del ANDROID_ID ok)",
+            nuestro.len(),
+            nuestro.split('.').count(),
+        ));
+        // Recien ahora, con la igualdad comprobada en este dispositivo, se guarda el campo 1.
+        // Guardarlo antes seria confiar en que el port acierta; asi se guarda porque acerto.
+        if campo1_cacheado(&android_id).as_deref() != Some(campo1_leido.as_str()) {
+            cachear_campo1(&android_id, &campo1_leido);
+        }
+        return;
+    }
+    let a: Vec<&str> = nuestro.split('.').collect();
+    let b: Vec<&str> = de_la_libreria.split('.').collect();
+    if a.len() != b.len() {
+        nlog(&format!("guid: DIFIERE en cantidad de campos ({} contra {})", a.len(), b.len()));
+        return;
+    }
+    let distintos: Vec<String> = a
+        .iter()
+        .zip(b.iter())
+        .enumerate()
+        .filter(|(_, (x, y))| x != y)
+        .map(|(i, (x, y))| format!("campo{} (largo {} contra {})", i + 1, x.len(), y.len()))
+        .collect();
+    nlog(&format!(
+        "guid: DIFIERE en {} | coincide con el ANDROID_ID: {}",
+        distintos.join(", "),
+        partes.matches_android_id(&android_id),
+    ));
+}
+
+/// El `(dt:NN)` del User-Agent. No sale de la config: lo agrega la capa de red, y en el
+/// trafico capturado del dispositivo es 66.
+const MINT_DT: u32 = 66;
+
+/// El release de Android que corre de verdad (`ro.build.version.release`).
+///
+/// Antes iba `"10"` a mano en `init_ctx`, asi que la app declaraba Android 10 corriera
+/// donde corriera. El valor sale de la propiedad del sistema; si no se puede leer se cae
+/// al `10` historico para no cambiar el comportamiento observado.
+fn android_release() -> String {
+    const FALLBACK: &str = "10";
+    let mut buf = [0u8; 92]; // PROP_VALUE_MAX de bionic
+    let n = unsafe {
+        libc::__system_property_get(
+            c"ro.build.version.release".as_ptr(),
+            buf.as_mut_ptr() as *mut c_char,
+        )
+    };
+    if n <= 0 {
+        nlog("init: sin ro.build.version.release, uso el valor por defecto");
+        return FALLBACK.to_owned();
+    }
+    let v = String::from_utf8_lossy(&buf[..n as usize]).trim().to_owned();
+    if v.is_empty() { FALLBACK.to_owned() } else { v }
+}
+
+/// La identidad que la app declara a la tienda, en un solo lugar.
+///
+/// Es el port `store-config` (`storeservicescore::RequestContextConfig`). Importa que sea
+/// una sola instancia: estos nueve campos alimentan tanto los setters de
+/// `RequestContextConfig` en `init_ctx` como el `User-Agent` del mint, y antes se
+/// escribian por separado **y no coincidian** -- la config decia `5.0.2 / Pixel 8 /
+/// 7663314` y la cabecera decia `Music/4.9 ... Samsung S9 ... 7663313`. Dos identidades
+/// distintas en la misma sesion son una huella trivial de detectar.
+fn store_cfg() -> &'static store_config::RequestContextConfig {
+    static CFG: OnceLock<store_config::RequestContextConfig> = OnceLock::new();
+    CFG.get_or_init(|| {
+        store_config::RequestContextConfig::for_android(
+            format!("{}/mpl_db", base_dir()),
+            &android_release(),
+        )
+    })
+}
+
 fn base_dir() -> String {
     CONFIG.lock().unwrap().as_ref().map(|c| c.base_dir.clone()).unwrap_or_default()
 }
@@ -344,8 +513,8 @@ pub fn configure(base_dir_in: &str, dns_servers: &str, android_id_in: &str) {
         // FootHillConfig::config(android_id); DeviceGUID::configure(android_id, "", 29, true).
         let aid_c = CString::new(aid.as_str()).unwrap_or_default();
         let empty_c = CString::new("").unwrap();
-        let conf1 = StdString::borrow(&aid_c);
-        let conf2 = StdString::borrow(&empty_c);
+        let conf1 = StdString::borrow_cstr(&aid_c);
+        let conf2 = StdString::borrow_cstr(&empty_c);
         foothill_config(&conf1);
 
         let guid = bridges::cadence_device_guid_get();
@@ -360,6 +529,20 @@ pub fn configure(base_dir_in: &str, dns_servers: &str, android_id_in: &str) {
                 &conf3 as *const u32 as *mut c_void,
                 &conf4 as *const bool as *mut c_void,
             );
+            // Ya configurado, se puede leer el GUID y contrastarlo con el del port. Va aca y
+            // no solo en el mint porque el mint no corre en cada arranque: si la sesion sigue
+            // valida se lo saltea, y el contraste tardaria dias en aparecer.
+            let mut buf = [0u8; 128];
+            if bridges::cadence_device_guid_string(
+                guid_obj,
+                buf.as_mut_ptr() as *mut c_char,
+                buf.len() as c_int,
+            ) != 0
+            {
+                let de_la_libreria =
+                    CStr::from_ptr(buf.as_ptr() as *const c_char).to_string_lossy().into_owned();
+                verificar_guid(&de_la_libreria);
+            }
         }
     }
     nlog("init: FootHill done");
@@ -372,7 +555,7 @@ pub fn init_ctx() -> *mut c_void {
     let base = base_dir();
     let mpl_db = format!("{base}/mpl_db");
     let mpl_db_c = CString::new(mpl_db).unwrap_or_default();
-    let path = StdString::borrow(&mpl_db_c);
+    let path = StdString::borrow_cstr(&mpl_db_c);
 
     unsafe {
         let reqctx = bridges::cadence_make_request_ctx(&path as *const StdString as *mut c_void);
@@ -391,25 +574,30 @@ pub fn init_ctx() -> *mut c_void {
         reqcfg_set_base_dir(cfg.obj, &path as *const StdString);
         let set = |f: unsafe fn(*mut c_void, *const StdString), v: &str| {
             let c = CString::new(v).unwrap_or_default();
-            let s = StdString::borrow(&c);
+            let s = StdString::borrow_cstr(&c);
             f(cfg.obj, &s as *const StdString);
         };
-        set(reqcfg_set_client_id, "Music");
-        set(reqcfg_set_version_id, "5.0.2");
-        set(reqcfg_set_platform_id, "Android");
-        set(reqcfg_set_product_version, "10");
-        set(reqcfg_set_device_model, "Pixel 8");
-        set(reqcfg_set_build_version, "7663314");
-        let locale = CString::new("en-US").unwrap();
-        let locale_s = StdString::borrow(&locale);
+        // Los nueve campos salen de store_cfg(): el port de RequestContextConfig. Cada
+        // campo es el argumento de su setter homonimo, por eso se pasan tal cual.
+        let scfg = store_cfg();
+        set(reqcfg_set_client_id, &scfg.client_identifier);
+        set(reqcfg_set_version_id, &scfg.version_identifier);
+        set(reqcfg_set_platform_id, &scfg.platform_identifier);
+        set(reqcfg_set_product_version, &scfg.product_version);
+        set(reqcfg_set_device_model, &scfg.device_model);
+        set(reqcfg_set_build_version, &scfg.build_version);
+        let locale = CString::new(scfg.locale_identifier.as_str()).unwrap_or_default();
+        let locale_s = StdString::borrow_cstr(&locale);
         reqcfg_set_locale_id(cfg.obj, &locale_s);
-        reqcfg_set_language_id(cfg.obj, &locale_s);
+        let language = CString::new(scfg.language_identifier.as_str()).unwrap_or_default();
+        let language_s = StdString::borrow_cstr(&language);
+        reqcfg_set_language_id(cfg.obj, &language_s);
 
         reqctx_manager_configure(reqctx_sp);
         bridges::cadence_request_ctx_init(reqctx_obj, &cfg as *const SharedPtr as *mut c_void);
 
         let base_c = CString::new(base.as_str()).unwrap_or_default();
-        let base_s = StdString::borrow(&base_c);
+        let base_s = StdString::borrow_cstr(&base_c);
         reqctx_set_fairplay_dir(reqctx_obj, &base_s);
 
         // Presentation interface + sign-in handlers.
@@ -529,8 +717,8 @@ extern "C" fn credential_handler(cred_req: *mut SharedPtr, _cred_resp_handler: *
 
         let user_c = CString::new(username).unwrap_or_default();
         let pass_c = CString::new(password).unwrap_or_default();
-        let user_s = StdString::borrow(&user_c);
-        let pass_s = StdString::borrow(&pass_c);
+        let user_s = StdString::borrow_cstr(&user_c);
+        let pass_s = StdString::borrow_cstr(&pass_c);
         cred_response_set_user(resp.obj, &user_s);
         cred_response_set_pass(resp.obj, &pass_s);
         cred_response_set_type(resp.obj, 2);
@@ -824,7 +1012,7 @@ pub unsafe fn release_m4p_context(ctx: *mut c_void) {
 /// Fetch the FairPlay decrypt (kd) context for an adam id + key URI. The Apple key path can in
 /// principle throw a C++ exception, which Rust cannot catch; in practice it signals errors by
 /// returning null shared_ptrs, which `get_kd_context` checks at every step and turns into a null
-/// result (a skipped track) — the same graceful outcome the old C++ try/catch produced for the error
+/// result (a skipped track) -- the same graceful outcome the old C++ try/catch produced for the error
 /// path we have observed.
 pub fn kd(adam_id: &str, key_uri: &str) -> *mut c_void {
     nlog(&format!("kd: adam={adam_id}"));
@@ -846,19 +1034,21 @@ unsafe fn get_kd_context(adam: *const c_char, uri: *const c_char) -> *mut c_void
     }
     let fh = FH_INSTANCE.load(Ordering::Acquire);
     let uri_cstr = CStr::from_ptr(uri);
-    let key_format = CString::new("com.apple.streamingkeydelivery").unwrap();
-    let key_format_ver = CString::new("1").unwrap();
-    let server_uri = CString::new("https://play.itunes.apple.com/WebObjects/MZPlay.woa/music/fps").unwrap();
-    let protocol_type = CString::new("simplified").unwrap();
+    // Constantes del protocolo desde el port `fairplay-proto`, que las valida contra la
+    // captura del dispositivo (vectors.json) en vez de repetirlas a mano aca.
+    let key_format = CString::new(fairplay_proto::KEY_FORMAT).unwrap();
+    let key_format_ver = CString::new(fairplay_proto::KEY_FORMAT_VERSION).unwrap();
+    let server_uri = CString::new(fairplay_proto::KEY_SERVER_URL).unwrap();
+    let protocol_type = CString::new(fairplay_proto::PROTOCOL_SIMPLIFIED).unwrap();
     let fps_cert = CString::new(FAIRPLAY_CERT).unwrap();
 
-    let default_id = StdString::borrow(adam_cstr);
-    let key_uri = StdString::borrow(uri_cstr);
-    let kf = StdString::borrow(&key_format);
-    let kfv = StdString::borrow(&key_format_ver);
-    let su = StdString::borrow(&server_uri);
-    let pt = StdString::borrow(&protocol_type);
-    let cert = StdString::borrow(&fps_cert);
+    let default_id = StdString::borrow_cstr(adam_cstr);
+    let key_uri = StdString::borrow_cstr(uri_cstr);
+    let kf = StdString::borrow_cstr(&key_format);
+    let kfv = StdString::borrow_cstr(&key_format_ver);
+    let su = StdString::borrow_cstr(&server_uri);
+    let pt = StdString::borrow_cstr(&protocol_type);
+    let cert = StdString::borrow_cstr(&fps_cert);
 
     let persist = bridges::cadence_get_persistent_key(
         fh,
@@ -922,7 +1112,7 @@ pub fn login() -> bool {
             return false;
         }
     }
-    // Signed in — mint the token on this same thread and persist it for finishNative.
+    // Signed in -- mint the token on this same thread and persist it for finishNative.
     if let Some(tok) = mint_music_token() {
         let path = format!("{}/MUSIC_TOKEN", base_dir());
         if let Ok(mut f) = std::fs::File::create(&path) {
@@ -945,8 +1135,8 @@ unsafe fn mint_http_message(url: &str, method: &str) -> SharedPtr {
     let m = SharedPtr { obj: buf.add(32) as *mut c_void, ctrl: buf as *mut c_void };
     let url_c = CString::new(url).unwrap_or_default();
     let method_c = CString::new(method).unwrap_or_default();
-    let u = StdString::borrow(&url_c);
-    let me = StdString::borrow(&method_c);
+    let u = StdString::borrow_cstr(&url_c);
+    let me = StdString::borrow_cstr(&method_c);
     http_message_ctor(m.obj, &u, &me);
     m
 }
@@ -1023,17 +1213,40 @@ pub fn mint_music_token() -> Option<String> {
         let reqctx_sp = reqctx as *mut SharedPtr;
 
         // Device GUID string.
-        let guid = bridges::cadence_device_guid_get();
-        if guid.is_null() || (*(guid as *mut SharedPtr)).obj.is_null() {
-            nlog("mint: no device guid");
-            return None;
+        // Con el campo de FairPlay ya guardado, el GUID lo arma el port y no se llama a
+        // `DeviceGUID` en absoluto. Sin cache (primer arranque) se cae a la libreria, que es
+        // de donde sale el campo que despues se guarda.
+        let guid = match guid_del_port() {
+            Some(g) => {
+                nlog("mint: guid armado por el port (sin DeviceGUID)");
+                g
+            }
+            None => {
+                let guid = bridges::cadence_device_guid_get();
+                if guid.is_null() || (*(guid as *mut SharedPtr)).obj.is_null() {
+                    nlog("mint: no device guid");
+                    return None;
+                }
+                let mut guid_buf = [0u8; 128];
+                if bridges::cadence_device_guid_string((*(guid as *mut SharedPtr)).obj, guid_buf.as_mut_ptr() as *mut c_char, guid_buf.len() as c_int) == 0 {
+                    nlog("mint: could not read device guid string");
+                    return None;
+                }
+                nlog("mint: guid leido de DeviceGUID (sin cache todavia)");
+                CStr::from_ptr(guid_buf.as_ptr() as *const c_char).to_string_lossy().into_owned()
+            }
+        };
+        // El port `device-guid` conoce la forma del GUID (6 campos, el primero FairPlay de
+        // 36 hex). Si la libreria cerrada devolvio algo con otra forma, el mint va a fallar
+        // mas adelante con un error opaco de la tienda: mejor dejarlo dicho en el log aqui.
+        match device_guid::parse(&guid) {
+            Some(partes) if partes.looks_valid() => {
+                if !partes.tiene_fairplay() {
+                    nlog("mint: guid sin campo FairPlay (dispositivo sin aprovisionar?)");
+                }
+            }
+            _ => nlog("mint: el guid no tiene la forma esperada"),
         }
-        let mut guid_buf = [0u8; 128];
-        if bridges::cadence_device_guid_string((*(guid as *mut SharedPtr)).obj, guid_buf.as_mut_ptr() as *mut c_char, guid_buf.len() as c_int) == 0 {
-            nlog("mint: could not read device guid string");
-            return None;
-        }
-        let guid = CStr::from_ptr(guid_buf.as_ptr() as *const c_char).to_string_lossy().into_owned();
 
         // 1) Commerce dev token.
         let sf_token;
@@ -1063,17 +1276,20 @@ pub fn mint_music_token() -> Option<String> {
         if msg.obj.is_null() {
             return None;
         }
+        let user_agent = store_cfg().user_agent(MINT_DT);
         let headers = [
             ("Content-Type", "application/json; charset=UTF-8"),
             ("Expect", ""),
             ("X-Apple-Requesting-Bundle-Id", "com.apple.android.music"),
-            ("X-Apple-Requesting-Bundle-Version", "Music/4.9 Android/10 model/Samsung S9 build/7663313 (dt:66)"),
+            // Misma identidad que la de RequestContextConfig (store_cfg()), no una copia
+            // escrita a mano: antes aqui decia "Music/4.9 ... Samsung S9 ... 7663313".
+            ("X-Apple-Requesting-Bundle-Version", user_agent.as_str()),
         ];
         for (k, v) in headers {
             let kc = CString::new(k).unwrap_or_default();
             let vc = CString::new(v).unwrap_or_default();
-            let ks = StdString::borrow(&kc);
-            let vs = StdString::borrow(&vc);
+            let ks = StdString::borrow_cstr(&kc);
+            let vs = StdString::borrow_cstr(&vc);
             http_message_set_header(msg.obj, &ks, &vs);
         }
         let now_ms = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0);
@@ -1100,8 +1316,8 @@ pub fn mint_music_token() -> Option<String> {
 unsafe fn set_param(req: *mut c_void, name: &str, value: &str) {
     let nc = CString::new(name).unwrap_or_default();
     let vc = CString::new(value).unwrap_or_default();
-    let ns = StdString::borrow(&nc);
-    let vs = StdString::borrow(&vc);
+    let ns = StdString::borrow_cstr(&nc);
+    let vs = StdString::borrow_cstr(&vc);
     url_request_set_param(req, &ns, &vs);
 }
 

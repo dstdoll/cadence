@@ -3,7 +3,6 @@ package app.cadence.backend.engine.media
 import android.content.Context
 import java.io.File
 import java.io.IOException
-import android.provider.Settings
 import app.cadence.backend.engine.AmpConfig
 import app.cadence.backend.engine.AmpEngine
 import app.cadence.backend.engine.CadenceLog
@@ -50,9 +49,7 @@ object EngineDownloader {
         // which is the only record when a download fails on a user's device.
         AppLog.init(context)
         NativeData.seed(context)
-        val deviceId = runCatching {
-            Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
-        }.getOrNull() ?: "unknown"
+        val deviceId = DeviceIdentity.id(context)
         // The wrapper/StoreServices binds its state to the base dir it was seeded in.
         val baseDir = context.filesDir.absolutePath
         AppLog.log("Cadence", "native base=$baseDir")

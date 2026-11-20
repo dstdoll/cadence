@@ -22,11 +22,15 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -114,17 +118,34 @@ fun NowPlaying(onCollapse: () -> Unit, modifier: Modifier = Modifier) {
             Column(Modifier.fillMaxSize()) {
                 TopBar(info, state.contextTitle, onCollapse)
                 if (wide) {
+                    // Dos paneles: la caratula a la izquierda, dimensionada por la ALTURA disponible, y
+                    // titulo + controles a la derecha. Letras o cola solo cuando el modo las pide: antes el
+                    // panel derecho mostraba letras siempre, incluso en modo Artwork.
                     Row(Modifier.weight(1f)) {
-                        Column(Modifier.weight(1f)) {
-                            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                                BigArtwork(info, state.isPlaying, Modifier.widthIn(max = 420.dp))
-                            }
-                            TitleRow(info)
-                            Controls(mode = mode, onMode = { mode = it }, clock = clock, showVolume = true, wide = true)
+                        // Sin tope de ancho: en horizontal la caratula la limita la ALTURA del panel,
+                        // asi llena su mitad en vez de quedar flotando chica en el medio.
+                        Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                            BigArtwork(info, state.isPlaying)
                         }
-                        Box(Modifier.weight(1f)) {
-                            if (mode == PlayerMode.Queue) QueueView(Modifier.fillMaxSize())
-                            else LyricsView(lyrics, c.player::position, state.isPlaying, { c.player.seekTo(it) }, settings)
+                        Column(
+                            Modifier.weight(1f).fillMaxHeight(),
+                            verticalArrangement = if (mode == PlayerMode.Artwork) Arrangement.Center else Arrangement.Bottom,
+                        ) {
+                            when (mode) {
+                                PlayerMode.Queue -> QueueView(Modifier.weight(1f))
+                                PlayerMode.Lyrics -> LyricsView(
+                                    lyrics, c.player::position, state.isPlaying, { c.player.seekTo(it) }, settings,
+                                    Modifier.weight(1f),
+                                )
+                                PlayerMode.Artwork -> Unit
+                            }
+                            // Title and controls scroll: together they need about 436.dp, and a
+                            // phone held sideways leaves the pane far shorter than that, which used
+                            // to squeeze them until the volume slider and the toolbar were clipped.
+                            Column(Modifier.verticalScroll(rememberScrollState())) {
+                                TitleRow(info)
+                                Controls(mode = mode, onMode = { mode = it }, clock = clock, showVolume = mode == PlayerMode.Artwork)
+                            }
                         }
                     }
                 } else {
@@ -152,7 +173,7 @@ fun NowPlaying(onCollapse: () -> Unit, modifier: Modifier = Modifier) {
                             }
                         }
                     }
-                    Controls(mode = mode, onMode = { mode = it }, clock = clock, showVolume = mode == PlayerMode.Artwork, wide = false)
+                    Controls(mode = mode, onMode = { mode = it }, clock = clock, showVolume = mode == PlayerMode.Artwork)
                 }
             }
         }
@@ -201,12 +222,17 @@ private fun BigArtwork(info: TrackInfo, isPlaying: Boolean, modifier: Modifier =
     }
     val neonColors = remember(coverPalette, fallbackNeon) { coverPalette?.colors() ?: fallbackNeon }
     Box(
-        modifier.padding(horizontal = PlayerGutter, vertical = 12.dp).graphicsLayer { scaleX = scale; scaleY = scale }
+        // The vertical padding is the room the neon's wave and halo have to grow into. At 12.dp it
+        // was half the horizontal gutter, so the wave had space at the sides and was cut off flat
+        // against the top and bottom edges. It matches the gutter now.
+        modifier.padding(horizontal = PlayerGutter, vertical = PlayerGutter).graphicsLayer { scaleX = scale; scaleY = scale }
             .neonTube(settings.waveStyle == app.cadence.state.settings.WaveStyle.Neon, c.wave, isPlaying, neonColors, 28.dp),
     ) {
         CoverArt(
             info.album.id, info.album.colors, info.album.motion, animate = isPlaying,
-            modifier = Modifier.fillMaxWidth().shadow(if (isPlaying) 24.dp else 8.dp, RoundedCornerShape(28.dp)),
+            // Sin fillMaxWidth: fijaba minWidth==maxWidth y anulaba el aspectRatio(1f) de CoverArt, asi
+            // que en una ventana baja la caratula se desbordaba por encima del titulo.
+            modifier = Modifier.shadow(if (isPlaying) 24.dp else 8.dp, RoundedCornerShape(28.dp)),
             shape = RoundedCornerShape(28.dp),
             coverUrl = hiResCover(info.album.cover),
         )
@@ -278,7 +304,7 @@ private fun CompactHeader(info: TrackInfo, artModifier: Modifier) {
 }
 
 @Composable
-private fun Controls(mode: PlayerMode, onMode: (PlayerMode) -> Unit, clock: androidx.compose.runtime.State<Long>, showVolume: Boolean, wide: Boolean) {
+private fun Controls(mode: PlayerMode, onMode: (PlayerMode) -> Unit, clock: androidx.compose.runtime.State<Long>, showVolume: Boolean) {
     val c = LocalContainer.current
     val p = c.player
     val state by p.state.collectAsStateWithLifecycle()
@@ -295,18 +321,18 @@ private fun Controls(mode: PlayerMode, onMode: (PlayerMode) -> Unit, clock: andr
         TransportControls(state, p::togglePlay, p::previous, p::next, p::toggleShuffle, p::cycleRepeat)
         AnimatedVisibility(showVolume) { VolumeSlider(Modifier.padding(top = 8.dp)) }
         Spacer(Modifier.height(12.dp))
-        PlayerToolbar(mode, onMode, wide)
+        PlayerToolbar(mode, onMode)
     }
 }
 
 @Composable
-private fun PlayerToolbar(mode: PlayerMode, onMode: (PlayerMode) -> Unit, wide: Boolean) {
+private fun PlayerToolbar(mode: PlayerMode, onMode: (PlayerMode) -> Unit) {
     val context = LocalContext.current
     val p = LocalContainer.current.player
     val state by p.state.collectAsStateWithLifecycle()
     var sleepMenu by remember { mutableStateOf(false) }
     HorizontalFloatingToolbar(expanded = true) {
-        IconToggleButton(mode == PlayerMode.Lyrics, { onMode(if (it || wide) PlayerMode.Lyrics else PlayerMode.Artwork) }) {
+        IconToggleButton(mode == PlayerMode.Lyrics, { onMode(if (it) PlayerMode.Lyrics else PlayerMode.Artwork) }) {
             Icon(Icons.Rounded.Lyrics, stringResource(R.string.player_lyrics))
         }
         IconButton(onClick = {
@@ -319,7 +345,7 @@ private fun PlayerToolbar(mode: PlayerMode, onMode: (PlayerMode) -> Unit, wide: 
             }
             SleepMenu(sleepMenu, state.sleepAtMs, { sleepMenu = false }) { p.sleepIn(it) }
         }
-        IconToggleButton(mode == PlayerMode.Queue, { onMode(if (it) PlayerMode.Queue else if (wide) PlayerMode.Lyrics else PlayerMode.Artwork) }) {
+        IconToggleButton(mode == PlayerMode.Queue, { onMode(if (it) PlayerMode.Queue else PlayerMode.Artwork) }) {
             Icon(Icons.AutoMirrored.Rounded.QueueMusic, stringResource(R.string.player_queue))
         }
     }

@@ -1,0 +1,96 @@
+{
+  "_nota": "Muestra sintetica. La genera `cargo run` en native/vectors-sample; no sale de ningun dispositivo: el ANDROID_ID, el GUID, los SPC y los IDs de pista son inventados. El GUID lo calcula device_guid::build y los cuerpos los serializa fairplay_proto::to_json, asi que todo es consistente y los tests validan los algoritmos de verdad. La captura real va en native/vectors.json, que esta gitignorado.",
+  "deviceGuidInputs": {
+    "androidId": "0123456789abcdef",
+    "serial": null,
+    "apiNum": 29,
+    "forceConfig": true,
+    "origen": "muestra sintetica (no DeviceGUID::configure de un dispositivo)"
+  },
+  "deviceGuid": {
+    "origen": "device_guid::build sobre los inputs de arriba",
+    "inputs": null,
+    "guid": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6.00000000000000.00000000000000.d74bb16dff8e29.00000000000000.00000000000000",
+    "length": 111,
+    "fields": [
+      "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6",
+      "00000000000000",
+      "00000000000000",
+      "d74bb16dff8e29",
+      "00000000000000",
+      "00000000000000"
+    ]
+  },
+  "ckcRequests": [
+    {
+      "raw_len": 330,
+      "keys": [
+        "guid",
+        "adamId",
+        "spc",
+        "keyUri"
+      ],
+      "parsed": {
+        "guid": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6.00000000000000.00000000000000.d74bb16dff8e29.00000000000000.00000000000000",
+        "adamId": "100000001",
+        "spc": "ASA/Xn2cu9r5GDdWdZSz0vEQL05tjKvK6QgnRmWEo8LhAB8+XXybutn4FzZVdJOy0fAPLk1si6rJ6AcmRWSDosHg/x49XHuaudj3FjVUc5Kx0O8OLUxriqnI5wYlRGOC",
+        "keyUri": "skd://itunes.apple.com/p1000000001/c23"
+      }
+    },
+    {
+      "raw_len": 347,
+      "keys": [
+        "guid",
+        "offline",
+        "adamId",
+        "spc",
+        "keyUri"
+      ],
+      "parsed": {
+        "guid": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6.00000000000000.00000000000000.d74bb16dff8e29.00000000000000.00000000000000",
+        "offline": "true",
+        "adamId": "100000002",
+        "spc": "AiFAX36dvNv6GThXdpW00/IRME9ujazL6gkoR2aFpMPiASA/Xn2cu9r5GDdWdZSz0vEQL05tjKvK6QgnRmWEo8LhAB8+XXybutn4FzZVdJOy0fAPLk1si6rJ6AcmRWSD",
+        "keyUri": "skd://itunes.apple.com/p1000000002/c23"
+      }
+    }
+  ],
+  "userAgent": "Music/5.0.2 Android/10 model/Pixel 8 build/7663314 (dt:66)",
+  "getPersistentKeyArgs": [
+    {
+      "defaultId": "100000001",
+      "adamId": "100000001",
+      "keyUri": "skd://itunes.apple.com/p1000000001/c23",
+      "keyFormat": "com.apple.streamingkeydelivery",
+      "keyFormatVersion": "1",
+      "serverUri": "https://play.itunes.apple.com/WebObjects/MZPlay.woa/music/fps",
+      "protocolType": "simplified",
+      "fpsCertLen": 3464
+    },
+    {
+      "defaultId": "100000002",
+      "adamId": "100000002",
+      "keyUri": "skd://itunes.apple.com/p1000000002/c23",
+      "keyFormat": "com.apple.streamingkeydelivery",
+      "keyFormatVersion": "1",
+      "serverUri": "https://play.itunes.apple.com/WebObjects/MZPlay.woa/music/fps",
+      "protocolType": "simplified",
+      "fpsCertLen": 3464
+    }
+  ],
+  "decryptSamples": {
+    "count": 6137,
+    "modes": {
+      "5": 6137
+    },
+    "inPlace": 6137,
+    "lens": [
+      32,
+      32,
+      2420,
+      9499,
+      8512,
+      10244
+    ]
+  }
+}

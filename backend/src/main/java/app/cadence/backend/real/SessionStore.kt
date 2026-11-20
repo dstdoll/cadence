@@ -4,6 +4,8 @@ import android.content.Context
 import app.cadence.backend.api.Session
 import app.cadence.backend.engine.CadenceLog
 import app.cadence.backend.engine.SecretFiles
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import org.json.JSONObject
 import java.io.File
 
@@ -18,6 +20,12 @@ class SessionStore(context: Context) {
     private val dir = File(context.filesDir, "sessions").apply { mkdirs() }
     private val file = File(dir, "active.json")
 
+    // Fuente de verdad del Session para el flujo de UI: cualquier save/clear la actualiza, y el
+    // AuthService expone esto directo en lugar de capturar un load() one-shot que podria preceder
+    // al seedIfEmpty.
+    private val _sessions = MutableStateFlow(readFromDisk())
+    val sessions: StateFlow<Session?> = _sessions
+
     fun save(session: Session, storefront: String) {
         runCatching {
             val o = JSONObject()
@@ -29,6 +37,7 @@ class SessionStore(context: Context) {
                 .put("storefront", storefront)
                 .put("savedAt", System.currentTimeMillis())
             SecretFiles.write(file, o.toString())
+            _sessions.value = session
             CadenceLog.i("auth", "session saved")
         }.onFailure { CadenceLog.e("auth", "save failed", it) }
     }
@@ -52,13 +61,19 @@ class SessionStore(context: Context) {
         )
     }
 
-    fun load(): Session? = runCatching { parse(SecretFiles.read(file) ?: return null) }.getOrNull()
+    fun load(): Session? = readFromDisk().also { if (_sessions.value != it) _sessions.value = it }
+
+    private fun readFromDisk(): Session? =
+        runCatching { parse(SecretFiles.read(file) ?: return@runCatching null) }.getOrNull()
 
     fun storefront(): String = runCatching {
         SecretFiles.read(file)?.let { JSONObject(it).optString("storefront", "us") } ?: "us"
     }.getOrDefault("us")
 
-    fun clear() { runCatching { file.delete() } }
+    fun clear() {
+        runCatching { file.delete() }
+        _sessions.value = null
+    }
 
     companion object {
         /**

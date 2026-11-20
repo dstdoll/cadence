@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.animation.animateContentSize
@@ -29,7 +31,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
@@ -135,18 +136,56 @@ private fun LazyListScope.header(
     onSubtitle: (() -> Unit)? = null,
 ) {
     item(key = "header") {
-        Column(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            CoverArt(key, colors, motion, animate = true, Modifier.widthIn(max = 280.dp).fillMaxWidth(0.72f), shape(), coverUrl = hiResCover(cover))
-            Text(title, style = MaterialTheme.typography.headlineMedium.copy(lineBreak = LineBreak.Heading), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 16.dp, start = 20.dp, end = 20.dp))
-            Text(
-                subtitle, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary,
-                modifier = if (onSubtitle != null) Modifier.clickable(onClick = onSubtitle).padding(4.dp) else Modifier.padding(4.dp),
-            )
-            Text(meta, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (badge != null) Box(Modifier.padding(top = 10.dp, bottom = 4.dp)) { badge() }
+        // Stacked on a phone, side by side once the pane is wide. Measured against the pane, not
+        // the window: with the navigation rail the content is narrower than the screen, so asking
+        // the configuration gives an answer that is too big by the width of the rail.
+        BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+            val wide = maxWidth >= WIDE_PANE
+            val art: @Composable () -> Unit = {
+                CoverArt(
+                    key, colors, motion, animate = true,
+                    if (wide) Modifier.widthIn(max = 280.dp).fillMaxWidth(0.34f)
+                    else Modifier.widthIn(max = 280.dp).fillMaxWidth(0.72f),
+                    shape(), coverUrl = hiResCover(cover),
+                )
+            }
+            val texts: @Composable ColumnScope.() -> Unit = {
+                val align = if (wide) TextAlign.Start else TextAlign.Center
+                Text(
+                    title,
+                    style = MaterialTheme.typography.headlineMedium.copy(lineBreak = LineBreak.Heading),
+                    textAlign = align,
+                    modifier = if (wide) Modifier.padding(top = 4.dp) else Modifier.padding(top = 16.dp, start = 20.dp, end = 20.dp),
+                )
+                Text(
+                    subtitle, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary,
+                    textAlign = align,
+                    modifier = if (onSubtitle != null) Modifier.clickable(onClick = onSubtitle).padding(4.dp) else Modifier.padding(4.dp),
+                )
+                Text(meta, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = align)
+                if (badge != null) Box(Modifier.padding(top = 10.dp, bottom = 4.dp)) { badge() }
+            }
+            if (wide) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(20.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    art()
+                    Column(Modifier.weight(1f), horizontalAlignment = Alignment.Start, content = texts)
+                }
+            } else {
+                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                    art()
+                    texts()
+                }
+            }
         }
     }
 }
+
+/** A pane at least this wide puts the hero side by side instead of stacking it. */
+private val WIDE_PANE = 600.dp
 
 @Composable
 fun AlbumScreen(id: String, selectSongId: String? = null) {
@@ -368,13 +407,17 @@ fun ArtistScreen(id: String) {
             // A horizontal carousel of columns, up to five songs each, most popular first; the next
             // column peeks at the edge so it reads as swipeable, and a fling settles on a column.
             val columns = songs.take(20).chunked(5)
-            val screenWidth = LocalConfiguration.current.screenWidthDp.dp
-            val pageWidth = topSongsColumnWidth(screenWidth, columns.size)
+            // Measured against the pane, not the configuration: with the navigation rail the
+            // content is narrower than the screen, so a column sized to the screen does not fit and
+            // the snapping landed every page a rail's width off.
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val paneWidth = maxWidth
+            val pageWidth = topSongsColumnWidth(paneWidth, columns.size)
             val carousel = rememberLazyListState()
             LazyRow(
                 state = carousel,
                 flingBehavior = rememberSnapFlingBehavior(carousel, SnapPosition.Start),
-                contentPadding = PaddingValues(start = 16.dp, end = topSongsEndPadding(screenWidth, pageWidth)),
+                contentPadding = PaddingValues(start = 16.dp, end = topSongsEndPadding(paneWidth, pageWidth)),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 items(columns, key = { col -> "top-${col.first().id}" }) { col ->
@@ -384,6 +427,7 @@ fun ArtistScreen(id: String) {
                         }
                     }
                 }
+            }
             }
         }
         if (fullAlbums.isNotEmpty()) {
