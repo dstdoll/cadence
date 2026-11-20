@@ -47,11 +47,57 @@ Los exports llevan sufijo de versión en algunos casos (`@@VERS_1.73.0` en CoreF
 parezca no usarse. El script lo normaliza; cualquier análisis a mano tiene que hacerlo
 también.
 
+## Cuál es el mínimo de librerías, hoy
+
+`./native/minimal-libs.sh` lo calcula desde los roots reales: lo que el código Kotlin carga
+con `System.loadLibrary`, que son tres (`cadence_auth_android`, `cadence_android_drm`,
+`cadence-native`).
+
+**El mínimo son las 21, los 70.18 MB completos. Ninguna sale sin cirugía, ni una.**
+
+El motivo es `DT_NEEDED`, no las llamadas. Bionic exige que **todas** las entradas
+`DT_NEEDED` estén presentes al hacer `dlopen`, se use o no un símbolo de ellas; si falta una,
+`System.loadLibrary` falla y la app no arranca. Y la cadena desde nuestro root no deja nada
+afuera:
+
+```
+libcadence-native.so  (root, NativeWrapper/NativeAlac/NativeEac3)
+  -> libandroidappmusic.so        23 entradas NEEDED, 15 de ellas en el APK
+       -> libCoreFP.so  libCoreADI.so  libCoreLSKD.so
+       -> libmedialibrarycore.so  libstoreservicescore.so  libdaapkit.so
+       -> libCoreFoundation.so  libdispatch.so -> libBlocksRuntime.so
+       -> libicuuc  libicui18n  libicudata  libxml2  libcurl -> libstdc++.so
+  -> libmediaplatform.so  libstoreservicescore.so  libc++_shared.so
+```
+
+El cierre por `dlopen` **no agrega ni una librería** sobre el de `DT_NEEDED` (B − A = 0 MB).
+Es decir: las tres cerradas no están ahí "porque alguien las abre en runtime", están ahí
+porque son dependencias duras de carga. Mirar sólo la vía `dlopen` subestima el problema.
+
 ## Qué se puede sacar hoy
 
 **Nada de las tres, sin reemplazar antes lo que hacen.** Son el núcleo de FairPlay
 (CoreFP/CoreLSKD) y el aprovisionamiento (CoreADI). Un stub que exporte los nombres resuelve
 el `dlsym` y deja cargar la app, pero la primera clave que se pida falla.
+
+Lo que sí hay es un **único punto de estrangulamiento**: `libandroidappmusic.so` es la única
+librería que declara las tres en su `DT_NEEDED`. Para que dejen de ser obligatorias al cargar
+hay que parchear ese archivo y nada más: quitar tres entradas de su `DT_NEEDED`. Es seguro
+desde el punto de vista del enlace, porque ninguna librería importa un solo símbolo estático
+de las tres (verificado normalizando los sufijos `@@VERSION`). Y no deja nada huérfano: las
+tres sólo dependen de librerías del sistema (`liblog`, `libdl`, `libc`, `libz`, `libm`) más
+`libstdc++.so`, que `libcurl` también necesita.
+
+| escenario | libs | jniLibs | qué se pierde |
+|---|---|---|---|
+| hoy, sin tocar nada | 21 | 70.18 MB | — |
+| parchear el `DT_NEEDED` y sacar sólo CoreADI | 20 | 68.47 MB | aprovisionamiento de `adi.pb` |
+| parchear el `DT_NEEDED` y sacar las tres | 18 | 52.73 MB | reproducción: la primera clave falla |
+
+La tabla es la que vale la pena medir empíricamente, porque dice qué compra cada librería.
+El experimento es reversible (se parchea una copia) y es la única forma de saber si el login
+y el catálogo siguen funcionando sin FairPlay, que es lo que decidiría si tiene sentido un
+modo degradado.
 
 Lo que sí cambió con los ports es que la superficie está **medida y es chica**: 11 funciones.
 Antes el número que se citaba era "las 11 librerías propietarias", que no dice nada sobre
