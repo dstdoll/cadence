@@ -22,10 +22,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "cadence-eac3"
+version = "0.1.0"
+
+[[package]]
 name = "cadence-native-rs"
 version = "0.1.0"
 dependencies = [
  "cadence-alac",
+ "cadence-eac3",
  "jni",
  "libc",
 ]

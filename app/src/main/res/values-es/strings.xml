@@ -608,9 +608,11 @@
     <string name="set_dither_desc_shaped">Triangular más conformación del ruido hacia las frecuencias altas.</string>
     <string name="quality_tier_hires">Hi-Res sin pérdida</string>
     <string name="quality_tier_lossless">Sin pérdida</string>
+    <string name="quality_tier_spatial">Dolby Atmos</string>
     <string name="quality_tier_standard">Estándar</string>
     <string name="quality_desc_hires">Idéntico bit a bit al máster de estudio, muestreado por encima de las frecuencias de CD y de streaming.</string>
     <string name="quality_desc_lossless">Idéntico bit a bit a la grabación original. No se descarta nada.</string>
+    <string name="quality_desc_spatial">Mezcla de audio espacial (Dolby Atmos / E-AC-3) adaptada o renderizada para audífonos estéreo.</string>
     <string name="quality_desc_lossy">Comprimido para ahorrar espacio. Se descarta algo de detalle, normalmente sin que se note.</string>
 
     <!-- Remaining screens / Pantallas restantes -->

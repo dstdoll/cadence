@@ -1,0 +1,8 @@
+[package]
+name = "cadence-eac3"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Zero-dependency pure-Rust AC-3 / E-AC-3 core bed decoder with stereo downmix"
+
+[dependencies]

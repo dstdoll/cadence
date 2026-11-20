@@ -11,6 +11,9 @@ class AudioQualityTest {
         assertEquals(QualityTier.HiResLossless, AudioQuality.tier(AudioFormatInfo("FLAC", 24, 96_000)))
         assertEquals(QualityTier.Lossless, AudioQuality.tier(AudioFormatInfo("ALAC", 24, 48_000)))
         assertEquals(QualityTier.Lossless, AudioQuality.tier(AudioFormatInfo("WAV", 16, 44_100)))
+        assertEquals(QualityTier.Spatial, AudioQuality.tier(AudioFormatInfo("Dolby Atmos", null, 48_000, bitrate = 768_000)))
+        assertEquals(QualityTier.Spatial, AudioQuality.tier(AudioFormatInfo("Dolby Digital Plus", null, 48_000, bitrate = 448_000)))
+        assertEquals(QualityTier.Spatial, AudioQuality.tier(AudioFormatInfo("AAC", null, 48_000, bitrate = 256_000, isSpatial = true)))
         assertEquals(QualityTier.Lossy, AudioQuality.tier(AudioFormatInfo("AAC", null, 44_100, bitrate = 256_000)))
     }
 
@@ -28,5 +31,8 @@ class AudioQualityTest {
         assertEquals("WAV", AudioQuality.codecForMime("audio/raw", "audio/wav"))
         assertEquals("PCM", AudioQuality.codecForMime("audio/raw"))
         assertEquals("AAC", AudioQuality.codecForMime("audio/mp4a-latm"))
+        assertEquals("Dolby Atmos", AudioQuality.codecForMime("audio/eac3-joc"))
+        assertEquals("Dolby Digital Plus", AudioQuality.codecForMime("audio/eac3"))
+        assertEquals("Dolby Digital", AudioQuality.codecForMime("audio/ac3"))
     }
 }

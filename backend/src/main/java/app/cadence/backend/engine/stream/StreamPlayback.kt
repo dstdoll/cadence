@@ -44,6 +44,9 @@ object StreamPlayback {
     /** Bit depth and sample rate Apple declares for what is streamed for [trackId], once known. */
     fun declaredQuality(trackId: String): Pair<Int, Int>? = instance?.declaredQuality(trackId)
 
+    /** Whether [trackId] is currently streaming a spatial/Dolby Atmos rendition (E-AC-3 or binaural). */
+    fun isSpatial(trackId: String): Boolean = instance?.isSpatial(trackId) == true
+
     fun cache(context: Context): StreamCache = instance ?: synchronized(this) {
         instance ?: run {
             val native = NativeSegmentSource(context.applicationContext).also { source = it }
@@ -94,7 +97,11 @@ internal class AmpStreamResolver(private val context: Context) : StreamResolver 
         val prefs = DownloadEngine.preferences
         val plan = WrapperKeyClient.resolve(Track(trackId, "", "", 0, 1, 0L, master), prefs.bitDepth, prefs.maxSampleRate, prefs.streamCodec, prefs.streamAtmos)
         val playlist = plan.mediaPlaylist.ifBlank { Http.text(plan.mediaUrl) }
-        return HlsMediaParser.parse(playlist, plan.mediaUrl).copy(declaredBitDepth = plan.bitDepth, declaredSampleRate = plan.sampleRate)
+        return HlsMediaParser.parse(playlist, plan.mediaUrl).copy(
+            declaredBitDepth = plan.bitDepth,
+            declaredSampleRate = plan.sampleRate,
+            declaredSpatial = plan.kind == "spatial" || plan.kind == "atmos",
+        )
     }
 }
 

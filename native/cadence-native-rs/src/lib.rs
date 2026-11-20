@@ -284,3 +284,130 @@ pub extern "system" fn Java_app_cadence_backend_engine_media_NativeAlac_destroy(
         unsafe { drop(Box::from_raw(handle as *mut cadence_alac::AlacSession)) };
     }
 }
+
+
+// --- NativeEac3 JNI bridge ---
+
+#[no_mangle]
+pub unsafe extern "system" fn Java_app_cadence_backend_engine_media_NativeEac3_create(
+    _env: jni::JNIEnv,
+    _class: jni::objects::JClass,
+    sample_rate: jni::sys::jint,
+    channels: jni::sys::jint,
+) -> jni::sys::jlong {
+    let sr = if sample_rate > 0 { sample_rate as u32 } else { 48_000 };
+    let ch = if channels > 0 { channels as usize } else { 2 };
+    match cadence_eac3::Eac3Session::new(sr, ch) {
+        Ok(session) => Box::into_raw(Box::new(session)) as jni::sys::jlong,
+        Err(_) => 0,
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "system" fn Java_app_cadence_backend_engine_media_NativeEac3_maxOutputBytes(
+    _env: jni::JNIEnv,
+    _class: jni::objects::JClass,
+    handle: jni::sys::jlong,
+    float_out: jni::sys::jboolean,
+) -> jni::sys::jint {
+    if handle == 0 {
+        return -1;
+    }
+    let session = &*(handle as *const cadence_eac3::Eac3Session);
+    let f32_bytes = session.max_output_bytes();
+    if float_out != 0 {
+        f32_bytes as jni::sys::jint
+    } else {
+        (f32_bytes / 2) as jni::sys::jint
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "system" fn Java_app_cadence_backend_engine_media_NativeEac3_decode(
+    env: jni::JNIEnv,
+    _class: jni::objects::JClass,
+    handle: jni::sys::jlong,
+    packet: jni::objects::JByteBuffer,
+    in_offset: jni::sys::jint,
+    in_len: jni::sys::jint,
+    out: jni::objects::JByteBuffer,
+    float_out: jni::sys::jboolean,
+) -> jni::sys::jint {
+    if handle == 0 || in_offset < 0 || in_len <= 0 {
+        return -1;
+    }
+    let Ok(in_ptr) = env.get_direct_buffer_address(&packet) else {
+        return -2;
+    };
+    let Ok(in_cap) = env.get_direct_buffer_capacity(&packet) else {
+        return -2;
+    };
+    let off = in_offset as usize;
+    let len = in_len as usize;
+    if off.saturating_add(len) > in_cap {
+        return -2;
+    }
+    let Ok(out_ptr) = env.get_direct_buffer_address(&out) else {
+        return -3;
+    };
+    let Ok(out_cap) = env.get_direct_buffer_capacity(&out) else {
+        return -3;
+    };
+
+    let session = &mut *(handle as *mut cadence_eac3::Eac3Session);
+    let in_slice = std::slice::from_raw_parts(in_ptr.add(off), len);
+
+    if float_out != 0 {
+        let f32_cap = out_cap / 4;
+        if f32_cap == 0 || (out_ptr as usize) % 4 != 0 {
+            // Unaligned direct ByteBuffer fallback via stack buffer.
+            let mut tmp = [0.0f32; 6 * 256 * 2];
+            match session.decode_to_f32(in_slice, &mut tmp) {
+                Ok(n) => {
+                    let bytes = n * 4;
+                    if bytes > out_cap {
+                        return -3;
+                    }
+                    std::ptr::copy_nonoverlapping(tmp.as_ptr() as *const u8, out_ptr, bytes);
+                    bytes as jni::sys::jint
+                }
+                Err(_) => -4,
+            }
+        } else {
+            let out_f32 = std::slice::from_raw_parts_mut(out_ptr as *mut f32, f32_cap);
+            match session.decode_to_f32(in_slice, out_f32) {
+                Ok(n) => (n * 4) as jni::sys::jint,
+                Err(_) => -4,
+            }
+        }
+    } else {
+        let out_bytes = std::slice::from_raw_parts_mut(out_ptr, out_cap);
+        match session.decode_to_pcm16(in_slice, out_bytes) {
+            Ok(bytes) => bytes as jni::sys::jint,
+            Err(_) => -4,
+        }
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "system" fn Java_app_cadence_backend_engine_media_NativeEac3_reset(
+    _env: jni::JNIEnv,
+    _class: jni::objects::JClass,
+    handle: jni::sys::jlong,
+) {
+    if handle != 0 {
+        let session = &mut *(handle as *mut cadence_eac3::Eac3Session);
+        session.reset();
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "system" fn Java_app_cadence_backend_engine_media_NativeEac3_destroy(
+    _env: jni::JNIEnv,
+    _class: jni::objects::JClass,
+    handle: jni::sys::jlong,
+) {
+    if handle != 0 {
+        drop(Box::from_raw(handle as *mut cadence_eac3::Eac3Session));
+    }
+}

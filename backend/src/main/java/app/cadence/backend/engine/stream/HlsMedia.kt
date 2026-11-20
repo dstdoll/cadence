@@ -27,6 +27,7 @@ data class HlsMedia(
      */
     val declaredBitDepth: Int = 0,
     val declaredSampleRate: Int = 0,
+    val declaredSpatial: Boolean = false,
 ) {
     val durationSec: Double get() = segments.sumOf { it.durationSec }
 }

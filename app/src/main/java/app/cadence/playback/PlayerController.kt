@@ -309,8 +309,15 @@ class PlayerController(
             }
         }
         val current = queue.getOrNull(c.currentMediaItemIndex)
+        val live = liveFormat(c.currentTracks)
+        val tid = current?.id
+        val resolvedHint = if (live != null || (tid != null && (app.cadence.backend.engine.stream.StreamPlayback.isSpatial(tid) || app.cadence.backend.engine.stream.StreamPlayback.declaredQuality(tid) != null))) {
+            current?.track?.format
+        } else {
+            null
+        }
         _state.value = _state.value.copy(
-            format = withDeclaredDepth(mergeFormat(liveFormat(c.currentTracks), current?.track?.format), current?.id),
+            format = withDeclaredDepth(mergeFormat(live, resolvedHint), tid),
             connected = true,
             queue = queue,
             index = if (queue.isEmpty()) -1 else c.currentMediaItemIndex,
@@ -363,9 +370,18 @@ class PlayerController(
      * resolution that is not there.
      */
     private fun withDeclaredDepth(f: AudioFormatInfo?, trackId: String?): AudioFormatInfo? {
-        if (f == null || trackId == null || !f.codec.equals("ALAC", true)) return f
-        val bits = app.cadence.backend.engine.stream.StreamPlayback.declaredQuality(trackId)?.first ?: return f
-        return if (bits > 0) f.copy(bitDepth = bits) else f
+        if (f == null || trackId == null) return f
+        var out = f
+        if (f.codec.equals("ALAC", true)) {
+            val bits = app.cadence.backend.engine.stream.StreamPlayback.declaredQuality(trackId)?.first
+            if (bits != null && bits > 0) out = out.copy(bitDepth = bits)
+        }
+        if (settings.state.value.streamAtmos != "off" &&
+            app.cadence.backend.engine.stream.StreamPlayback.isSpatial(trackId)
+        ) {
+            out = out.copy(isSpatial = true)
+        }
+        return out
     }
 
     /** Stream values win; library info fills whatever the stream didn't report. */

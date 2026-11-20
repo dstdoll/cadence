@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.SurroundSound
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialShapes
@@ -55,7 +56,12 @@ fun QualityBadge(format: AudioFormatInfo, color: Color = MaterialTheme.colorSche
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(5.dp),
     ) {
-        Icon(Icons.Rounded.GraphicEq, null, tint = color, modifier = Modifier.size(14.dp))
+        Icon(
+            if (tier == QualityTier.Spatial) Icons.Rounded.SurroundSound else Icons.Rounded.GraphicEq,
+            null,
+            tint = color,
+            modifier = Modifier.size(14.dp),
+        )
         Text(
             if (tier == QualityTier.Lossy) format.codec else tierLabel(tier),
             style = MaterialTheme.typography.labelMedium, color = color, maxLines = 1,
@@ -114,6 +120,7 @@ internal fun tierLabel(tier: QualityTier): String = stringResource(
     when (tier) {
         QualityTier.HiResLossless -> R.string.quality_tier_hires
         QualityTier.Lossless -> R.string.quality_tier_lossless
+        QualityTier.Spatial -> R.string.quality_tier_spatial
         QualityTier.Lossy -> R.string.quality_tier_standard
     },
 )
@@ -124,6 +131,7 @@ internal fun tierDescription(tier: QualityTier): String = stringResource(
     when (tier) {
         QualityTier.HiResLossless -> R.string.quality_desc_hires
         QualityTier.Lossless -> R.string.quality_desc_lossless
+        QualityTier.Spatial -> R.string.quality_desc_spatial
         QualityTier.Lossy -> R.string.quality_desc_lossy
     },
 )

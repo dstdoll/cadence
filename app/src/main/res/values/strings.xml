@@ -610,9 +610,11 @@
     <string name="set_dither_desc_shaped">Triangular plus noise shaping toward high frequencies.</string>
     <string name="quality_tier_hires">Hi-Res Lossless</string>
     <string name="quality_tier_lossless">Lossless</string>
+    <string name="quality_tier_spatial">Dolby Atmos</string>
     <string name="quality_tier_standard">Standard</string>
     <string name="quality_desc_hires">Bit-for-bit identical to the studio master, sampled above CD and streaming rates.</string>
     <string name="quality_desc_lossless">Bit-for-bit identical to the original recording. Nothing is thrown away.</string>
+    <string name="quality_desc_spatial">Spatial audio mix (Dolby Atmos / E-AC-3) downmixed or rendered for stereo headphones.</string>
     <string name="quality_desc_lossy">Compressed to save space. Some detail is discarded, usually inaudibly.</string>
 
     <!-- Remaining screens / Pantallas restantes -->

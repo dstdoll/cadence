@@ -61,6 +61,7 @@ class PlaybackService : MediaSessionService() {
             ) {
                 out.add(AlacAudioRenderer(eventHandler, eventListener, audioSink))
                 super.buildAudioRenderers(context, extensionRendererMode, mediaCodecSelector, enableDecoderFallback, audioSink, eventHandler, eventListener, out)
+                out.add(Eac3AudioRenderer(eventHandler, eventListener, audioSink))
             }
 
             override fun buildAudioSink(

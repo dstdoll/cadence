@@ -85,12 +85,16 @@ class StreamCache(
     }
 
     private val declared = java.util.concurrent.ConcurrentHashMap<String, Pair<Int, Int>>()
+    private val spatial = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
 
     /**
      * Bit depth and sample rate Apple's master declares for [trackId] in the current quality, once
      * the track has been opened in this process, from the network or from disk.
      */
     fun declaredQuality(trackId: String): Pair<Int, Int>? = declared[key(trackId, resolver.variant)]
+
+    /** Whether [trackId] is streaming a spatial/Dolby Atmos rendition in the current variant. */
+    fun isSpatial(trackId: String): Boolean = spatial[key(trackId, resolver.variant)] == true
 
     /** The stream for [trackId], resolving its playlist and init segment on first use. Blocks. */
     @Throws(IOException::class)
@@ -125,9 +129,10 @@ class StreamCache(
         File(dir, INDEX).writeText(
             variant + "\n" + media.segments.joinToString("\n") { "${it.length} ${it.durationSec}" },
         )
-        if (media.declaredBitDepth > 0 || media.declaredSampleRate > 0) {
-            File(dir, DECLARED).writeText("${media.declaredBitDepth} ${media.declaredSampleRate}")
+        if (media.declaredBitDepth > 0 || media.declaredSampleRate > 0 || media.declaredSpatial) {
+            File(dir, DECLARED).writeText("${media.declaredBitDepth} ${media.declaredSampleRate} ${if (media.declaredSpatial) 1 else 0}")
             declared[key(trackId, variant)] = media.declaredBitDepth to media.declaredSampleRate
+            if (media.declaredSpatial) spatial[key(trackId, variant)] = true
         }
         dir.setLastModified(System.currentTimeMillis())
 
@@ -160,7 +165,10 @@ class StreamCache(
         val stream = ClearStream(trackId, HlsMedia("", null, null, segments), ByteArray(0), layout, dir, source, ::forget, variant)
         if (!stream.isComplete) return null
         runCatching { File(dir, DECLARED).readText().trim().split(' ').map(String::toInt) }.getOrNull()
-            ?.takeIf { it.size == 2 }?.let { (bits, rate) -> declared[key(trackId, variant)] = bits to rate }
+            ?.takeIf { it.size >= 2 }?.let { parts ->
+                declared[key(trackId, variant)] = parts[0] to parts[1]
+                if (parts.getOrNull(2) == 1) spatial[key(trackId, variant)] = true
+            }
         dir.setLastModified(System.currentTimeMillis())
         log("open $trackId from disk segments=${stream.segmentCount} bytes=${layout.totalSize}")
         return stream

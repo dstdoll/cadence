@@ -8,6 +8,8 @@
 # with UnsatisfiedLinkError on NativeDrm/NativeWrapper/NativeAuth.
 -keep class app.cadence.backend.engine.media.NativeDrm { native <methods>; }
 -keep class app.cadence.backend.engine.media.NativeWrapper { native <methods>; }
+-keep class app.cadence.backend.engine.media.NativeAlac { native <methods>; }
+-keep class app.cadence.backend.engine.media.NativeEac3 { native <methods>; }
 -keep class app.cadence.backend.real.NativeAuth { native <methods>; }
 -keepclasseswithmembernames class * { native <methods>; }
 

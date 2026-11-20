@@ -15,27 +15,41 @@ data class AudioFormatInfo(
     val channels: Int? = null,
     // BACKEND: here goes the bitrate in bits per second; meaningful for lossy codecs ("AAC · 256 kbps").
     val bitrate: Int? = null,
+    // BACKEND: true when streaming a spatial/Dolby Atmos rendition (E-AC-3 JOC or binaural AAC).
+    val isSpatial: Boolean = false,
 )
 
 enum class QualityTier(val label: String) {
     HiResLossless("Hi-Res Lossless"),
     Lossless("Lossless"),
+    Spatial("Dolby Atmos"),
     Lossy("Standard"),
 }
 
 object AudioQuality {
     private val LOSSLESS = setOf("FLAC", "ALAC", "WAV", "PCM", "AIFF", "WAVPACK", "APE")
+    private val SPATIAL = setOf(
+        "DOLBY ATMOS",
+        "DOLBY DIGITAL PLUS",
+        "DOLBY DIGITAL",
+        "DOLBY AC-4",
+        "E-AC-3",
+        "E-AC-3 JOC",
+        "AC-3",
+    )
 
     fun isLossless(info: AudioFormatInfo) = info.codec.uppercase() in LOSSLESS
 
     fun describe(tier: QualityTier) = when (tier) {
         QualityTier.HiResLossless -> "Bit-for-bit identical to the studio master, sampled above CD and streaming rates."
         QualityTier.Lossless -> "Bit-for-bit identical to the original recording. Nothing is thrown away."
+        QualityTier.Spatial -> "Spatial audio mix (Dolby Atmos / E-AC-3) downmixed or rendered for stereo headphones."
         QualityTier.Lossy -> "Compressed to save space. Some detail is discarded, usually inaudibly."
     }
 
     /** Hi-Res means lossless above 48 kHz; 24-bit at 48 kHz or below is plain Lossless. */
     fun tier(info: AudioFormatInfo): QualityTier = when {
+        info.isSpatial || info.codec.uppercase() in SPATIAL -> QualityTier.Spatial
         !isLossless(info) -> QualityTier.Lossy
         (info.sampleRate ?: 0) > 48_000 -> QualityTier.HiResLossless
         else -> QualityTier.Lossless
