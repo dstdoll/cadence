@@ -366,6 +366,8 @@ object Mapping {
         return artistFromName(name).copy(
             color = if (tint != null) "#$tint" else "#888888",
             cover = Artwork.at(Artwork.template(attrs), "300x300"),
+            // Lets two artists with one name be told apart in a list ("Artist · Hip-Hop/Rap").
+            genres = attrs.optJSONArray("genreNames")?.let { g -> (0 until g.length()).map(g::optString).filter { it.isNotBlank() } }.orEmpty(),
         )
     }
 

@@ -1,5 +1,6 @@
 package app.cadence.backend.real
 
+import app.cadence.backend.model.ArtistIds
 import app.cadence.backend.api.SearchScope
 import app.cadence.backend.api.SearchService
 import app.cadence.backend.api.Suggestions
@@ -24,7 +25,7 @@ class RealSearchService(private val catalog: RealCatalog) : SearchService {
             albums = albums,
             tracks = tracks,
             playlists = scope.userPlaylists,
-            artistName = { id -> catalog.artist(id)?.name ?: id.removePrefix("ar:") },
+            artistName = { id -> catalog.artist(id)?.name ?: ArtistIds.nameOf(id) },
         )
     }
 

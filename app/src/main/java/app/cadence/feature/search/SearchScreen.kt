@@ -95,6 +95,8 @@ import app.cadence.core.design.TrackMenuButton
 import app.cadence.core.design.TrackDownloadButton
 import app.cadence.backend.search.HitType
 import app.cadence.backend.search.SearchHit
+import app.cadence.feature.library.artistArt
+import app.cadence.backend.search.uniqueByKey
 import app.cadence.backend.search.SearchResults
 import app.cadence.backend.api.SearchScope
 import app.cadence.backend.api.Suggestions
@@ -314,7 +316,9 @@ private fun Suggestions(
                 modifier = Modifier.clickable { onComplete(s) },
             )
         }
-        items(direct, key = { it.key }) { hit -> HitRow(hit, nav, c) }
+        val directRows = direct.uniqueByKey()
+        val directAmbiguous = ambiguousArtistNames(directRows)
+        items(directRows, key = { it.key }) { hit -> HitRow(hit, nav, c, directAmbiguous) }
         if (completions.isEmpty() && direct.isEmpty()) item {
             Text(stringResource(R.string.search_no_matches_yet), Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -340,17 +344,31 @@ private fun Results(
         }
         val list = if (tab == null) results.top else results.byType[tab].orEmpty()
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = LocalBottomInset.current + 16.dp)) {
-            items(list, key = { it.key }) { hit -> HitRow(hit, nav, c) }
+            val rows = list.uniqueByKey()
+            val ambiguous = ambiguousArtistNames(rows)
+            items(rows, key = { it.key }) { hit -> HitRow(hit, nav, c, ambiguous) }
         }
     }
 }
 
+/**
+ * Artist names that more than one row in [rows] carries (two different artists named alike): only
+ * those rows get their genre in the subtitle, so a name that is unique stays as clean as before.
+ */
+internal fun ambiguousArtistNames(rows: List<SearchHit>): Set<String> =
+    rows.filterIsInstance<SearchHit.ArtistHit>().groupBy { it.artist.name }.filterValues { it.size > 1 }.keys
+
 /** One result row; the subtitle always starts with what kind of thing it is. */
 @Composable
-private fun HitRow(hit: SearchHit, nav: Navigator, c: AppContainer) {
+private fun HitRow(hit: SearchHit, nav: Navigator, c: AppContainer, ambiguousArtists: Set<String> = emptySet()) {
     val searchTitle = stringResource(R.string.ctx_search)
     val (title, subtitle, art) = when (hit) {
-        is SearchHit.ArtistHit -> Triple(hit.artist.name, stringResource(R.string.search_hit_artist), Triple(hit.artist.id, listOf(hit.artist.color, "#1B1B1F", hit.artist.color), true))
+        is SearchHit.ArtistHit -> Triple(
+            hit.artist.name,
+            hit.artist.genres.firstOrNull()?.takeIf { hit.artist.name in ambiguousArtists }
+                ?.let { stringResource(R.string.search_hit_artist_genre, it) } ?: stringResource(R.string.search_hit_artist),
+            Triple(hit.artist.id, listOf(hit.artist.color, "#1B1B1F", hit.artist.color), true),
+        )
         is SearchHit.AlbumHit -> Triple(hit.album.title, stringResource(R.string.search_hit_album, hit.artistName), Triple(hit.album.id, hit.album.colors, false))
         is SearchHit.SongHit -> Triple(hit.track.track.title, stringResource(R.string.search_hit_song, hit.track.artist.name), Triple(hit.track.album.id, hit.track.album.colors, false))
         is SearchHit.PlaylistHit -> Triple(hit.playlist.title, stringResource(R.string.search_hit_playlist, if (hit.playlist.userCreated) stringResource(R.string.search_hit_yours) else hit.playlist.curator.ifBlank { "Cadence" }), Triple(hit.playlist.id, hit.playlist.colors, false))
@@ -362,7 +380,8 @@ private fun HitRow(hit: SearchHit, nav: Navigator, c: AppContainer) {
         is SearchHit.SongHit -> hit.track.album.cover
         is SearchHit.LyricHit -> hit.track.album.cover
         is SearchHit.PlaylistHit -> hit.playlist.cover
-        is SearchHit.ArtistHit -> hit.artist.cover
+        // The artist's photo, else their newest album's cover, as the library's artist rows already do.
+        is SearchHit.ArtistHit -> remember(hit.artist.id, hit.artist.cover) { artistArt(hit.artist, c.repository.albumsOfArtist(hit.artist.id)) }
     }
     ListItem(
         leadingContent = {

@@ -140,6 +140,8 @@ data class Catalog(
     val playlists: List<Playlist>,
     /** The account's own library at the time of the snapshot; empty in older snapshots. */
     val account: AccountLibrary = AccountLibrary(),
+    /** Which catalogue artist owns each artist display id (first binding wins); empty in older snapshots. */
+    val artistBindings: Map<String, String> = emptyMap(),
 )
 
 /**

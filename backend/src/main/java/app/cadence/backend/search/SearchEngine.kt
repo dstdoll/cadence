@@ -30,6 +30,12 @@ sealed interface SearchHit {
     }
 }
 
+/**
+ * The same hits with at most one per [SearchHit.key], first occurrence kept. A lazy list crashes the
+ * app when two rows share a key, so every list that reaches the screen passes through this.
+ */
+fun List<SearchHit>.uniqueByKey(): List<SearchHit> = distinctBy { it.key }
+
 /** Everything searchable for one scope (whole catalog, or just the user's library). */
 data class SearchCorpus(
     val artists: List<Artist>,
@@ -83,13 +89,13 @@ object SearchEngine {
             c.lyrics[t.id]?.firstOrNull { fold(it).contains(q) }?.let { SearchHit.LyricHit(t, it, 20) }
         }
         val byType = mapOf(
-            HitType.Artist to artists.sortedByDescending { it.score },
-            HitType.Album to albums.sortedByDescending { it.score },
-            HitType.Song to songs.sortedByDescending { it.score },
-            HitType.Playlist to playlists.sortedByDescending { it.score },
-            HitType.Lyric to lyrics,
+            HitType.Artist to artists.sortedByDescending { it.score }.uniqueByKey(),
+            HitType.Album to albums.sortedByDescending { it.score }.uniqueByKey(),
+            HitType.Song to songs.sortedByDescending { it.score }.uniqueByKey(),
+            HitType.Playlist to playlists.sortedByDescending { it.score }.uniqueByKey(),
+            HitType.Lyric to lyrics.uniqueByKey(),
         ).filterValues { it.isNotEmpty() }
-        val top = (artists + albums + songs + playlists).sortedByDescending { it.score }.take(12) + lyrics.take(3)
+        val top = (artists + albums + songs + playlists).sortedByDescending { it.score }.uniqueByKey().take(12) + lyrics.uniqueByKey().take(3)
         return SearchResults(top, byType)
     }
 

@@ -38,8 +38,19 @@ class RealCatalog(
     private val trackMap = OrderedCache<String, TrackInfo>()
     private val loadedAlbums: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
     private val loadedArtists: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
-    /** display artist id (`ar:<name>`) -> numeric catalogue id, taken from relationships. */
+    /**
+     * display artist id -> numeric catalogue id. First binding wins (see [bindCatalogId]); the base ids
+     * (`ar:<name>`) are persisted with the catalogue so that "who owns the name" survives a restart.
+     * A qualified id (`arx:<id>:<name>`) carries its catalogue id and needs no entry.
+     */
     private val realArtistIds = java.util.concurrent.ConcurrentHashMap<String, String>()
+    /** The album ids an artist's own calls returned (its views and its albums endpoint), by display id. */
+    private val artistAlbums = java.util.concurrent.ConcurrentHashMap<String, List<String>>()
+    private val saveLock = Any()
+    private val saveScheduler by lazy {
+        java.util.concurrent.Executors.newSingleThreadScheduledExecutor { r -> Thread(r, "cadence-catalog-save").apply { isDaemon = true } }
+    }
+    private var pendingSave: java.util.concurrent.ScheduledFuture<*>? = null
 
     override val artists: List<Artist> get() = artistMap.values
     override val albums: List<Album> get() = albumMap.values
@@ -52,7 +63,7 @@ class RealCatalog(
 
     /** Registers a name-only artist unless a richer record is already cached. */
     private fun placeholderArtist(artistId: String) =
-        artistMap.putIfAbsent(artistId, Artist(artistId, artistId.removePrefix("ar:"), "", "#888888"))
+        artistMap.putIfAbsent(artistId, Artist(artistId, ArtistIds.nameOf(artistId).ifBlank { "Unknown Artist" }, "", "#888888"))
 
     @Volatile private var homeShelves: List<HomeShelf> = emptyList()
     override val shelves: List<HomeShelf> get() = homeShelves
@@ -144,19 +155,25 @@ class RealCatalog(
 
     private fun mapPlaylistTrack(song: JSONObject): String? {
         val attrs = song.optJSONObject("attributes") ?: return null
-        val artist = Mapping.artistFromName(attrs.optString("artistName"))
-        artistMap.putIfAbsent(artist.id, artist)
+        val artistId = resolveArtistId(ArtistIds.base(attrs.optString("artistName")), song)
+        placeholderArtist(artistId)
+        val artist = artistMap.getValue(artistId)
         val albumId = song.optJSONObject("relationships")?.optJSONObject("albums")
             ?.optJSONArray("data")?.optJSONObject(0)?.optString("id")?.takeIf { it.isNotBlank() }
             ?: "plalb:${attrs.optString("albumName")}:${artist.id}"
         val album = albumMap[albumId] ?: Mapping.albumFromSong(song, albumId, artist.id).also { albumMap[albumId] = it }
-        val tr = Mapping.track(song, albumId) ?: return null
+        val tr = Mapping.track(song, albumId)?.copy(artistId = artistId) ?: return null
         trackMap[tr.id] = TrackInfo(tr, album, artist)
         return tr.id
     }
 
+    /**
+     * The artist's own albums once their page has loaded (what Apple returned for that very artist),
+     * so two artists with one name never share a list; before that, the albums credited to the id.
+     */
     override fun albumsOfArtist(artistId: String): List<Album> =
-        albumMap.values.filter { it.artistId == artistId }
+        artistAlbums[artistId]?.mapNotNull(albumMap::get)?.takeIf { it.isNotEmpty() }
+            ?: albumMap.values.filter { it.artistId == artistId }
 
     /** Fills album tracklists for the visible search results, off the main thread. */
     suspend fun prefetchAlbums(albumIds: Collection<String>, limit: Int = 4) {
@@ -209,12 +226,13 @@ class RealCatalog(
             val doc = json.decodeFromString<Catalog>(file.readText())
             if (doc.albums.isEmpty()) return false
             doc.artists.forEach { artistMap[it.id] = it }
+            doc.artistBindings.forEach { (id, catalogId) -> realArtistIds.putIfAbsent(id, catalogId) }
             doc.albums.forEach { albumMap[it.id] = it }
             synchronized(playlistsLock) { personalPlaylists = personalPlaylists + doc.playlists }
             account = doc.account
             doc.tracks.forEach { t ->
                 val album = albumMap[t.albumId] ?: return@forEach
-                val artist = artistMap[t.artistId] ?: Artist(t.artistId, t.artistId.removePrefix("ar:"), "", "#888888")
+                val artist = artistMap[t.artistId] ?: Artist(t.artistId, ArtistIds.nameOf(t.artistId), "", "#888888")
                 artistMap[artist.id] = artist
                 trackMap[t.id] = TrackInfo(t, album, artist)
             }
@@ -226,17 +244,32 @@ class RealCatalog(
 
     fun saveCache() {
         val file = cacheFile ?: return
-        runCatching {
-            val doc = Catalog(
-                artists = artistMap.values.toList(),
-                albums = albumMap.values.toList(),
-                tracks = trackMap.values.map { it.track },
-                playlists = personalPlaylists.toList(),
-                account = account,
-            )
-            file.parentFile?.mkdirs()
-            file.writeText(json.encodeToString(Catalog.serializer(), doc))
-            CadenceLog.i("cache", "saved albums=" + doc.albums.size + " bytes=" + file.length())
+        synchronized(saveLock) {
+            runCatching {
+                val doc = Catalog(
+                    artists = artistMap.values.toList(),
+                    albums = albumMap.values.toList(),
+                    tracks = trackMap.values.map { it.track },
+                    playlists = personalPlaylists.toList(),
+                    account = account,
+                    artistBindings = realArtistIds.toMap(),
+                )
+                file.parentFile?.mkdirs()
+                file.writeText(json.encodeToString(Catalog.serializer(), doc))
+                CadenceLog.i("cache", "saved albums=" + doc.albums.size + " bytes=" + file.length())
+            }
+        }
+    }
+
+    /**
+     * The snapshot is otherwise written only by the login load sequence, so an artist-id binding made by
+     * a search would be lost if the process died: save it shortly after (several bindings, one write).
+     */
+    private fun scheduleSave() {
+        if (cacheFile == null) return
+        synchronized(saveLock) {
+            pendingSave?.cancel(false)
+            pendingSave = saveScheduler.schedule({ saveCache() }, 2, java.util.concurrent.TimeUnit.SECONDS)
         }
     }
 
@@ -615,6 +648,11 @@ class RealCatalog(
     /** Biography, origin and Apple's curated views for one artist, registered under [artistId]. */
     private suspend fun loadArtistDetail(artistId: String, realId: String) {
         val res = engine.artist(realId)?.optJSONArray("data")?.optJSONObject(0) ?: return
+        applyArtistDetail(artistId, res)
+    }
+
+    /** What an artist resource (with its views) means for [artistId] (the request is apart, for tests). */
+    internal fun applyArtistDetail(artistId: String, res: JSONObject) {
         val attrs = res.optJSONObject("attributes") ?: return
         val mapped = Mapping.artist(res) ?: return
         val genres = attrs.optJSONArray("genreNames")?.let { g -> (0 until g.length()).map(g::optString) }.orEmpty()
@@ -628,47 +666,117 @@ class RealCatalog(
         )
         fun view(name: String) = res.optJSONObject("views")?.optJSONObject(name)?.optJSONArray("data")
         artistTop[artistId] = hitsOf(view("top-songs")).filterIsInstance<SearchHit.SongHit>().map { it.track.id }
-        for (name in listOf("latest-release", "full-albums", "singles")) hitsOf(view(name))
+        // The albums of this artist's own views belong to this artist (see adoptAlbum).
+        for (name in listOf("latest-release", "full-albums", "singles")) {
+            hitsOf(view(name)).filterIsInstance<SearchHit.AlbumHit>().forEach { adoptAlbum(artistId, it.album) }
+        }
         artistSimilar[artistId] = hitsOf(view("similar-artists")).filterIsInstance<SearchHit.ArtistHit>().map { it.artist.id }
         artistFeatured[artistId] = hitsOf(view("featured-playlists")).filterIsInstance<SearchHit.PlaylistHit>().map { it.playlist.id }
         CadenceLog.i("artist", "'${mapped.name}' bio=${bio.length} top=${artistTop[artistId]?.size} " +
             "similar=${artistSimilar[artistId]?.size} playlists=${artistFeatured[artistId]?.size}")
     }
 
-    /** Registers the display artist and, when the resource names it, its catalogue id. */
-    private fun rememberArtist(artistId: String, resource: JSONObject?) {
-        val name = artistId.removePrefix("ar:")
-        placeholderArtist(artistId)
-        val related = resource?.optJSONObject("relationships")?.optJSONObject("artists")?.optJSONArray("data") ?: return
-        // "A & B" credits list several artists; only an exact name match (or a sole artist)
-        // identifies which catalogue id belongs to this display name.
+    /**
+     * The display id of the artist a resource credits. Albums and songs only carry `artistName`, so the
+     * legacy id is the name-based base id. When the resource's `relationships.artists` names exactly one
+     * catalogue artist (or one whose name matches), that artist's own id is used: the base id if it owns
+     * the name, a qualified id if another artist does. Credits like "A & B" that match nothing stay
+     * name-based. (Apple documents these relationships as ids only, so in practice the sole-artist rule
+     * is what resolves.)
+     */
+    private fun resolveArtistId(legacyId: String, resource: JSONObject?): String {
+        val name = ArtistIds.nameOf(legacyId)
+        val related = resource?.optJSONObject("relationships")?.optJSONObject("artists")?.optJSONArray("data") ?: return legacyId
         val match = (0 until related.length()).mapNotNull(related::optJSONObject)
             .firstOrNull { it.optJSONObject("attributes")?.optString("name").equals(name, ignoreCase = true) }
             ?: related.optJSONObject(0)?.takeIf { related.length() == 1 }
-        match?.optString("id")?.takeIf { it.isNotBlank() }?.let { realArtistIds[artistId] = it }
+        val catalogId = match?.optString("id")?.takeIf { it.isNotBlank() } ?: return legacyId
+        return displayIdFor(catalogId, name)
     }
+
+    /**
+     * The display id for a catalogue artist: the base id `ar:<name>` when this artist owns the name
+     * (binding it if nobody does yet), otherwise the qualified id that carries the catalogue id.
+     */
+    internal fun displayIdFor(catalogId: String, name: String): String {
+        val base = ArtistIds.base(name)
+        return if (bindCatalogId(base, catalogId)) base else ArtistIds.qualified(name, catalogId)
+    }
+
+    /** The numeric catalogue id an artist row opens (test hook for the display-id -> catalogue-id map). */
+    internal fun realArtistId(displayId: String): String? = ArtistIds.catalogIdOf(displayId) ?: realArtistIds[displayId]
+
+    /**
+     * Binds a display artist to a catalogue id, only when none is bound yet. Artists are identified by
+     * name here and Apple has different artists with the same name, so the several code paths that learn
+     * an id (search artists, the `relationships.artists` of album/song hits, the artist page) must not
+     * overwrite each other: the first binding stays. Returns whether the display id is bound to
+     * [catalogId] afterwards.
+     */
+    internal fun bindCatalogId(displayId: String, catalogId: String): Boolean {
+        if (catalogId.isBlank()) return false
+        val previous = realArtistIds.putIfAbsent(displayId, catalogId)
+        if (previous == null && !ArtistIds.isQualified(displayId)) scheduleSave()
+        return previous == null || previous == catalogId
+    }
+
+    /**
+     * Two artists with one name in one response (e.g. the two "Joey Yung"s): which owns the plain name
+     * is decided by the rule the artist page always used (the first exact-name match of a name search,
+     * [lookup]), not by their order in this response, so a follow stored before ids were qualified keeps
+     * pointing at the same artist. One extra request, only for a name that collides and is not bound yet.
+     */
+    internal suspend fun bindCollidingNames(root: JSONObject, lookup: suspend (String) -> String?) {
+        val data = root.optJSONObject("results")?.optJSONObject("artists")?.optJSONArray("data") ?: return
+        val idsByName = LinkedHashMap<String, MutableList<String>>()
+        for (i in 0 until data.length()) {
+            val item = data.optJSONObject(i) ?: continue
+            val id = item.optString("id").takeIf { it.isNotBlank() } ?: continue
+            val name = item.optJSONObject("attributes")?.optString("name")?.takeIf { it.isNotBlank() } ?: continue
+            idsByName.getOrPut(name) { ArrayList() }.add(id)
+        }
+        for ((name, ids) in idsByName) {
+            if (ids.distinct().size < 2 || realArtistIds.containsKey(ArtistIds.base(name))) continue
+            val owner = lookup(name)?.takeIf { it in ids } ?: continue
+            bindCatalogId(ArtistIds.base(name), owner)
+        }
+    }
+
+    /** The artist page's long-standing rule: the first exact-name match of an artist search. */
+    private suspend fun legacyArtistLookup(name: String): String? =
+        engine.get("search?term=${java.net.URLEncoder.encode(name, "UTF-8")}&types=artists&limit=5")
+            ?.optJSONObject("results")?.optJSONObject("artists")?.optJSONArray("data")?.let { data ->
+                (0 until data.length()).mapNotNull(data::optJSONObject)
+                    .firstOrNull { it.optJSONObject("attributes")?.optString("name").equals(name, ignoreCase = true) }
+                    ?.optString("id")?.takeIf { it.isNotBlank() }
+            }
 
     private fun artistHit(json: JSONObject, score: Int): SearchHit? {
         val found = Mapping.artist(json) ?: return null
+        // The artist's own display id: the plain name if it owns it, else the qualified id.
+        val catalogId = json.optString("id").takeIf { it.isNotBlank() }
+        val displayId = if (catalogId != null) displayIdFor(catalogId, found.name) else found.id
+        val candidate = if (displayId == found.id) found else found.copy(id = displayId)
         // A list entry carries no biography; keep the one a detail load already stored.
-        val artist = artistMap[found.id]?.takeIf { it.bio.isNotBlank() }?.copy(color = found.color, cover = found.cover) ?: found
-        artistMap[artist.id] = artist
-        json.optString("id").takeIf { it.isNotBlank() }?.let { realArtistIds[artist.id] = it }
+        val artist = artistMap[displayId]?.takeIf { it.bio.isNotBlank() }?.copy(color = candidate.color, cover = candidate.cover) ?: candidate
+        artistMap[displayId] = artist
         return SearchHit.ArtistHit(artist, score)
     }
 
     private fun albumHit(json: JSONObject, score: Int): SearchHit? {
-        val album = Mapping.album(json) ?: return null
+        val found = Mapping.album(json) ?: return null
+        val album = found.copy(artistId = resolveArtistId(found.artistId, json))
         albumMap[album.id] = album
-        rememberArtist(album.artistId, json)
-        return SearchHit.AlbumHit(album, album.artistId.removePrefix("ar:"), score)
+        placeholderArtist(album.artistId)
+        return SearchHit.AlbumHit(album, ArtistIds.nameOf(album.artistId), score)
     }
 
     private val albumIdInUrl = Regex("/album/[^/]+/(\\d+)")
 
     private fun songHit(json: JSONObject, score: Int): SearchHit? {
         val attrs = json.optJSONObject("attributes") ?: return null
-        val artistId = "ar:" + attrs.optString("artistName")
+        val artistId = resolveArtistId(ArtistIds.base(attrs.optString("artistName")), json)
+        placeholderArtist(artistId)
         // The song's own album: the included relationship when present, else the id in its URL
         // (`.../album/<slug>/<albumId>?i=<songId>`). Never an id derived from the album's name.
         val related = json.optJSONObject("relationships")?.optJSONObject("albums")?.optJSONArray("data")?.optJSONObject(0)
@@ -679,10 +787,9 @@ class RealCatalog(
             ?: related?.let(Mapping::album)
             ?: Mapping.albumFromSong(json, albumId, artistId)
         albumMap[albumId] = album
-        rememberArtist(album.artistId, related)
-        val track = Mapping.track(json, albumId) ?: return null
-        rememberArtist(track.artistId, json)
-        val info = TrackInfo(track, album, artistMap.getValue(track.artistId))
+        placeholderArtist(album.artistId)
+        val track = Mapping.track(json, albumId)?.copy(artistId = artistId) ?: return null
+        val info = TrackInfo(track, album, artistMap.getValue(artistId))
         trackMap[track.id] = info
         return SearchHit.SongHit(info, score)
     }
@@ -694,12 +801,34 @@ class RealCatalog(
         return SearchHit.PlaylistHit(playlist, score)
     }
 
-    /** Maps Apple resources to hits in the order given; the score only encodes that order. */
-    private fun hitsOf(data: JSONArray?): List<SearchHit> {
+    /**
+     * What makes two Apple resources the same row: Apple's own id. (Two different artists can share a
+     * name; they get different display ids in [artistHit], so only a true repeat is dropped here.)
+     */
+    private fun resourceIdentity(json: JSONObject): String? {
+        val type = json.optString("type")
+        return when (type) {
+            // An artist is the catalogue artist (two artists may share a name); the others by Apple's id.
+            "artists", "albums", "songs", "playlists" ->
+                json.optString("id").takeIf { it.isNotBlank() }?.let { "$type:$it" }
+                    ?: if (type == "artists") Mapping.artist(json)?.id?.let { "$type:$it" } else null
+            else -> null
+        }
+    }
+
+    /**
+     * Maps Apple resources to hits in the order given; the score only encodes that order. A resource
+     * that repeats an earlier one's identity is skipped before it is mapped: the first (Apple's best
+     * ranked) stays the row, and its caches are not overwritten by the repeat.
+     */
+    internal fun hitsOf(data: JSONArray?): List<SearchHit> {
         if (data == null) return emptyList()
         val out = ArrayList<SearchHit>(data.length())
+        val seen = HashSet<String>()
         for (i in 0 until data.length()) {
             val json = data.optJSONObject(i) ?: continue
+            val identity = resourceIdentity(json) ?: continue
+            if (!seen.add(identity)) continue
             val score = (100 - out.size).coerceAtLeast(1)
             val hit = when (json.optString("type")) {
                 "artists" -> artistHit(json, score)
@@ -724,6 +853,17 @@ class RealCatalog(
      */
     suspend fun search(term: String): SearchResults {
         val root = engine.search(term) ?: return SearchResults(emptyList(), emptyMap())
+        return searchFrom(root, term, ::legacyArtistLookup)
+    }
+
+    /** [search] on Apple's response: settle which colliding artist owns a plain name, then build the lists. */
+    internal suspend fun searchFrom(root: JSONObject, term: String, lookup: suspend (String) -> String?): SearchResults {
+        bindCollidingNames(root, lookup)
+        return resultsFrom(root, term)
+    }
+
+    /** The result building of [search] on Apple's response, apart from the request (testable offline). */
+    internal fun resultsFrom(root: JSONObject, term: String): SearchResults {
         val results = root.optJSONObject("results") ?: return SearchResults(emptyList(), emptyMap())
         val byKey = HashMap<String, List<SearchHit>>()
         val byType = LinkedHashMap<HitType, List<SearchHit>>()
@@ -776,18 +916,14 @@ class RealCatalog(
      */
     override suspend fun prepareArtist(artistId: String): List<Album> = artistLoad.withLock {
         if (artistId !in loadedArtists) {
-            val name = artistMap[artistId]?.name ?: artistId.removePrefix("ar:")
-            val realId = realArtistIds[artistId] ?: engine.get(
-                "search?term=${java.net.URLEncoder.encode(name, "UTF-8")}&types=artists&limit=5",
-            )?.optJSONObject("results")?.optJSONObject("artists")?.optJSONArray("data")?.let { data ->
-                (0 until data.length()).mapNotNull(data::optJSONObject)
-                    .firstOrNull { it.optJSONObject("attributes")?.optString("name").equals(name, ignoreCase = true) }
-                    ?.optString("id")?.takeIf { it.isNotBlank() }
-            }
+            val name = artistMap[artistId]?.name ?: ArtistIds.nameOf(artistId)
+            // A qualified id carries its catalogue id; a base id is bound, else found by the name search.
+            val realId = ArtistIds.catalogIdOf(artistId) ?: realArtistIds[artistId] ?: legacyArtistLookup(name)
             if (realId != null) {
-                realArtistIds[artistId] = realId
-                loadArtistDetail(artistId, realId)
-                loadArtistAlbums(realId)
+                bindCatalogId(artistId, realId)
+                val bound = ArtistIds.catalogIdOf(artistId) ?: realArtistIds[artistId] ?: realId
+                loadArtistDetail(artistId, bound)
+                loadArtistAlbums(artistId, bound)
                 loadedArtists += artistId
             } else {
                 CadenceLog.i("artist", "no catalogue id for '$name'; showing cached albums only")
@@ -803,7 +939,8 @@ class RealCatalog(
         loadedAlbums += albumId
         for (i in 0 until data.length()) {
             val json = data.optJSONObject(i) ?: continue
-            val t = Mapping.track(json, albumId) ?: continue
+            val parsed = Mapping.track(json, albumId) ?: continue
+            val t = resolveArtistId(parsed.artistId, json).let { id -> if (id == parsed.artistId) parsed else parsed.copy(artistId = id) }
             val album = albumMap[albumId] ?: Album(
                 id = albumId, title = "", artistId = t.artistId, year = 0,
                 genre = "Music", colors = listOf("#6750A4", "#21005D"),
@@ -815,16 +952,36 @@ class RealCatalog(
     }
 
     /** Enumerates an artist's albums using the numeric catalogue id. */
-    suspend fun loadArtistAlbums(realId: String) {
+    suspend fun loadArtistAlbums(displayId: String, realId: String) {
         if (realId.isBlank()) return
-        loadedArtists += "ar:$realId"
         val root = engine.artistAlbums(realId) ?: return
+        applyArtistAlbums(displayId, root)
+    }
+
+    /** What an artist's albums response means for [displayId] (the request is apart, for tests). */
+    internal fun applyArtistAlbums(displayId: String, root: JSONObject) {
         val data = root.optJSONArray("data") ?: return
         for (i in 0 until data.length()) {
             val alb = Mapping.album(data.optJSONObject(i) ?: continue) ?: continue
             albumMap[alb.id] = alb
             placeholderArtist(alb.artistId)
-            realArtistIds[alb.artistId] = realId
+            adoptAlbum(displayId, alb)
+        }
+    }
+
+    /**
+     * An album returned by this artist's own calls belongs to this artist: it joins the artist's album
+     * list, and an album credited to exactly this artist's name (a base id, i.e. not already resolved to a
+     * catalogue artist) is re-credited to this display id, so its artist link opens this artist and not
+     * whichever artist owns the plain name.
+     */
+    private fun adoptAlbum(displayId: String, album: Album) {
+        artistAlbums.merge(displayId, listOf(album.id)) { old, new -> (old + new).distinct() }
+        if (album.artistId != displayId && !ArtistIds.isQualified(album.artistId) &&
+            ArtistIds.nameOf(album.artistId) == ArtistIds.nameOf(displayId)
+        ) {
+            albumMap[album.id] = album.copy(artistId = displayId)
+            placeholderArtist(displayId)
         }
     }
 }

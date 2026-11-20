@@ -642,6 +642,7 @@
     <string name="ctx_pinned">Fijados</string>
     <string name="ctx_search">Búsqueda</string>
     <string name="search_hit_artist">Artista</string>
+    <string name="search_hit_artist_genre">Artista · %1$s</string>
     <string name="search_hit_album">Álbum · %1$s</string>
     <string name="search_hit_song">Canción · %1$s</string>
     <string name="search_hit_playlist">Lista · %1$s</string>

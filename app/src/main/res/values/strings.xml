@@ -644,6 +644,7 @@
     <string name="ctx_pinned">Pinned</string>
     <string name="ctx_search">Search</string>
     <string name="search_hit_artist">Artist</string>
+    <string name="search_hit_artist_genre">Artist · %1$s</string>
     <string name="search_hit_album">Album · %1$s</string>
     <string name="search_hit_song">Song · %1$s</string>
     <string name="search_hit_playlist">Playlist · %1$s</string>

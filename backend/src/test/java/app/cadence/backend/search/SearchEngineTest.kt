@@ -91,4 +91,20 @@ class SearchEngineTest {
         val picks = Recommender.heavyRotation(tracks, seedIds = emptySet(), exclude = emptySet(), count = 2, random = Random(5))
         assertEquals(2, picks.size)
     }
+
+    @Test fun aCorpusThatRepeatsAnEntryNeverYieldsTwoRowsWithOneKey() {
+        val repeated = corpus.copy(artists = listOf(nova, nova, tide), tracks = tracks + tracks.first())
+        val res = SearchEngine.search(repeated, "golden")
+        for ((type, hits) in res.byType) assertEquals("duplicate keys in $type: ${hits.map { it.key }}", hits.map { it.key }.distinct(), hits.map { it.key })
+        assertEquals(res.top.map { it.key }.distinct(), res.top.map { it.key })
+        assertEquals(1, SearchEngine.search(repeated, "nova").byType.getValue(HitType.Artist).size)
+    }
+
+    @Test fun uniqueByKeyKeepsTheFirstOfEachAndTheOrder() {
+        val a1 = SearchHit.ArtistHit(nova, 90)
+        val a2 = SearchHit.ArtistHit(nova.copy(name = "Nova Again"), 80)
+        val b = SearchHit.ArtistHit(tide, 70)
+        assertEquals(listOf(a1, b), listOf(a1, a2, b).uniqueByKey())
+        assertEquals(emptyList<SearchHit>(), emptyList<SearchHit>().uniqueByKey())
+    }
 }
