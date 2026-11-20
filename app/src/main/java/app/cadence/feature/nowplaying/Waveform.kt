@@ -59,6 +59,7 @@ fun WaveformBar(
     // rather than stepping with each analyser block. `frame` is written by the loop and read in
     // the draw lambdas, so a new frame redraws the bar without recomposing it (a recomposition
     // also rebuilt the blur's RenderEffect).
+    val realBlur = remember { app.cadence.core.theme.ApiCompat.supportsRenderEffect() }
     val pulse = remember { WavePulse() }
     var frame by remember { mutableLongStateOf(0L) }
     val playingNow by rememberUpdatedState(isPlaying)
@@ -75,7 +76,7 @@ fun WaveformBar(
     val playedBars by remember(stepPx) { derivedStateOf { playedBarCount(currentFraction().coerceIn(0f, 1f), widthPx, stepPx) } }
 
     Box(modifier.fillMaxWidth().height(40.dp).graphicsLayer().onSizeChanged { widthPx = it.width.toFloat() }) {
-        if (neon) {
+        if (neon && realBlur) {
             // The light: the played part drawn wide and blurred, breathing with level and bass hits.
             Canvas(Modifier.matchParentSize().blur(9.dp, BlurredEdgeTreatment.Unbounded)) {
                 @Suppress("UNUSED_EXPRESSION") frame
@@ -83,6 +84,31 @@ fun WaveformBar(
                 val step = 3.dp.toPx()
                 val heights = cache.heights(hub.waveLevels, version, max(1, (size.width / step).toInt()))
                 drawBars(heights, step, playedProgress(playedBars, size.width, step), accent.copy(alpha = (0.55f * glow).coerceIn(0f, 1f)), Color.Transparent, widen = 2.4f, mirror = true, grow = 1.25f)
+            }
+        } else if (neon) {
+            // The same light without `Modifier.blur`, which is Android 12+ and a silent no-op below:
+            // the wide bars used to land unblurred, as hard blocks behind the waveform.
+            //
+            // The played bars are one cached path, stroked three times -- wider and fainter each
+            // time -- so the edges fall off instead of stopping. A shadow layer on that path was
+            // the obvious way and looked best, but this Mali GPU renders path shadows in software
+            // every frame: it took the median frame from 7 to 18 ms. Stacked strokes cost the GPU
+            // next to nothing.
+            Canvas(Modifier.matchParentSize()) {
+                @Suppress("UNUSED_EXPRESSION") frame
+                val glow = if (isPlaying) (0.45f + 0.55f * pulse.level + 0.6f * pulse.hit).coerceIn(0f, 1.4f) else 0.35f
+                val step = 3.dp.toPx()
+                val heights = cache.heights(hub.waveLevels, version, max(1, (size.width / step).toInt()))
+                val path = cache.glowPath(heights, step, playedBars, size, version, 2.dp.toPx())
+                for ((width, alpha) in GLOW_PASSES) {
+                    drawPath(
+                        path, accent, alpha = (alpha * glow).coerceIn(0f, 1f),
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(
+                            width.dp.toPx(), join = androidx.compose.ui.graphics.StrokeJoin.Round,
+                        ),
+                    )
+                }
+                drawPath(path, accent, alpha = (0.32f * glow).coerceIn(0f, 1f))
             }
         }
         Canvas(Modifier.matchParentSize()) {
@@ -124,17 +150,33 @@ private class WavePulse {
     fun tick(nanos: Long, levels: app.cadence.playback.WaveLevels, playing: Boolean) {
         val dt = if (lastNanos == 0L) 1f / 60f else min(0.05f, (nanos - lastNanos) / 1e9f)
         lastNanos = nanos
+        // Asymmetric, as the neon tube's bands are: quick to rise so a beat lands on the beat,
+        // slower to fall so the bar settles instead of twitching. One shared time constant for
+        // both directions made the rise as slow as the fall, which read as the bar lagging.
         val target = if (playing) levels.level else 0f
-        level += (target - level) * (1f - exp(-dt / LEVEL_S))
-        // A hit rises at once and falls away smoothly, instead of dropping with the next block.
-        hit = max(if (playing) levels.hit else 0f, hit * exp(-dt / HIT_S))
+        val k = if (target > level) LEVEL_ATTACK_S else LEVEL_RELEASE_S
+        level += (target - level) * (1f - exp(-dt / k))
+        // The hit rises fast but not in one frame -- an instant jump is a step, and at 43 blocks a
+        // second the step is what reads as choppy -- and falls away quickly so the flash is crisp.
+        val hitTarget = if (playing) levels.hit else 0f
+        val kh = if (hitTarget > hit) HIT_ATTACK_S else HIT_RELEASE_S
+        hit += (hitTarget - hit) * (1f - exp(-dt / kh))
     }
 
     private companion object {
-        const val LEVEL_S = 0.10f
-        const val HIT_S = 0.16f
+        /**
+         * The attack is long enough to still be moving when the next analyser block arrives
+         * (one every ~23 ms), so the motion carries across blocks instead of stopping on each.
+         */
+        const val LEVEL_ATTACK_S = 0.035f
+        const val LEVEL_RELEASE_S = 0.18f
+        const val HIT_ATTACK_S = 0.025f
+        const val HIT_RELEASE_S = 0.12f
     }
 }
+
+/** The glow's strokes below Android 12: (width in dp, alpha), widest and faintest first. */
+private val GLOW_PASSES = listOf(9f to 0.10f, 6f to 0.16f, 3.5f to 0.24f)
 
 /** Each column takes the loudest of the slices it covers; 0 stays 0 (not measured). */
 internal fun columnHeights(levels: IntArray, columns: Int): FloatArray {
@@ -201,7 +243,36 @@ internal class BarCache {
         return neonPlayedBrush(key, until).also { brush = it; brushAccent = key; brushUntil = until }
     }
 
+    private val glow = Path()
+    private var glowVersion = -1
+    private var glowPlayed = -1
+    private var glowSize = Size.Zero
+
+    /**
+     * The played bars as one path, for the stroked glow below Android 12. Rebuilt only when
+     * another bar becomes played, the waveform changes or the bar is resized -- not per frame,
+     * which is when only its colour and blur radius move.
+     */
+    fun glowPath(heights: FloatArray, step: Float, played: Int, size: Size, version: Int, flat: Float): Path {
+        if (played == glowPlayed && version == glowVersion && size == glowSize) return glow
+        glow.rewind()
+        val bar = step * 2f / 3f * GLOW_WIDEN
+        for (c in 0 until played.coerceAtMost(heights.size)) {
+            val x = c * step + (step * 2f / 3f - bar) / 2f
+            val h = (if (heights[c] > 0f) max(flat, heights[c] * size.height) else flat) * GLOW_GROW
+            val top = (size.height - h) / 2f
+            glow.addRoundRect(
+                androidx.compose.ui.geometry.RoundRect(x, top, x + bar, top + h, CornerRadius(bar / 2f, bar / 2f)),
+            )
+        }
+        glowPlayed = played; glowVersion = version; glowSize = size
+        return glow
+    }
+
     private companion object {
+        /** The glow's bars are a little wider and taller than the bars they light. */
+        const val GLOW_WIDEN = 1.6f
+        const val GLOW_GROW = 1.15f
         /** Colour channels to 1/32: finer than the panel shows on a bar this size. */
         fun quantise(v: Float): Float = kotlin.math.round(v * 32f) / 32f
         /** Playhead to four pixels, which is under half a bar. */
