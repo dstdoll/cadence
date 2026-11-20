@@ -190,7 +190,7 @@ impl KeyRequest {
     ///
     /// A well-formed request asks for the shared context with [`PRESHARE_ADAM_ID`] and an
     /// uppercase-`P` URI, or a track with its `adamId` and a lowercase-`p` URI.
-    pub fn uri_concuerda_con_adam_id(&self) -> bool {
+    pub fn uri_matches_adam_id(&self) -> bool {
         match classify_key_uri(&self.key_uri) {
             Some(KeyUriKind::SharedContext) => self.is_preshare(),
             Some(KeyUriKind::Track) => !self.is_preshare(),
@@ -422,13 +422,13 @@ mod tests {
     #[test]
     fn el_uri_tiene_que_concordar_con_el_adam_id() {
         assert!(req(PRESHARE_ADAM_ID, "skd://itunes.apple.com/P000000000/s1/e1", true)
-            .uri_concuerda_con_adam_id());
+            .uri_matches_adam_id());
         assert!(req("100000001", "skd://itunes.apple.com/p1000000001/c23", true)
-            .uri_concuerda_con_adam_id());
+            .uri_matches_adam_id());
         // cruzados: no
         assert!(!req(PRESHARE_ADAM_ID, "skd://itunes.apple.com/p1000000001/c23", true)
-            .uri_concuerda_con_adam_id());
+            .uri_matches_adam_id());
         assert!(!req("100000001", "skd://itunes.apple.com/P000000000/s1/e1", true)
-            .uri_concuerda_con_adam_id());
+            .uri_matches_adam_id());
     }
 }

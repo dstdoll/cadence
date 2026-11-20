@@ -194,7 +194,7 @@ impl GuidParts {
     ///
     /// A GUID with field 1 zeroed is well-formed but unusable: it occurs when the native blob
     /// could not be queried.
-    pub fn tiene_fairplay(&self) -> bool {
+    pub fn has_fairplay(&self) -> bool {
         self.fairplay1 != padding(FAIRPLAY_LEN)
     }
 }
@@ -298,7 +298,7 @@ mod tests {
         assert_eq!(p.serial, "00000000000000", "sin serial va relleno, no vacío");
         assert_eq!(p.filler1, "00000000000000");
         assert_eq!(p.filler2, "00000000000000");
-        assert!(!p.tiene_fairplay(), "sin la blob el GUID no sirve");
+        assert!(!p.has_fairplay(), "without the blob the GUID is unusable");
     }
 
     #[test]
