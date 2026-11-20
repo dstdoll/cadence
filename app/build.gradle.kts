@@ -16,8 +16,8 @@ android {
         applicationId = "app.cadence"
         minSdk = 31
         targetSdk = 37
-        versionCode = 8
-        versionName = "0.1.7"
+        versionCode = providers.gradleProperty("cadence.versionCode").orNull?.toInt() ?: 8
+        versionName = providers.gradleProperty("cadence.versionName").orNull ?: "0.1.7"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders["extractNativeLibs"] = compressLibs.toString()
         // The native engine only exists for arm64; without this the FFmpeg decoder would also
