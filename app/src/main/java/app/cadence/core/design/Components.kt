@@ -267,6 +267,8 @@ fun TrackDownloadButton(info: TrackInfo) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val downloadJobs by app.cadence.backend.engine.DownloadEngine.jobs.collectAsStateWithLifecycle()
     val downloadJob = downloadJobs.firstOrNull { it.trackId == info.id }
+    // Done this session, or found on the device from an earlier one (the registry survives restarts).
+    val onDevice by app.cadence.backend.engine.media.DownloadRegistry.downloaded.collectAsStateWithLifecycle()
     val haptic = rememberHaptic()
     if (downloadJob?.active == true) {
         Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
@@ -277,7 +279,7 @@ fun TrackDownloadButton(info: TrackInfo) {
             haptic(androidx.compose.ui.hapticfeedback.HapticFeedbackType.SegmentTick)
             downloadSong(ctx, info)
         }) {
-            DownloadStatusIcon(if (downloadJob != null) listOf(downloadJob) else emptyList(), stringResource(R.string.cd_download_song))
+            DownloadStatusIcon(if (downloadJob != null) listOf(downloadJob) else emptyList(), stringResource(R.string.cd_download_song), completed = downloadJob?.phase == "done" || (downloadJob == null && info.id in onDevice))
         }
     }
 }

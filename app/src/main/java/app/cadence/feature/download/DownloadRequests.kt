@@ -47,7 +47,7 @@ object DownloadRequests {
         job?.cancel()
         job = sc.launch {
             val s = store.state.value
-            val existing = withContext(Dispatchers.IO) { runCatching { DownloadRegistry.existing(ctx, items.map { it.trackId }) }.getOrDefault(emptyMap()) }
+            val existing = withContext(Dispatchers.IO) { runCatching { DownloadRegistry.existingFor(ctx, items) }.getOrDefault(emptyMap()) }
             if (existing.isNotEmpty()) {
                 val e = summarizeExisting(items, existing)
                 CadenceLog.i("QUALITY", "request n=${items.size} already downloaded: ${e.songs} song(s) as ${e.specs.joinToString { it.ifBlank { "unknown" } }}")

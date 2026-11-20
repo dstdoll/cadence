@@ -111,7 +111,8 @@ fun TrackActionsSheet(
     val less = info.id in lib.suggestLess
     val downloadJobs by app.cadence.backend.engine.DownloadEngine.jobs.collectAsStateWithLifecycle()
     val dl = downloadJobs.firstOrNull { it.trackId == info.id }
-    val downloaded = dl?.phase == "done"
+    val onDevice by app.cadence.backend.engine.media.DownloadRegistry.downloaded.collectAsStateWithLifecycle()
+    val downloaded = dl?.phase == "done" || (dl == null && info.id in onDevice)
     val downloading = dl?.active == true
     fun go(block: () -> Unit) { onDismiss(); beforeNavigate(); block() }
     fun act(block: () -> Unit) { block(); onDismiss() }
@@ -124,7 +125,7 @@ fun TrackActionsSheet(
         add(SheetAction(
             when { downloaded -> stringResource(R.string.track_downloaded); downloading -> stringResource(R.string.track_downloading); else -> stringResource(R.string.track_download) },
             if (downloaded) Icons.Rounded.DownloadDone else Icons.Rounded.Download,
-        ) { if (!downloaded && !downloading) act { downloadSong(context, info) } else onDismiss() })
+        ) { if (!downloading) act { downloadSong(context, info) } else onDismiss() })
         add(SheetAction(stringResource(R.string.track_play_next), Icons.AutoMirrored.Rounded.PlaylistPlay) { act { c.player.playNext(info) } })
         add(SheetAction(stringResource(R.string.track_play_last), Icons.AutoMirrored.Rounded.QueueMusic) { act { c.player.addToQueue(info) } })
         add(SheetAction(stringResource(R.string.track_share_song), Icons.Rounded.Share) { act { shareSong(context, info, c.repository.storefront) } })

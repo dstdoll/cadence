@@ -49,6 +49,7 @@ class AppContainer(context: Context) {
         app.cadence.feature.download.DownloadRequests.attach(context, settings, scope)
         // What each song's masters offer (cached), so album pages can say "Hi-Res Lossless" when every song has it.
         app.cadence.backend.engine.media.QualityIndex.attach(context)
+        app.cadence.backend.engine.media.DownloadRegistry.attach(context, scope)
     }
 }
 
