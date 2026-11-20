@@ -259,6 +259,55 @@ static AUTH: Mutex<AuthState> = Mutex::new(AuthState {
 });
 static CODE_CV: Condvar = Condvar::new();
 
+/// Donde se guarda el campo 1 del GUID (los 36 hex de FairPlay).
+///
+/// Es el unico de los seis campos que el port no sabe calcular: sale de
+/// `FairPlayGetAndroidGUIDFields`, que es un stub de maquina virtual con aplanado de
+/// control de flujo y no se puede llamar fuera de su contexto (se intento: SIGSEGV). Pero
+/// es **estable para el dispositivo**, asi que basta leerlo una vez de la libreria y
+/// guardarlo; a partir de ahi el GUID lo construye el port entero.
+///
+/// Vive junto a `ANDROID_ID`, al que esta atado y que ya se guarda igual de plano.
+const CACHE_CAMPO1: &str = "fairplay_f1";
+
+/// El campo 1 guardado, si esta y tiene la forma correcta.
+fn campo1_cacheado() -> Option<String> {
+    let v = std::fs::read_to_string(std::path::Path::new(&base_dir()).join(CACHE_CAMPO1)).ok()?;
+    let v = v.trim().to_owned();
+    (v.len() == device_guid::FAIRPLAY_LEN && v.bytes().all(|b| b.is_ascii_hexdigit()))
+        .then_some(v)
+}
+
+/// Guarda el campo 1 para los arranques siguientes. Un fallo no es grave: se vuelve a leer
+/// de la libreria la proxima vez.
+fn cachear_campo1(campo1: &str) {
+    let ruta = std::path::Path::new(&base_dir()).join(CACHE_CAMPO1);
+    match std::fs::write(&ruta, campo1) {
+        Ok(()) => nlog("guid: campo de FairPlay guardado, los proximos arranques no lo piden"),
+        Err(e) => nlog(&format!("guid: no se pudo guardar el campo de FairPlay ({e})")),
+    }
+}
+
+/// El GUID del dispositivo construido **enteramente por el port**, sin llamar a `DeviceGUID`.
+///
+/// Devuelve `None` la primera vez (no hay campo 1 guardado todavia) y cada vez que falte el
+/// ANDROID_ID; el llamador cae a la libreria cerrada. Una vez que hay cache, esta es la ruta
+/// normal y no se toca codigo cerrado para armar el GUID.
+fn guid_del_port() -> Option<String> {
+    let android_id = {
+        let g = CONFIG.lock().ok()?;
+        let c = g.as_ref()?;
+        (!c.android_id.is_empty()).then(|| c.android_id.clone())?
+    };
+    let campo1 = campo1_cacheado()?;
+    Some(device_guid::build(&device_guid::DeviceInfo {
+        android_id,
+        serial: String::new(), // la mayoria de los Android no lo exponen
+        fairplay_field1: Some(campo1),
+        fairplay_field2: None, // en el dispositivo de referencia sale en ceros
+    }))
+}
+
 /// Comprueba que el port `device-guid` reproduce el GUID que arma la libreria cerrada.
 ///
 /// No llama a nada nuevo: toma el GUID que `DeviceGUID::guid()` ya devolvio, le saca el
@@ -290,11 +339,11 @@ fn verificar_guid(de_la_libreria: &str) {
             }
         }
     };
-    let campo1 = de_la_libreria.split('.').next().unwrap_or_default().to_owned();
+    let campo1_leido = de_la_libreria.split('.').next().unwrap_or_default().to_owned();
     let nuestro = device_guid::build(&device_guid::DeviceInfo {
         android_id: android_id.clone(),
         serial: String::new(), // la mayoria de los Android no lo exponen
-        fairplay_field1: Some(campo1),
+        fairplay_field1: Some(campo1_leido.clone()),
         fairplay_field2: None, // en el dispositivo de referencia sale en ceros
     });
     if nuestro == de_la_libreria {
@@ -303,6 +352,11 @@ fn verificar_guid(de_la_libreria: &str) {
             nuestro.len(),
             nuestro.split('.').count(),
         ));
+        // Recien ahora, con la igualdad comprobada en este dispositivo, se guarda el campo 1.
+        // Guardarlo antes seria confiar en que el port acierta; asi se guarda porque acerto.
+        if campo1_cacheado().as_deref() != Some(campo1_leido.as_str()) {
+            cachear_campo1(&campo1_leido);
+        }
         return;
     }
     let a: Vec<&str> = nuestro.split('.').collect();
@@ -1154,17 +1208,29 @@ pub fn mint_music_token() -> Option<String> {
         let reqctx_sp = reqctx as *mut SharedPtr;
 
         // Device GUID string.
-        let guid = bridges::cadence_device_guid_get();
-        if guid.is_null() || (*(guid as *mut SharedPtr)).obj.is_null() {
-            nlog("mint: no device guid");
-            return None;
-        }
-        let mut guid_buf = [0u8; 128];
-        if bridges::cadence_device_guid_string((*(guid as *mut SharedPtr)).obj, guid_buf.as_mut_ptr() as *mut c_char, guid_buf.len() as c_int) == 0 {
-            nlog("mint: could not read device guid string");
-            return None;
-        }
-        let guid = CStr::from_ptr(guid_buf.as_ptr() as *const c_char).to_string_lossy().into_owned();
+        // Con el campo de FairPlay ya guardado, el GUID lo arma el port y no se llama a
+        // `DeviceGUID` en absoluto. Sin cache (primer arranque) se cae a la libreria, que es
+        // de donde sale el campo que despues se guarda.
+        let guid = match guid_del_port() {
+            Some(g) => {
+                nlog("mint: guid armado por el port (sin DeviceGUID)");
+                g
+            }
+            None => {
+                let guid = bridges::cadence_device_guid_get();
+                if guid.is_null() || (*(guid as *mut SharedPtr)).obj.is_null() {
+                    nlog("mint: no device guid");
+                    return None;
+                }
+                let mut guid_buf = [0u8; 128];
+                if bridges::cadence_device_guid_string((*(guid as *mut SharedPtr)).obj, guid_buf.as_mut_ptr() as *mut c_char, guid_buf.len() as c_int) == 0 {
+                    nlog("mint: could not read device guid string");
+                    return None;
+                }
+                nlog("mint: guid leido de DeviceGUID (sin cache todavia)");
+                CStr::from_ptr(guid_buf.as_ptr() as *const c_char).to_string_lossy().into_owned()
+            }
+        };
         // El port `device-guid` conoce la forma del GUID (6 campos, el primero FairPlay de
         // 36 hex). Si la libreria cerrada devolvio algo con otra forma, el mint va a fallar
         // mas adelante con un error opaco de la tienda: mejor dejarlo dicho en el log aqui.
