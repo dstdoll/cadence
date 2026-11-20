@@ -28,3 +28,4 @@ docs/
 keystore.properties
 backend/src/main/assets/native-data/
 backend/src/main/assets/session.json
+backend/src/main/assets/engine/
