@@ -51,40 +51,40 @@ fn required() -> bool {
 /// If the file exists and fails to parse as JSON, or if it does not exist and
 /// `CADENCE_VECTORS_REQUIRED` is set. A corrupt file is a failure, not a skipped test.
 pub fn load(manifest_dir: &str) -> Option<serde_json::Value> {
-    load_exigiendo(manifest_dir, required())
+    load_with_required(manifest_dir, required())
 }
 
 /// Like [`load`], but with an explicit "is the capture required?" flag instead of reading env.
 ///
 /// Exists so this crate's own tests can exercise both branches without depending on whether
 /// `CADENCE_VECTORS_REQUIRED` is set in the shell running them (which `test-ports.sh` does).
-pub fn load_exigiendo(manifest_dir: &str, exigir: bool) -> Option<serde_json::Value> {
-    let forzada = std::env::var_os(ENV_FILE).map(PathBuf::from);
-    load_desde(manifest_dir, exigir, forzada)
+pub fn load_with_required(manifest_dir: &str, require: bool) -> Option<serde_json::Value> {
+    let forced = std::env::var_os(ENV_FILE).map(PathBuf::from);
+    load_from(manifest_dir, require, forced)
 }
 
 /// Which file to read: the explicit override if given, otherwise the real capture, otherwise the sample.
-pub fn ruta(manifest_dir: &str, forzada: Option<PathBuf>) -> PathBuf {
-    if let Some(p) = forzada {
+pub fn resolve_path(manifest_dir: &str, forced: Option<PathBuf>) -> PathBuf {
+    if let Some(p) = forced {
         return p;
     }
     let real = Path::new(manifest_dir).join(REAL);
     if real.exists() { real } else { Path::new(manifest_dir).join(MUESTRA) }
 }
 
-/// [`load_exigiendo`] with an explicit forced path, so it can be tested without mutating process env
-/// (which all tests running in parallel share).
-pub fn load_desde(manifest_dir: &str, exigir: bool, forzada: Option<PathBuf>) -> Option<serde_json::Value> {
+/// [`load_with_required`] with an explicit forced path, so it can be tested without mutating
+/// process env (which all tests running in parallel share).
+pub fn load_from(manifest_dir: &str, require: bool, forced: Option<PathBuf>) -> Option<serde_json::Value> {
     // An explicitly specified file is always required: if missing, fail rather than skip.
-    let exigir = exigir || forzada.is_some();
-    let path = ruta(manifest_dir, forzada);
+    let require = require || forced.is_some();
+    let path = resolve_path(manifest_dir, forced);
     match std::fs::read_to_string(&path) {
-        Ok(texto) => Some(serde_json::from_str(&texto).unwrap_or_else(|e| {
+        Ok(text) => Some(serde_json::from_str(&text).unwrap_or_else(|e| {
             panic!("vectors.json exists at {} but failed to parse: {e}", path.display())
         })),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
             assert!(
-                !exigir,
+                !require,
                 "{ENV_REQUIRED} is set and neither {REAL} nor {MUESTRA} exists next to {}",
                 manifest_dir
             );
@@ -95,38 +95,38 @@ pub fn load_desde(manifest_dir: &str, exigir: bool, forzada: Option<PathBuf>) ->
     }
 }
 
-/// Una seccion de la captura. Si el archivo esta, la seccion **tiene** que estar.
+/// A section from the capture. If the file exists, the section **must** be present.
 ///
 /// # Panics
-/// Si la captura existe y no trae `clave`: es justo el caso que antes daba verde.
-pub fn section(manifest_dir: &str, clave: &str) -> Option<serde_json::Value> {
-    Some(seccion_en(&load(manifest_dir)?, clave))
+/// If the capture exists and is missing `key`: that is the exact case that previously passed green.
+pub fn section(manifest_dir: &str, key: &str) -> Option<serde_json::Value> {
+    Some(section_in(&load(manifest_dir)?, key))
 }
 
-/// Una seccion que es string (el caso de `userAgent`).
-pub fn string_section(manifest_dir: &str, clave: &str) -> Option<String> {
-    Some(cadena_en(&load(manifest_dir)?, clave))
+/// A string section (the `userAgent` case).
+pub fn string_section(manifest_dir: &str, key: &str) -> Option<String> {
+    Some(string_in(&load(manifest_dir)?, key))
 }
 
-/// La seccion `clave` de una captura ya cargada. Revienta si falta o viene en null.
-pub fn seccion_en(v: &serde_json::Value, clave: &str) -> serde_json::Value {
-    let s = v.get(clave).unwrap_or_else(|| {
+/// Section `key` from an already-loaded capture. Panics if missing or null.
+pub fn section_in(v: &serde_json::Value, key: &str) -> serde_json::Value {
+    let s = v.get(key).unwrap_or_else(|| {
         panic!(
-            "vectors.json no trae la seccion {clave:?} (tiene: {})",
+            "vectors.json missing section {key:?} (has: {})",
             v.as_object()
                 .map(|o| o.keys().cloned().collect::<Vec<_>>().join(", "))
-                .unwrap_or_else(|| "no es un objeto".into())
+                .unwrap_or_else(|| "not an object".into())
         )
     });
-    assert!(!s.is_null(), "vectors.json trae {clave:?} en null");
+    assert!(!s.is_null(), "vectors.json has {key:?} as null");
     s.clone()
 }
 
-/// [`seccion_en`] para una seccion que tiene que ser string.
-pub fn cadena_en(v: &serde_json::Value, clave: &str) -> String {
-    let s = seccion_en(v, clave);
+/// [`section_in`] for a section that must be a string.
+pub fn string_in(v: &serde_json::Value, key: &str) -> String {
+    let s = section_in(v, key);
     s.as_str()
-        .unwrap_or_else(|| panic!("vectors.json: {clave:?} deberia ser string, es {s}"))
+        .unwrap_or_else(|| panic!("vectors.json: {key:?} should be a string, got {s}"))
         .to_owned()
 }
 
@@ -168,7 +168,7 @@ mod tests {
     /// `CADENCE_VECTORS_FILE` y `CADENCE_VECTORS_REQUIRED` puestas (es como los lanza el runner
     /// del dispositivo), y lo que prueban es este crate, no como esta configurada la shell.
     fn aqui(c: &Caso) -> Option<serde_json::Value> {
-        load_desde(&c.manifest(), false, None)
+        load_from(&c.manifest(), false, None)
     }
 
     const BUENO: &str = r#"{"userAgent":"Music/5.0.2","ckcRequests":[1],"nulo":null}"#;
@@ -200,7 +200,7 @@ mod tests {
     fn sin_captura_devuelve_none() {
         let c = Caso::nuevo("ninguna", None);
         // explicito: sin exigir se salta, y es el unico caso en que un test no valida
-        assert!(load_desde(&c.manifest(), false, None).is_none());
+        assert!(load_from(&c.manifest(), false, None).is_none());
     }
 
     /// Una captura corrupta es un fallo, no un test que se salta: es justo el agujero que
@@ -214,26 +214,26 @@ mod tests {
 
     /// Si la captura esta, la seccion que el test pide **tiene** que estar.
     #[test]
-    #[should_panic(expected = "no trae la seccion")]
+    #[should_panic(expected = "missing section")]
     fn una_seccion_que_falta_revienta() {
         let c = Caso::nuevo("sin-seccion", Some(("vectors.json", BUENO)));
-        let _ = seccion_en(&aqui(&c).unwrap(), "deviceGuid");
+        let _ = section_in(&aqui(&c).unwrap(), "deviceGuid");
     }
 
     /// Una seccion en null tampoco sirve para validar.
     #[test]
-    #[should_panic(expected = "en null")]
+    #[should_panic(expected = "as null")]
     fn una_seccion_en_null_revienta() {
         let c = Caso::nuevo("null", Some(("vectors.json", BUENO)));
-        let _ = seccion_en(&aqui(&c).unwrap(), "nulo");
+        let _ = section_in(&aqui(&c).unwrap(), "nulo");
     }
 
     /// Y si se pide como string, tiene que serlo.
     #[test]
-    #[should_panic(expected = "deberia ser string")]
+    #[should_panic(expected = "should be a string")]
     fn una_seccion_que_no_es_string_revienta() {
         let c = Caso::nuevo("no-string", Some(("vectors.json", BUENO)));
-        let _ = cadena_en(&aqui(&c).unwrap(), "ckcRequests");
+        let _ = string_in(&aqui(&c).unwrap(), "ckcRequests");
     }
 
     /// Con la captura exigida, que falte es un fallo y no un salto.
@@ -241,7 +241,7 @@ mod tests {
     #[should_panic(expected = "is set and neither")]
     fn sin_captura_pero_exigida_revienta() {
         let c = Caso::nuevo("exigida", None);
-        let _ = load_desde(&c.manifest(), true, None);
+        let _ = load_from(&c.manifest(), true, None);
     }
 
     /// La ruta indicada a mano manda sobre la captura del crate.
@@ -250,7 +250,7 @@ mod tests {
         let c = Caso::nuevo("forzada", Some(("vectors.json", r#"{"userAgent":"del crate"}"#)));
         let otra = c.raiz.join("otra.json");
         std::fs::write(&otra, r#"{"userAgent":"forzada"}"#).unwrap();
-        let v = load_desde(&c.manifest(), false, Some(otra)).expect("la forzada");
+        let v = load_from(&c.manifest(), false, Some(otra)).expect("la forzada");
         assert_eq!(v["userAgent"], "forzada");
     }
 
@@ -260,19 +260,19 @@ mod tests {
     #[should_panic(expected = "is set and neither")]
     fn una_ruta_forzada_que_no_existe_revienta() {
         let c = Caso::nuevo("forzada-falta", Some(("vectors.json", BUENO)));
-        let _ = load_desde(&c.manifest(), false, Some(c.raiz.join("no-existe.json")));
+        let _ = load_from(&c.manifest(), false, Some(c.raiz.join("no-existe.json")));
     }
 
     #[test]
     fn una_seccion_string_se_lee() {
         let c = Caso::nuevo("string", Some(("vectors.json", BUENO)));
-        assert_eq!(cadena_en(&aqui(&c).unwrap(), "userAgent"), "Music/5.0.2");
+        assert_eq!(string_in(&aqui(&c).unwrap(), "userAgent"), "Music/5.0.2");
     }
 
     /// `section` sobre una captura ausente se salta igual que `load`: no hay nada que exigir.
     #[test]
     fn seccion_sin_captura_devuelve_none() {
         let c = Caso::nuevo("sec-ninguna", None);
-        assert!(load_desde(&c.manifest(), false, None).is_none());
+        assert!(load_from(&c.manifest(), false, None).is_none());
     }
 }

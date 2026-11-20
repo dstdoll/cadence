@@ -101,7 +101,7 @@ fn los_rellenos_capturados_estan_en_ceros() {
     assert_eq!(parts.filler1, "0".repeat(FIELD_LEN));
     assert_eq!(parts.filler2, "0".repeat(FIELD_LEN));
     assert!(parts.looks_valid());
-    assert!(parts.tiene_fairplay(), "captured GUID must carry FairPlay blob data");
+    assert!(parts.has_fairplay(), "captured GUID must carry FairPlay blob data");
 }
 
 /// El campo 1 mide lo que da el base16 de los 18 bytes que entrega FairPlay.

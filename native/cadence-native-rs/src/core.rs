@@ -1236,16 +1236,16 @@ pub fn mint_music_token() -> Option<String> {
                 CStr::from_ptr(guid_buf.as_ptr() as *const c_char).to_string_lossy().into_owned()
             }
         };
-        // El port `device-guid` conoce la forma del GUID (6 campos, el primero FairPlay de
-        // 36 hex). Si la libreria cerrada devolvio algo con otra forma, el mint va a fallar
-        // mas adelante con un error opaco de la tienda: mejor dejarlo dicho en el log aqui.
+        // The `device-guid` port knows the GUID shape (6 fields, first is 36-char FairPlay hex).
+        // If the closed library returned another shape, the mint will fail later with an opaque
+        // store error: better to log it here.
         match device_guid::parse(&guid) {
-            Some(partes) if partes.looks_valid() => {
-                if !partes.tiene_fairplay() {
-                    nlog("mint: guid sin campo FairPlay (dispositivo sin aprovisionar?)");
+            Some(parts) if parts.looks_valid() => {
+                if !parts.has_fairplay() {
+                    nlog("mint: guid missing FairPlay field (unprovisioned device?)");
                 }
             }
-            _ => nlog("mint: el guid no tiene la forma esperada"),
+            _ => nlog("mint: guid does not match expected shape"),
         }
 
         // 1) Commerce dev token.
