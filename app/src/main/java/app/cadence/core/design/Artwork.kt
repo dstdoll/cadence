@@ -150,11 +150,14 @@ fun Artwork(
 ) {
     val bmp = remember(key) { ArtworkRenderer.bitmap(key, colors).asImageBitmap() }
     // Size the fetch to the drawn box (measured once), so one high-res download serves every use.
-    // Default until measured; a plain Box keeps the original layout (BoxWithConstraints + a sole
-    // matchParentSize child collapses to zero inside a weighted Row, e.g. the mini-player).
+    // A plain Box keeps the original layout (BoxWithConstraints + a sole matchParentSize child
+    // collapses to zero inside a weighted Row, e.g. the mini-player).
     var targetPx by remember { mutableIntStateOf(0) }
-    // Real cover art when the backend supplied one; procedural art until it decodes.
-    val remote = rememberCover(coverUrl, if (targetPx > 0) targetPx else 512)
+    // Nothing is decoded until the box has been measured: the procedural art shows for that one
+    // frame. It used to fall back to 512 px until then, so every thumbnail decoded the cover twice
+    // -- once at 512, once at its real size a frame later -- and left the 512 px bitmap (1 MB) in
+    // the cache, where it pushed out covers that were actually on screen.
+    val remote = rememberCover(coverUrl, targetPx)
     Box(
         (if (square) modifier.aspectRatio(1f) else modifier)
             .clip(shape)

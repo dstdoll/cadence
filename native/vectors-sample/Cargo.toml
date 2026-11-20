@@ -1,0 +1,18 @@
+[workspace]
+
+[package]
+name = "vectors-sample"
+description = "Genera native/vectors.sample.json: la captura de referencia sin datos del dispositivo"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+rust-version = "1.85"
+publish = false
+
+[dependencies]
+device-guid = { path = "../device-guid" }
+fairplay-proto = { path = "../fairplay-proto" }
+store-config = { path = "../store-config" }
+# preserve_order: el cuerpo CKC lleva las claves en el orden del struct, no alfabetico.
+# Sin esto la muestra describiria un orden que la app nunca manda.
+serde_json = { version = "1.0.145", features = ["preserve_order"] }

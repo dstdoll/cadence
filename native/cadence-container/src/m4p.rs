@@ -149,7 +149,7 @@ fn parse_stts<E>(body: &[u8], total_samples: usize) -> Result<Vec<u32>, M4pError
         let count = u32_at(body, 8 + i * 8).ok_or(M4pError::Invalid("truncated stts count"))? as usize;
         let delta = u32_at(body, 12 + i * 8).ok_or(M4pError::Invalid("truncated stts delta"))?;
         let take = count.min(total_samples.saturating_sub(out.len()));
-        out.extend(std::iter::repeat(delta).take(take));
+        out.extend(std::iter::repeat_n(delta, take));
     }
     while out.len() < total_samples {
         out.push(*out.last().unwrap_or(&1024));

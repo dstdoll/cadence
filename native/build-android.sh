@@ -10,7 +10,7 @@ cd "$(dirname "$0")/.."
 ROOT="$PWD"
 NDK="${ANDROID_NDK_HOME:-$(ls -d "${ANDROID_HOME:-$HOME/Android/Sdk}"/ndk/* 2>/dev/null | sort -V | tail -1)}"
 [ -d "$NDK" ] || { echo "Android NDK not found (set ANDROID_NDK_HOME)" >&2; exit 1; }
-API=31 # minSdk
+API=29 # minSdk
 BIN="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
 export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$BIN/aarch64-linux-android$API-clang"
 export CC_aarch64_linux_android="$CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER"

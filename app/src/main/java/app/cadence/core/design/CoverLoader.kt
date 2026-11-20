@@ -160,11 +160,14 @@ private object CoverStore {
 fun rememberCover(coverUrl: String?, targetPx: Int = 512): ImageBitmap? {
     val context = LocalContext.current
     val id = coverUrl?.let { coverId(it) }
+    // A target of zero means "not measured yet": nothing is looked up or decoded until there is a
+    // real size, so a cover is decoded once, at the size it is drawn at.
     var bitmap by remember(id, targetPx) {
-        mutableStateOf(id?.let { CoverStore.cached(it, targetPx) })
+        mutableStateOf(if (targetPx > 0) id?.let { CoverStore.cached(it, targetPx) } else null)
     }
     val epoch by CoverStore.networkEpoch.collectAsState()
     LaunchedEffect(id, targetPx, epoch) {
+        if (targetPx <= 0) return@LaunchedEffect
         val url = coverUrl ?: return@LaunchedEffect
         if (bitmap != null) return@LaunchedEffect
         bitmap = CoverStore.load(context, url, targetPx)

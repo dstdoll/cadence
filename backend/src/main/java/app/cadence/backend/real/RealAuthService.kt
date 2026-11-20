@@ -14,7 +14,6 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -37,8 +36,9 @@ class RealAuthService(
     private val store: SessionStore,
 ) : AuthService {
 
-    private val state = MutableStateFlow(store.load())
-    override val session: StateFlow<Session?> = state
+    // La sesion vive en SessionStore (unica fuente de verdad); exponemos su flow directo para
+    // que seedIfEmpty/importSession/sign-out notifiquen a la UI sin re-leer el archivo.
+    override val session: StateFlow<Session?> = store.sessions
 
     private var pendingEmail: String = ""
 
@@ -52,7 +52,7 @@ class RealAuthService(
     init {
         // The stored/seeded session may carry a placeholder name ("Apple Music"). Refresh the real
         // profile from Apple on launch using the saved media-user-token - no OTP, no sign-in.
-        val s = state.value
+        val s = store.sessions.value
         if (s != null && s.accessToken.isNotBlank()) scope.launch {
             // A returning user's rejected keys need the subscription state too, not only a fresh sign-in's.
             AmpConfig.load(context)?.let { runCatching { queryProfile(it.devToken, s.accessToken, "account?meta=subscription") } }
@@ -61,7 +61,6 @@ class RealAuthService(
             if (name != s.displayName || (p.email != null && p.email != s.email)) {
                 val updated = s.copy(displayName = name, email = p.email?.ifBlank { s.email } ?: s.email)
                 store.save(updated, store.storefront())
-                state.value = updated
                 CadenceLog.i("auth", "profile refreshed on launch")
             }
         }
@@ -125,7 +124,7 @@ class RealAuthService(
         withContext(Dispatchers.IO) {
             // Sign-in already completed without a code step (challenge was "native-done").
             if (challengeId == "native-done") {
-                return@withContext state.value?.let { Result.success(it) }
+                return@withContext store.sessions.value?.let { Result.success(it) }
                     ?: Result.failure(AuthError.SignInIncomplete("Session missing after sign-in."))
             }
             // Hand the code to the native credential handler, then let the StoreServices exchange
@@ -172,7 +171,6 @@ class RealAuthService(
             refreshToken = token,
         )
         store.save(s, sf)
-        state.value = s
         CadenceLog.i("auth", "session built via StoreServices (token=${if (token.isBlank()) "none-yet" else "present"})")
         return s
     }
@@ -199,7 +197,6 @@ class RealAuthService(
             refreshToken = token,
         )
         store.save(s, sf)
-        state.value = s
         CadenceLog.i("auth", "auth approved via provisioned token (OTP verified)")
         return Result.success(s)
     }
@@ -216,7 +213,6 @@ class RealAuthService(
             refreshToken = token,
         )
         store.save(s, r.storefront ?: "us")
-        state.value = s
         return s
     }
 
@@ -338,7 +334,7 @@ class RealAuthService(
                 }.getOrNull()?.takeIf { it.isNotBlank() } ?: storefront ?: "us"
                 val profile = runCatching { fetchProfile(token) }.getOrNull()
                 // Adding a token to a signed-in account keeps who it is; a fresh import takes it from the profile.
-                val previous = state.value
+                val previous = store.sessions.value
                 val s = Session(
                     userId = "apple-$sf",
                     email = profile?.email?.takeIf { it.isNotBlank() } ?: previous?.email.orEmpty(),
@@ -347,7 +343,6 @@ class RealAuthService(
                     refreshToken = token,
                 )
                 store.save(s, sf)
-                state.value = s
                 CadenceLog.i("auth", "session imported storefront=$sf")
                 Result.success(s)
             } catch (t: Throwable) {
@@ -359,7 +354,7 @@ class RealAuthService(
         }
 
     override suspend fun retryMediaToken(): Result<Session> = withContext(Dispatchers.IO) {
-        val current = state.value ?: return@withContext Result.failure(AuthError.SignInIncomplete("Not signed in."))
+        val current = store.sessions.value ?: return@withContext Result.failure(AuthError.SignInIncomplete("Not signed in."))
         if (current.accessToken.isNotBlank()) return@withContext Result.success(current)
         if (!EngineDownloader.initNative(context)) return@withContext Result.failure(AuthError.Network())
         // The native request blocks until Apple answers. It runs in the service scope (not as a child of
@@ -380,7 +375,6 @@ class RealAuthService(
             refreshToken = token,
         )
         store.save(s, sf)
-        state.value = s
         CadenceLog.i("auth", "media-user-token retry: present (${token.length})")
         Result.success(s)
     }
@@ -388,6 +382,5 @@ class RealAuthService(
     override suspend fun signOut() {
         NativeAuth.reset(context.filesDir.absolutePath)
         store.clear()
-        state.value = null
     }
 }

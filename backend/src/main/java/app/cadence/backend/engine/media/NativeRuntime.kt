@@ -1,7 +1,6 @@
 package app.cadence.backend.engine.media
 
 import android.content.Context
-import android.provider.Settings
 
 object NativeRuntime {
     @Volatile var ready: Boolean = false
@@ -14,11 +13,9 @@ object NativeRuntime {
         Thread {
             runCatching {
                 NativeData.seed(context)
-                val deviceId = Settings.Secure.getString(
-                    context.contentResolver,
-                    Settings.Secure.ANDROID_ID,
-                ) ?: "unknown"
-                AppLog.log("Native", "auto init base=${context.filesDir.absolutePath} device=$deviceId")
+                val deviceId = DeviceIdentity.id(context)
+                // The id is not logged: it identifies the device, and this log can be exported.
+                AppLog.log("Native", "auto init base=${context.filesDir.absolutePath} device=<${DeviceIdentity.describe(deviceId)}${if (DeviceIdentity.isRotated(context)) " rotated" else ""}>")
                 app.cadence.backend.engine.Provisioning.dir = context.filesDir
                 ready = NativeWrapper.init(context.filesDir.absolutePath, deviceId, ProcessNetwork.activeDnsServers(context))
                 app.cadence.backend.engine.Provisioning.log("after native init")

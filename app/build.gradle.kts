@@ -121,3 +121,42 @@ dependencies {
 
     testImplementation(libs.junit)
 }
+
+// Un release no puede llevar la sesion de pruebas. `assets/native-data/` y `assets/engine/`
+// traen el media-user-token, el developer token, el ANDROID_ID, el estado de FairPlay y el
+// mpl_db entero con las cookies de la cuenta: cualquiera con el APK firmado entra a ella.
+//
+// El .gitignore los deja fuera del repositorio, pero eso no protege un release construido en
+// una maquina que si los tiene -- los empaqueta en silencio, y el APK se ve normal. Por eso
+// la comprobacion vive en el build y no en la disciplina de quien compila.
+//
+// Para un release local que se queda en el dispositivo propio: CADENCE_ALLOW_SEEDED_RELEASE=1.
+val rutasDeCredenciales = listOf(
+    rootProject.file("backend/src/main/assets/native-data"),
+    rootProject.file("backend/src/main/assets/engine"),
+)
+val permitirSembrado = System.getenv("CADENCE_ALLOW_SEEDED_RELEASE") == "1"
+val comprobarCredenciales = tasks.register("checkNoSeededCredentials") {
+    group = "verification"
+    description = "Falla si un release llevaria las credenciales de prueba sembradas en assets."
+    val presentes = rutasDeCredenciales.filter { it.exists() }.map { it.relativeTo(rootProject.projectDir).path }
+    val permitido = permitirSembrado
+    doLast {
+        if (presentes.isEmpty()) return@doLast
+        if (permitido) {
+            logger.warn("AVISO: este release lleva credenciales en vivo (${presentes.joinToString()}). " +
+                "CADENCE_ALLOW_SEEDED_RELEASE=1 esta puesta. No distribuyas este APK.")
+            return@doLast
+        }
+        throw GradleException(
+            "Este release llevaria credenciales en vivo:\n" +
+                presentes.joinToString("\n") { "  - $it" } +
+                "\n\nSon la sesion de Apple Music de una cuenta real (media-user-token, developer " +
+                "token, ANDROID_ID, estado de FairPlay y el mpl_db con sus cookies). Quien tenga el " +
+                "APK firmado entra a esa cuenta.\n\nSaca esas carpetas antes de compilar un release, " +
+                "o pon CADENCE_ALLOW_SEEDED_RELEASE=1 si el APK se queda en tu propio dispositivo."
+        )
+    }
+}
+tasks.matching { it.name == "mergeReleaseAssets" || it.name == "assembleRelease" || it.name == "bundleRelease" }
+    .configureEach { dependsOn(comprobarCredenciales) }

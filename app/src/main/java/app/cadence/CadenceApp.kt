@@ -60,7 +60,12 @@ class CadenceApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // Siembra engine/amp.json y native-data/* ANTES de construir AppContainer: RealBackend
+        // llama AmpConfig.load() sobre files/engine/amp.json en el UI thread, asi que si el seed
+        // es async llega tarde y arranca con mediaUserToken=none.
+        runCatching { app.cadence.backend.engine.media.NativeData.seed(this) }
         container = AppContainer(this)
+        app.cadence.backend.engine.media.NativeRuntime.start(this)
         NativeNoticeToasts.install(this)
     }
 }

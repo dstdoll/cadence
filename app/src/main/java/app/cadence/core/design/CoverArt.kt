@@ -22,12 +22,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asComposePath
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.asComposeRenderEffect
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
@@ -100,19 +106,43 @@ private fun VideoCover(uri: String, playing: Boolean, modifier: Modifier) {
     PlayerSurface(
         player = player,
         surfaceType = SURFACE_TYPE_TEXTURE_VIEW,
-        modifier = modifier.graphicsLayer {
-            this.alpha = alpha
-            renderEffect = if (mono) grayscaleEffect else null
-        },
+        modifier = modifier
+            .graphicsLayer { this.alpha = alpha }
+            .monochrome(mono),
     )
 }
 
-/** The grayscale effect for monochrome mode; null before Android 12 (no RenderEffect), where covers stay in colour. */
+/** The grayscale `RenderEffect`; null before Android 12, where [monochrome] desaturates instead. */
 private val grayscaleEffect by lazy {
     if (app.cadence.core.theme.ApiCompat.supportsRenderEffect()) {
         val m = android.graphics.ColorMatrix().apply { setSaturation(0f) }
         RenderEffect.createColorFilterEffect(ColorMatrixColorFilter(m)).asComposeRenderEffect()
     } else null
+}
+
+/** Saturation zero, as a Compose colour filter. Unlike `RenderEffect` this works on every API. */
+private val desaturate = ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) })
+
+/**
+ * Draws its content with the colour drained out when [enabled].
+ *
+ * Monochrome used to need `RenderEffect`, which is Android 12, so on anything older the theme went
+ * monochrome and the artwork stayed in full colour -- the one part of the screen that did not
+ * follow the setting. Below Android 12 the content is drawn into a layer with a saturation-zero
+ * colour filter instead, which every version has. The result is the same image; only the path
+ * differs.
+ */
+private fun Modifier.monochrome(enabled: Boolean): Modifier = when {
+    !enabled -> this
+    grayscaleEffect != null -> this.graphicsLayer { renderEffect = grayscaleEffect }
+    else -> this.drawWithContent {
+        drawIntoCanvas { canvas ->
+            val paint = Paint().apply { colorFilter = desaturate }
+            canvas.saveLayer(Rect(Offset.Zero, size), paint)
+            drawContent()
+            canvas.restore()
+        }
+    }
 }
 
 /**
@@ -134,7 +164,7 @@ private fun ProceduralCover(key: String, colors: List<String>, running: Boolean,
         }
     }
     val mono = LocalMonochrome.current
-    Canvas(modifier.graphicsLayer { renderEffect = if (mono) grayscaleEffect else null }) {
+    Canvas(modifier.monochrome(mono)) {
         val t = time.floatValue
         val s = size.minDimension
         // Gradient direction orbits once every ~40 s.

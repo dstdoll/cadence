@@ -78,6 +78,39 @@ around a failure, and name the stage that broke:
 When a `[CXX-THROW] class=KEY_REJECTED` appears, read the `FairPlay*` lines just above it in logcat to
 see which stage failed.
 
+## Track keys refused while everything else works
+
+One case of `KEY_REJECTED` is worth recognising, because nothing about it points at its cause.
+Observed on an Android 10 tablet whose session had been seeded rather than signed in on the device:
+
+- the shared key (`key e1 adam=0`) is still delivered, so the SPC, the certificate and the device
+  GUID are accepted;
+- every track key comes back as `ERROR parsing ckc` / `Invalid CKC error`, for any track, including
+  ones that played an hour earlier;
+- the catalogue API answers 200 and the subscription reads as active;
+- the same account plays on another device;
+- `provisioning: ...` in the app log reads `adi.pb=missing fsi.pdat=missing IC-Info.sids=missing`,
+  with `no sign-in this run`.
+
+The last line is the cause: **the identity the libraries are configured with was never
+provisioned**. Nothing fails at first. That tablet was given track keys for about two and a half
+hours with no provisioning files at all, then every one was refused from one request to the next.
+What it had been playing kept going from the decrypted cache and stopped part-way through each
+track, where the cache ended.
+
+What it is not, each ruled out there: not the track or the storefront (a track that had just played
+was refused too); not the network or the account's token (both unchanged when it started working
+again); and not the device id as such -- replacing it with a fresh random one changed nothing,
+because a new id is just as unprovisioned.
+
+`_deviceHasOfflineSlot() ERROR EMPTY fairPlaySubscriptionStatus` is not a sign of it either: it is
+logged on every key exchange, 180 times in that log while keys were being delivered.
+
+It ends when the identity is provisioned: by signing in on the device, which is what makes the
+libraries run the provisioning, or by restoring an identity together with the `adi.pb`, `fsi.pdat`
+and `IC-Info.sids` that belong to it. With the set back in place the next start was given six track
+keys and refused none.
+
 ## Proving it still works
 
 `native/selftest-cxx-guard.sh <adb-serial>` runs, on a phone and outside the app: caught throws of

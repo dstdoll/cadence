@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -60,6 +62,10 @@ fun MiniPlayer(onExpand: () -> Unit, dragModifier: Modifier, modifier: Modifier 
         shadowElevation = 6.dp,
         modifier = modifier
             .fillMaxWidth()
+            // Con el rail lateral (horizontal) nadie consume el inset de abajo y la pildora quedaba
+            // debajo de la barra de navegacion del sistema.
+            .navigationBarsPadding()
+            .widthIn(max = 640.dp)
             .padding(horizontal = 10.dp, vertical = 6.dp)
             .then(dragModifier)
             .pointerInput(Unit) {

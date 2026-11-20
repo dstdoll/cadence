@@ -10,5 +10,29 @@
             android:name="androidx.compose.ui.tooling.PreviewActivity"
             android:permission="android.permission.DUMP"
             tools:node="merge" />
+        <!-- The headless test hook: adb shell am broadcast -n app.cadence/.DebugReceiver ...
+             It can start downloads, decrypt arbitrary paths and drive a login, so it lives in the
+             debug source set only and never ships in a release. DUMP restricts senders to the adb
+             shell and the system: no other app on the phone can reach it. -->
+        <receiver
+            android:name=".DebugReceiver"
+            android:exported="true"
+            android:permission="android.permission.DUMP">
+            <intent-filter>
+                <action android:name="app.cadence.DEBUG_SEARCH" />
+                <action android:name="app.cadence.DEBUG_AUTH" />
+                <action android:name="app.cadence.DEBUG_LOGIN" />
+                <action android:name="app.cadence.DEBUG_DOWNLOAD" />
+                <action android:name="app.cadence.DEBUG_DECRYPT" />
+                <action android:name="app.cadence.DEBUG_EXPORT_LOGS" />
+                <action android:name="app.cadence.DEBUG_LOGIN_CODE" />
+                <action android:name="app.cadence.DEBUG_PLAY" />
+                <action android:name="app.cadence.DEBUG_PLAYER" />
+                <action android:name="app.cadence.DEBUG_LIBRARY" />
+                <action android:name="app.cadence.DEBUG_PALETTE" />
+                <action android:name="app.cadence.DEBUG_SESSION" />
+                <action android:name="app.cadence.DEBUG_IDENTITY" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

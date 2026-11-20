@@ -25,8 +25,23 @@ class BarCacheTest {
         val cache = BarCache()
         val b = cache.playedBrush(Color.Red, 300f)
         assertSame(b, cache.playedBrush(Color.Red, 300f))
-        val moved = cache.playedBrush(Color.Red, 301f)
+        // The playhead is quantised to four pixels: moving inside a step keeps the brush, which is
+        // the point -- it moves every frame, and an exact key rebuilt the gradient every frame.
+        assertSame(b, cache.playedBrush(Color.Red, 301f))
+        assertSame(b, cache.playedBrush(Color.Red, 303.9f))
+        val moved = cache.playedBrush(Color.Red, 304f)
         assertNotSame(b, moved)
-        assertNotSame(moved, cache.playedBrush(Color.Blue, 301f))
+        assertNotSame(moved, cache.playedBrush(Color.Blue, 304f))
+    }
+
+    @Test
+    fun aBassHitTooSmallToSeeKeepsTheGradient() {
+        val cache = BarCache()
+        val accent = Color(0.50f, 0.25f, 0.75f)
+        val b = cache.playedBrush(accent, 300f)
+        // Under half a 1/32 step per channel: the same colour as far as the bar is concerned.
+        assertSame(b, cache.playedBrush(Color(0.51f, 0.26f, 0.76f), 300f))
+        // A whole step is a different colour and gets its own gradient.
+        assertNotSame(b, cache.playedBrush(Color(0.50f + 1f / 32f, 0.25f, 0.75f), 300f))
     }
 }
