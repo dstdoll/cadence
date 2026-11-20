@@ -116,6 +116,7 @@ class PlayerController(
         val playable = tracks.filter { it.track.available }
         if (playable.isEmpty()) return
         stationMode = isStation
+        stationFeedId = null
         _state.value = _state.value.copy(
             contextTitle = contextTitle,
             autoplayFrom = if (isStation && playable.size > 1) 1 else -1,
@@ -172,8 +173,31 @@ class PlayerController(
     fun startStation(seed: TrackInfo) {
         scope.launch {
             controller ?: return@launch
+            // Apple's own station for this song first; the local recommender only when Apple has none (offline, no station).
+            val apple = runCatching { repo.stationOfSong(seed) }.getOrNull()
+            if (apple != null && startAppleRadio(apple.id, apple.title, seed)) return@launch
             val picks = recommendations.similar(seed, library.state.value.suggestLess, STATION_BATCH)
             startQueue(listOf(seed) + picks, contextTitle = "${seed.track.title} Station", isStation = true)
+        }
+    }
+
+    /** Apple's station for an artist; falls back to a local station from one of the artist's songs. */
+    fun startArtistStation(artistId: String, fallbackSeed: TrackInfo?) {
+        scope.launch {
+            controller ?: return@launch
+            val apple = runCatching { repo.stationOfArtist(artistId) }.getOrNull()
+            if (apple != null && startAppleRadio(apple.id, apple.title)) return@launch
+            fallbackSeed?.let(::startStation)
+        }
+    }
+
+    /** Apple's personal station; falls back to the local "My Station" mix. */
+    fun startPersonalStation() {
+        scope.launch {
+            controller ?: return@launch
+            val apple = runCatching { repo.personalStation() }.getOrNull()
+            if (apple != null && startAppleRadio(apple.id, apple.title)) return@launch
+            startMyStation()
         }
     }
 
@@ -212,6 +236,24 @@ class PlayerController(
     // A station keeps itself full even when the global autoplay toggle is off; normal [play] clears it.
     @Volatile private var stationMode = false
 
+    /** Set while an Apple radio station plays: the queue refills from its feed instead of the local recommender. */
+    @Volatile private var stationFeedId: String? = null
+
+    /**
+     * Plays one of Apple's stations (`st:ra.<id>`): the first batch, then the queue keeps refilling from the same feed.
+     * Songs marked "suggest less" are skipped. Returns false when Apple gave nothing (offline, live station), so the caller
+     * can fall back.
+     */
+    suspend fun startAppleRadio(stationId: String, title: String, firstSong: TrackInfo? = null): Boolean {
+        controller ?: return false
+        val avoid = library.state.value.suggestLess
+        val first = (listOfNotNull(firstSong) + repo.stationFeed(stationId) + repo.stationFeed(stationId)).filter { it.id !in avoid || it === firstSong }.distinctBy { it.id }
+        if (first.isEmpty()) return false
+        startQueue(first, contextTitle = title, isStation = true)
+        stationFeedId = stationId
+        return true
+    }
+
     private var toppingUp = false
 
     /**
@@ -228,7 +270,11 @@ class PlayerController(
         toppingUp = true
         scope.launch {
             try {
-                val picks = recommendations.similar(current, queued + library.state.value.suggestLess, AUTOPLAY_BATCH)
+                val avoid = queued + library.state.value.suggestLess
+                val feedId = stationFeedId
+                // Apple's feed first (it knows the station); the local recommender only if Apple answers with nothing new.
+                val fromApple = if (feedId == null) emptyList() else repo.stationFeed(feedId).filter { it.id !in avoid }.distinctBy { it.id }
+                val picks = fromApple.ifEmpty { recommendations.similar(current, avoid, AUTOPLAY_BATCH) }
                 if (picks.isEmpty()) return@launch
                 if (_state.value.autoplayFrom < 0) _state.value = _state.value.copy(autoplayFrom = c.mediaItemCount)
                 c.addMediaItems(picks.map(::item))

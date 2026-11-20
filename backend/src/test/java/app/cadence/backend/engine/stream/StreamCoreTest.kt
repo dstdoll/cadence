@@ -280,6 +280,39 @@ class ClearStreamTest {
     }
 
     @Test
+    fun aDownloadNamesItsOwnQualityWithoutTouchingTheCachesDefault() {
+        // The cache's own resolver is "alac/24/0"; downloads of the same song ask for other qualities through
+        // `stream(id, using)`. Each gets its own rendition, and none reads the default resolver.
+        val sources = mapOf("default" to FakeSource(listOf(5000, 3000), "default"), "aac128" to FakeSource(listOf(1200, 800, 700), "aac128"), "aac64" to FakeSource(listOf(600, 400, 300, 200), "aac64"))
+        val bySource = object : SegmentSource {
+            private fun at(url: String) = sources.values.first { it.url == url }
+            override fun fetch(url: String, offset: Long?, length: Long?) = at(url).fetch(url, offset, length)
+            override fun clearInit(originalInit: ByteArray) = ByteArray(40)
+            override fun clear(trackId: String, segment: HlsSegment, originalInit: ByteArray, encrypted: ByteArray) = at(segment.url).clear(trackId, segment, originalInit, encrypted)
+        }
+        val defaultResolves = AtomicInteger()
+        val cache = StreamCache(tmp.root, object : StreamResolver {
+            override fun media(trackId: String): HlsMedia { defaultResolves.incrementAndGet(); return sources.getValue("default").media }
+            override val variant get() = "alac/24/0"
+        }, bySource)
+        fun resolverFor(quality: String, key: String) = object : StreamResolver {
+            override fun media(trackId: String) = sources.getValue(key).media
+            override val variant get() = quality
+        }
+        val s128 = cache.stream("t1", resolverFor("aac/128", "aac128"))
+        val s64 = cache.stream("t1", resolverFor("aac/64", "aac64"))
+        assertEquals(listOf(3, 4), listOf(s128.segmentCount, s64.segmentCount))
+        assertEquals("the default resolver was never consulted", 0, defaultResolves.get())
+        // The same quality again is a hit on its own entry (same instance) and never the other quality's.
+        assertTrue(cache.stream("t1", resolverFor("aac/128", "aac128")) === s128)
+        assertTrue(cache.stream("t1", resolverFor("aac/64", "aac64")) === s64)
+        assertTrue(s128 !== s64)
+        // The default, asked for the same song, is a third, separate entry.
+        assertEquals(2, cache.stream("t1").segmentCount)
+        assertEquals(1, defaultResolves.get())
+    }
+
+    @Test
     fun aFailedFetchSurfacesAndTheNextRequestResolvesAgain() {
         val source = FakeSource(listOf(5000, 3000))
         val resolves = AtomicInteger()

@@ -16,6 +16,10 @@ data class FairPlayPlan(
     val sampleRate: Int = 0,
     /** What was chosen: "alac", "aac", "atmos" (the E-AC-3 mix) or "spatial" (its binaural AAC render). */
     val kind: String = codec,
+    /** The chosen rendition as a short string (`alac:24:96000`, `aac:128`, `atmos:768`, `spatial`); "" when unknown. */
+    val spec: String = "",
+    /** Why this rendition (what was wanted, what the track offers); "" for the older selection. */
+    val reason: String = "",
 )
 
 object WrapperKeyClient {
@@ -37,8 +41,34 @@ object WrapperKeyClient {
         val masterUrl = track.hlsUrl
             ?: throw IOException("Track has no enhancedHls URL")
         AppLog.log("API", "master=$masterUrl")
-        parseMaster(masterUrl, preferredBitDepth, maxSampleRate, codec, atmos)
+        parseMaster(masterUrl, preferredBitDepth, maxSampleRate, codec, atmos) { variants ->
+            val c = HlsVariants.choose(variants, codec, atmos, preferredBitDepth, maxSampleRate)
+            Picked(c.variant, c.codec, c.kind, "", "")
+        }
     }
+
+    /**
+     * Picks the rendition for a download from a [QualityPolicy] (the quality the person asked for or their
+     * default), falling back as described in [QualityPlanner.choose], and logs what was wanted and what the
+     * track offers (`[QUALITY]` lines), so a report says why a file is the quality it is.
+     */
+    suspend fun resolve(track: Track, policy: QualityPolicy): FairPlayPlan = withContext(Dispatchers.IO) {
+        val masterUrl = track.hlsUrl
+            ?: throw IOException("Track has no enhancedHls URL")
+        AppLog.log("API", "master=$masterUrl")
+        parseMaster(masterUrl, 24, 0, policy.ceiling.format(), policy.atmos) { variants ->
+            val c = QualityPlanner.choose(variants, policy)
+            val spec = when (c.kind) {
+                "atmos" -> "atmos:${c.rendition?.kbps ?: 0}"
+                "spatial" -> "spatial"
+                else -> c.rendition?.spec?.format().orEmpty()
+            }
+            AppLog.log("QUALITY", "track=${track.id} policy=${policy.cacheKey()} -> ${spec.ifBlank { c.kind }}: ${c.reason}")
+            Picked(c.variant, c.codec, c.kind, spec, c.reason)
+        }
+    }
+
+    private class Picked(val variant: HlsVariant, val codec: String, val kind: String, val spec: String, val reason: String)
 
     private fun parseMaster(
         masterUrl: String,
@@ -46,11 +76,12 @@ object WrapperKeyClient {
         maxSampleRate: Int,
         codec: String,
         atmos: String,
+        select: (List<HlsVariant>) -> Picked,
     ): FairPlayPlan {
         val master = readText(URL(masterUrl))
         val lines = master.lineSequence().map { it.trim() }.filter { it.isNotEmpty() }.toList()
         val variants = HlsVariants.parse(master, masterUrl)
-        val choice = HlsVariants.choose(variants, codec, atmos, preferredBitDepth, maxSampleRate)
+        val choice = select(variants)
         val best = choice.variant
         val group = best.group
         AppLog.log(
@@ -81,6 +112,8 @@ object WrapperKeyClient {
             bitDepth = group["BIT-DEPTH"]?.toIntOrNull() ?: 0,
             sampleRate = group["SAMPLE-RATE"]?.toIntOrNull() ?: 0,
             kind = choice.kind,
+            spec = choice.spec,
+            reason = choice.reason,
         )
     }
 

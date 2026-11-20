@@ -359,9 +359,6 @@
     <string name="set_playlist_folder">Playlist folder</string>
     <string name="set_playlist_track_file">Playlist track file</string>
     <string name="set_album_date_tag">Album date tag</string>
-    <string name="set_format">Format</string>
-    <string name="set_bit_depth">Bit depth</string>
-    <string name="set_max_rate">Maximum sample rate</string>
     <string name="set_reuse_cache">Reuse playback cache</string>
     <string name="set_download_as_you_go">Download as you go</string>
     <string name="set_write_tags">Write tags</string>
@@ -526,14 +523,10 @@
     <string name="set_tokens">Tokens</string>
     <string name="set_preview">Preview</string>
     <string name="set_reset_default">Reset default</string>
-    <string name="set_dl_format_hint">Lossless is ALAC; AAC is 256 kbps and about a fifth of the size. Both are written as .m4a.</string>
     <string name="set_dl_atmos_hint_atmos">Songs mixed in Dolby Atmos are saved as that mix (E-AC-3, about 768 kbps, in an .m4a). It needs a player with a Dolby decoder; other songs keep the format above.</string>
     <string name="set_dl_atmos_hint_spatial">Songs mixed in Dolby Atmos are saved as their headphone render (AAC 256 kbps), spatial on any headphones and any player. Other songs keep the format above.</string>
     <string name="set_dl_atmos_hint_off">Songs are always saved in the format above, even when they have a Dolby Atmos mix.</string>
-    <string name="set_dl_depth_hint">Preferred depth when Apple publishes more than one lossless variant.</string>
-    <string name="set_dl_rate_hint">Auto takes the best variant the track offers.</string>
     <string name="set_write_tags_sub">Title, artist, album, track, disc, date and genre into the file.</string>
-    <string name="set_auto_rate">Auto rate</string>
     <string name="set_digest_tags">Tags</string>
     <string name="set_digest_cover">Cover %1$s</string>
     <string name="set_digest_lyrics">Lyrics %1$s</string>
@@ -711,4 +704,46 @@
     <string name="native_notice_out_of_memory">The playback engine ran low on memory. Close other apps if playback stutters.</string>
     <string name="native_notice_previous_crash">Cadence closed unexpectedly last time. Details were saved to the log.</string>
     <string name="native_notice_unknown">Something went wrong in the playback engine. It was handled; details are in the log.</string>
+    <string name="set_dl_quality_mode">When downloading</string>
+    <string name="set_dl_quality_mode_hint">Ask which quality to use, or always use your default quality.</string>
+    <string name="set_dl_quality_ask">Ask every time</string>
+    <string name="set_dl_quality_default">Use the default</string>
+    <string name="set_dl_default_quality">Default quality</string>
+    <string name="set_dl_default_quality_hint">If a song doesn\'t have it, the next best one is used.</string>
+    <string name="quality_best">Highest available</string>
+    <string name="quality_best_hint">The best lossless a song has, up to 24-bit / 192 kHz.</string>
+    <string name="quality_hires_fmt">Hi-Res Lossless · %1$d-bit / %2$s</string>
+    <string name="quality_lossless_fmt">Lossless · %1$d-bit / %2$s</string>
+    <string name="quality_aac_fmt">AAC · %1$d kbps</string>
+    <string name="quality_he_fmt">Data saver · HE-AAC %1$d kbps</string>
+    <string name="dq_title">Download quality</string>
+    <plurals name="dq_songs"><item quantity="one">%d song</item><item quantity="other">%d songs</item></plurals>
+    <string name="dq_checking">Checking the available qualities…</string>
+    <string name="dq_unchecked_all">Couldn\'t check the available qualities. Your default quality will be used.</string>
+    <plurals name="dq_unchecked_some"><item quantity="one">%d song couldn\'t be checked and will use your default quality.</item><item quantity="other">%d songs couldn\'t be checked and will use your default quality.</item></plurals>
+    <string name="dq_coverage">%1$d of %2$d songs have this; the others get the next best.</string>
+    <string name="dq_size">≈ %s</string>
+    <string name="dq_atmos">Dolby Atmos · E-AC-3 %d kbps</string>
+    <string name="dq_atmos_hint">Needs a compatible player.</string>
+    <string name="dq_spatial">Spatial audio · binaural AAC</string>
+    <string name="dq_spatial_hint">The headphone version of the Dolby Atmos mix.</string>
+    <string name="dq_make_default">Use as my default quality</string>
+    <string name="dq_download">Download</string>
+    <string name="dq_download_again">Download again</string>
+    <string name="dq_cancel">Cancel</string>
+    <string name="dq_already_one">Already downloaded as %1$s · %2$s. Downloading again adds a second file.</string>
+    <string name="dq_already_unknown">Already downloaded earlier (quality not recorded). Downloading again adds a second file.</string>
+    <plurals name="dq_already_many"><item quantity="one">%1$d of %2$d songs is already downloaded. Downloading again adds a second file.</item><item quantity="other">%1$d of %2$d songs are already downloaded. Downloading again adds a second file for each.</item></plurals>
+    <string name="dq_change_in_settings">You can change this in Settings → Downloads → Audio quality.</string>
+    <string name="dq_quality_unknown">unknown quality</string>
+    <string name="dq_field_label">Quality</string>
+    <string name="dq_highest_top">Up to %1$s on %2$d of %3$d songs</string>
+    <string name="quality_album_hires">Hi-Res Lossless on %1$d of %2$d songs · up to %3$s</string>
+    <plurals name="quality_album_unchecked"><item quantity="one">%d song couldn\'t be checked</item><item quantity="other">%d songs couldn\'t be checked</item></plurals>
+    <string name="track_copy_link">Copy link</string>
+    <string name="link_copied">Link copied</string>
+    <string name="cd_share_album">Share album</string>
+    <string name="link_not_found">Couldn\'t find that on Apple Music</string>
+    <string name="link_unsupported">Cadence can\'t open this kind of link yet</string>
+    <string name="radio_for_you">Stations for you</string>
 </resources>

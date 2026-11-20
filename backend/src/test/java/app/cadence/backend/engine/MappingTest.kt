@@ -127,4 +127,13 @@ class MappingTest {
         assertEquals("My Mix", p.title)
         assertEquals("Your library", p.curator)
     }
+
+    @Test fun aStationKeepsApplesOwnKindSoDiscoveryNeedsNoIdGuessing() {
+        val discovery = Mapping.station(obj("""{"id":"ra.q-AAA","attributes":{"name":"Por descubrir","kind":"discovery","isLive":false}}"""))!!
+        val mine = Mapping.station(obj("""{"id":"ra.u-BBB","attributes":{"name":"Estación de Ana","kind":"user"}}"""))!!
+        val plain = Mapping.station(obj("""{"id":"ra.9","attributes":{"name":"Chill Radio"}}"""))!!
+        assertEquals("discovery", discovery.stationKind)
+        assertEquals("user", mine.stationKind)
+        assertEquals(null, plain.stationKind)
+    }
 }

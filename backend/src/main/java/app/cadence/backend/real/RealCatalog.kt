@@ -5,6 +5,8 @@ import app.cadence.backend.engine.CadenceLog
 import app.cadence.backend.engine.Ttml
 import app.cadence.backend.lyrics.LrcParser
 import app.cadence.backend.engine.Mapping
+import app.cadence.backend.links.AppleLink
+import app.cadence.backend.links.LinkTarget
 import app.cadence.backend.model.*
 import app.cadence.backend.search.HitType
 import app.cadence.backend.search.SearchEngine
@@ -55,6 +57,92 @@ class RealCatalog(
     override val artists: List<Artist> get() = artistMap.values
     override val albums: List<Album> get() = albumMap.values
     override val tracks: List<TrackInfo> get() = trackMap.values
+
+    override val storefront: String get() = engine.storefrontNow()
+
+    private fun rawStationId(id: String) = id.removePrefix("st:")
+
+    private fun seededStation(root: JSONObject?, title: String, like: TrackInfo?): Playlist? {
+        val ra = StationIds.stationIds(root).firstOrNull { it.startsWith("ra.") } ?: return null
+        val p = Playlist(
+            id = "st:$ra", title = title, description = "Apple Music Radio", trackIds = emptyList(),
+            colors = like?.album?.colors ?: listOf("#6750A4", "#21005D"), cover = like?.album?.cover, curator = "Apple Music",
+        )
+        foundPlaylists[p.id] = p
+        return p
+    }
+
+    override suspend fun stationOfSong(track: TrackInfo): Playlist? {
+        if (!track.id.all(Char::isDigit)) return null
+        return seededStation(engine.get("songs/${track.id}?include=station"), "${track.track.title} Station", track)
+            .also { CadenceLog.i("RADIO", "station of song ${track.id} -> ${it?.id ?: "none"}") }
+    }
+
+    override suspend fun stationOfArtist(artistId: String): Playlist? {
+        val real = realArtistId(artistId)?.takeIf { it.all(Char::isDigit) } ?: return null
+        val a = artist(artistId)
+        return seededStation(engine.get("artists/$real?include=station"), "${a?.name.orEmpty()} Station", tracks.firstOrNull { it.artist.id == artistId })
+            .also { CadenceLog.i("RADIO", "station of artist $real -> ${it?.id ?: "none"}") }
+    }
+
+    override suspend fun personalStation(): Playlist? {
+        val data = engine.get("stations?filter%5Bidentity%5D=personal")?.optJSONArray("data") ?: return null
+        val p = data.optJSONObject(0)?.let(Mapping::station) ?: return null
+        foundPlaylists[p.id] = p
+        return p
+    }
+
+    override suspend fun genreStations(): List<Playlist> {
+        val genres = engine.get("station-genres")?.optJSONArray("data") ?: return emptyList()
+        val out = ArrayList<Playlist>()
+        for (i in 0 until genres.length()) {
+            val g = genres.optJSONObject(i) ?: continue
+            val id = g.optString("id").takeIf { it.isNotBlank() } ?: continue
+            val first = engine.get("station-genres/$id/stations")?.optJSONArray("data")?.optJSONObject(0)?.let(Mapping::station) ?: continue
+            if (first.available) { foundPlaylists[first.id] = first; out += first }
+        }
+        return out
+    }
+
+    override suspend fun stationFeed(stationId: String): List<TrackInfo> {
+        val data = engine.stationNextTracks(rawStationId(stationId))?.optJSONArray("data") ?: return emptyList()
+        val ids = (0 until data.length()).mapNotNull { data.optJSONObject(it)?.let(::mapPlaylistTrack) }
+        return ids.mapNotNull(::track)
+    }
+
+    override suspend fun resolveLink(link: AppleLink): LinkTarget =
+        resolveLink(link) { engine.get(it) }
+
+    /**
+     * What a link points at: the matching catalogue resource is fetched ([fetch] is `engine.get` in the app) and registered
+     * through [hitsOf], the same path search results take, so the page can open from the cache. Ids were validated by
+     * [app.cadence.backend.links.AppleLinks.parse]; nothing is registered unless the resource parsed.
+     */
+    internal suspend fun resolveLink(
+        link: app.cadence.backend.links.AppleLink,
+        fetch: suspend (String) -> JSONObject?,
+    ): LinkTarget {
+        return when (link) {
+            is AppleLink.Unsupported -> LinkTarget.Unsupported(link.kind)
+            is AppleLink.Album -> {
+                val hit = hitsOf(fetch("albums/${link.id}")?.optJSONArray("data")).filterIsInstance<SearchHit.AlbumHit>().firstOrNull()
+                if (hit == null) LinkTarget.NotFound else LinkTarget.Open(LinkTarget.Kind.Album, hit.album.id, link.songId)
+            }
+            is AppleLink.Song -> {
+                val hit = hitsOf(fetch("songs/${link.id}")?.optJSONArray("data")).filterIsInstance<SearchHit.SongHit>().firstOrNull()
+                if (hit == null) LinkTarget.NotFound else LinkTarget.Open(LinkTarget.Kind.Album, hit.track.album.id, hit.track.id)
+            }
+            is AppleLink.Playlist -> {
+                val hit = hitsOf(fetch("playlists/${link.token}")?.optJSONArray("data")).filterIsInstance<SearchHit.PlaylistHit>().firstOrNull()
+                if (hit == null) LinkTarget.NotFound else LinkTarget.Open(LinkTarget.Kind.Playlist, hit.playlist.id)
+            }
+            is AppleLink.Artist -> {
+                val hit = hitsOf(fetch("artists/${link.id}")?.optJSONArray("data")).filterIsInstance<SearchHit.ArtistHit>().firstOrNull()
+                if (hit == null) LinkTarget.NotFound else LinkTarget.Open(LinkTarget.Kind.Artist, hit.artist.id)
+            }
+        }
+    }
+
     /** Recommendations rendered as "Made for you" cards (album art + its tracklist). */
     /** An immutable list swapped whole, so Home can iterate it while a refresh publishes the next one. */
     @Volatile private var personalPlaylists: List<Playlist> = emptyList()

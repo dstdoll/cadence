@@ -102,6 +102,17 @@ data class UserSettings(
     /** Dolby Atmos for playback: "off", "spatial" (binaural AAC for headphones) or "atmos" (E-AC-3 JOC). */
     val streamAtmos: String = "off",
     val downloadCodec: String = "alac",
+    /**
+     * Whether a download asks which quality to use ("ask", the default) or just uses [downloadQuality] ("default").
+     * The picker says it can be changed here.
+     */
+    val downloadQualityMode: String = "ask",
+    /**
+     * The default download quality as a [app.cadence.backend.engine.media.RenditionSpec] string (`alac:24:0` is
+     * "highest available", `aac:128`, ...). Null reads the older format/bit depth/sample rate settings, so an
+     * upgrade keeps what the person had chosen.
+     */
+    val downloadQuality: String? = null,
     /** Dolby Atmos for downloaded files: "off", "spatial" (binaural AAC) or "atmos" (E-AC-3 JOC). */
     val downloadAtmos: String = "off",
     /**

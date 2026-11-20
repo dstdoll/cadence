@@ -115,7 +115,7 @@ import kotlinx.serialization.Serializable
 @Serializable data object LibraryRoute
 @Serializable data object SearchRoute
 @Serializable data object SettingsRoute
-@Serializable data class AlbumRoute(val id: String)
+@Serializable data class AlbumRoute(val id: String, val songId: String? = null)
 @Serializable data class ArtistRoute(val id: String)
 @Serializable data class PlaylistRoute(val id: String)
 @Serializable data class LibrarySectionRoute(val kind: LibraryKind)
@@ -140,7 +140,7 @@ private val tabs = listOf(
 )
 
 @Composable
-fun AppShell(openPlayerRequest: Int) {
+fun AppShell(openPlayerRequest: Int, linkText: String? = null, linkRequest: Int = 0) {
     val c = LocalContainer.current
     val nav = rememberNavController()
     val entry by nav.currentBackStackEntryAsState()
@@ -177,6 +177,25 @@ fun AppShell(openPlayerRequest: Int) {
             override fun dither() { lower(); nav.navigate(DitherRoute) }
             override fun profile() { lower(); nav.navigate(ProfileRoute) }
             override fun back() { nav.popBackStack() }
+        }
+    }
+    val linkCtx = androidx.compose.ui.platform.LocalContext.current
+    // A shared/opened Apple Music link: look it up, then open its page (latest link wins; handled once per delivery).
+    LaunchedEffect(linkRequest) {
+        val link = app.cadence.backend.links.AppleLinks.parse(linkText) ?: return@LaunchedEffect
+        val target = c.repository.resolveLink(link)
+        app.cadence.backend.engine.CadenceLog.i("link", "kind=${link::class.simpleName} -> ${target::class.simpleName}")
+        when (target) {
+            is app.cadence.backend.links.LinkTarget.Open -> {
+                if (expand.targetValue > 0.5f) settle(0f)
+                when (target.kind) {
+                    app.cadence.backend.links.LinkTarget.Kind.Album -> nav.navigate(AlbumRoute(target.id, target.selectSongId))
+                    app.cadence.backend.links.LinkTarget.Kind.Artist -> nav.navigate(ArtistRoute(target.id))
+                    app.cadence.backend.links.LinkTarget.Kind.Playlist -> nav.navigate(PlaylistRoute(target.id))
+                }
+            }
+            is app.cadence.backend.links.LinkTarget.NotFound -> android.widget.Toast.makeText(linkCtx, R.string.link_not_found, android.widget.Toast.LENGTH_LONG).show()
+            is app.cadence.backend.links.LinkTarget.Unsupported -> android.widget.Toast.makeText(linkCtx, R.string.link_unsupported, android.widget.Toast.LENGTH_LONG).show()
         }
     }
     LaunchedEffect(openPlayerRequest) { if (openPlayerRequest > 0 && hasTrack) settle(1f) }
@@ -302,7 +321,7 @@ fun AppShell(openPlayerRequest: Int) {
                             composable<LibraryRoute> { LibraryScreen() }
                             composable<SearchRoute> { SearchScreen() }
                             composable<SettingsRoute> { SettingsScreen() }
-                            composable<AlbumRoute> { AlbumScreen(it.toRoute<AlbumRoute>().id) }
+                            composable<AlbumRoute> { it.toRoute<AlbumRoute>().let { r -> AlbumScreen(r.id, r.songId) } }
                             composable<ArtistRoute> { ArtistScreen(it.toRoute<ArtistRoute>().id) }
                             composable<PlaylistRoute> { PlaylistScreen(it.toRoute<PlaylistRoute>().id) }
                             composable<LibrarySectionRoute> { LibrarySectionScreen(it.toRoute<LibrarySectionRoute>().kind) }
@@ -351,6 +370,7 @@ fun AppShell(openPlayerRequest: Int) {
             if (downloadsOpen) {
                 DownloadsWindow(downloadJobs) { c.downloadsOpen.value = false }
             }
+            app.cadence.feature.download.DownloadRequestHost()
         }
     }
 }

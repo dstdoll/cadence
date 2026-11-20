@@ -129,6 +129,8 @@ data class Playlist(
     val motion: String? = null,
     // BACKEND: false when the playlist/station is not available in the user's storefront.
     val available: Boolean = true,
+    /** For Apple radio stations: Apple's own `attributes.kind` ("user" = the personal station, "discovery" = Discovery, ...); null otherwise. */
+    val stationKind: String? = null,
 )
 
 /** The whole catalog in one document: what the real catalogue caches on disk. */

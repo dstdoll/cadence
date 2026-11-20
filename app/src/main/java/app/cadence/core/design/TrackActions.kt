@@ -34,6 +34,7 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
 import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material.icons.rounded.Radio
+import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.ThumbDown
 import androidx.compose.material.icons.rounded.ThumbDownOffAlt
@@ -126,7 +127,8 @@ fun TrackActionsSheet(
         ) { if (!downloaded && !downloading) act { downloadSong(context, info) } else onDismiss() })
         add(SheetAction(stringResource(R.string.track_play_next), Icons.AutoMirrored.Rounded.PlaylistPlay) { act { c.player.playNext(info) } })
         add(SheetAction(stringResource(R.string.track_play_last), Icons.AutoMirrored.Rounded.QueueMusic) { act { c.player.addToQueue(info) } })
-        add(SheetAction(stringResource(R.string.track_share_song), Icons.Rounded.Share) { act { shareSong(context, info) } })
+        add(SheetAction(stringResource(R.string.track_share_song), Icons.Rounded.Share) { act { shareSong(context, info, c.repository.storefront) } })
+        add(SheetAction(stringResource(R.string.track_copy_link), Icons.Rounded.Link) { act { copySongLink(context, info, c.repository.storefront) } })
         if (hasLyrics) add(SheetAction(stringResource(R.string.track_share_lyrics), Icons.Rounded.FormatQuote) { shareLyrics = true })
         add(SheetAction(stringResource(R.string.track_view_credits), Icons.Rounded.Info) { go { nav.credits(info.id) } })
         add(SheetAction(stringResource(R.string.track_create_station), Icons.Rounded.Radio) { act { c.player.startStation(info) } })
@@ -186,10 +188,31 @@ fun TrackActionsSheet(
     if (sleep) SleepTimerDialog(onDismiss = { sleep = false; onDismiss() })
 }
 
-fun shareSong(context: android.content.Context, info: TrackInfo) {
+/** The text a shared song carries: its title, artist and album, then the Apple Music link that Cadence (or anything else) can open. */
+fun songShareText(info: TrackInfo, storefront: String): String {
+    val line = "“${info.track.title}” by ${info.artist.name}, from ${info.album.title}"
+    val link = app.cadence.backend.links.AppleLinks.song(storefront, info.id)
+    return if (link == null) line else "$line\n$link"
+}
+
+fun shareSong(context: android.content.Context, info: TrackInfo, storefront: String) {
     val send = Intent(Intent.ACTION_SEND).setType("text/plain")
-        .putExtra(Intent.EXTRA_TEXT, "“${info.track.title}” by ${info.artist.name}, from ${info.album.title}")
+        .putExtra(Intent.EXTRA_TEXT, songShareText(info, storefront))
+        .putExtra(Intent.EXTRA_SUBJECT, info.track.title)
     context.startActivity(Intent.createChooser(send, null))
+}
+
+/** Puts just the song's Apple Music link on the clipboard (Cadence opens it when pasted into Search). */
+fun copySongLink(context: android.content.Context, info: TrackInfo, storefront: String) {
+    val link = app.cadence.backend.links.AppleLinks.song(storefront, info.id) ?: return
+    copyLink(context, link)
+}
+
+fun copyLink(context: android.content.Context, link: String) {
+    val cm = context.getSystemService(android.content.ClipboardManager::class.java)
+    cm?.setPrimaryClip(android.content.ClipData.newPlainText("Apple Music link", link))
+    // Android 13+ shows its own "copied" confirmation; earlier versions need ours.
+    if (android.os.Build.VERSION.SDK_INT < 33) android.widget.Toast.makeText(context, context.getString(app.cadence.R.string.link_copied), android.widget.Toast.LENGTH_SHORT).show()
 }
 
 @Composable

@@ -1,5 +1,6 @@
 package app.cadence.backend.engine
 
+import app.cadence.backend.engine.media.QualityPolicy
 import android.content.Context
 import app.cadence.backend.engine.media.EngineDownloader
 import app.cadence.backend.engine.media.DownloadState
@@ -74,12 +75,20 @@ data class DownloadPreferences(
      * from playback but without that reuse.
      */
     val shareStreamCache: Boolean = true,
+    /**
+     * The quality to download (highest wanted + Dolby Atmos choice). Null means "what [codec], [bitDepth],
+     * [maxSampleRate] and [atmos] say", which is how every setting from before the quality picker reads.
+     */
+    val quality: QualityPolicy? = null,
 ) {
+    /** The quality this job downloads; see [quality]. */
+    fun policy(): QualityPolicy = quality ?: QualityPolicy.fromLegacy(codec, bitDepth, maxSampleRate, atmos)
+
+    /** These preferences for one download that asked for [chosen] (null keeps the default). */
+    fun forQuality(chosen: QualityPolicy?): DownloadPreferences = if (chosen == null) this else copy(quality = chosen)
+
     /** The streaming cache variant this quality maps to; matches `AmpStreamResolver.variant`. */
-    fun downloadVariant(): String {
-        val base = if (codec == "aac") "aac/256" else "alac/$bitDepth/$maxSampleRate"
-        return if (atmos == "off") base else "$atmos+$base"
-    }
+    fun downloadVariant(): String = policy().cacheKey()
     fun streamVariant(): String {
         val base = if (streamCodec == "aac") "aac/256" else "alac/$bitDepth/$maxSampleRate"
         // Atmos tracks are cached apart from the stereo renditions; other tracks share the key.
@@ -236,6 +245,8 @@ object DownloadEngine {
         }
         if (added > 0) _enqueueEvents.update { it + 1 }
         if (added > 1) CadenceLog.i("download", "queued $added tracks kind=${items.first().kind}")
+        if (added > 0) CadenceLog.i("QUALITY", "enqueue kind=${items.first().kind} n=$added policy=" +
+            (items.firstOrNull { it.quality != null }?.quality?.cacheKey()?.let { "picked $it" } ?: "default ${preferences.downloadVariant()}"))
     }
 
     /** Drops finished/failed rows from the window. */
@@ -325,6 +336,10 @@ object DownloadEngine {
         val discNumber: Int = 1,
         val copyright: String? = null,
         val hasLyrics: Boolean = true,
+        /** The quality chosen for this download in the picker; null = the default from settings. */
+        val quality: QualityPolicy? = null,
+        /** The song's length, for the size estimate in the quality picker; 0 if unknown. */
+        val durationMs: Long = 0L,
     )
 }
 

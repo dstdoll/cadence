@@ -3,6 +3,14 @@ package app.cadence.feature.settings
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import app.cadence.R
+import androidx.compose.foundation.selection.selectable
+import app.cadence.backend.engine.media.RenditionSpec
+import app.cadence.core.design.qualityHint
+import app.cadence.core.design.qualityLabel
+import app.cadence.state.settings.QUALITY_MODE_ASK
+import app.cadence.state.settings.QUALITY_MODE_DEFAULT
+import app.cadence.state.settings.asksDownloadQuality
+import app.cadence.state.settings.downloadPolicy
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -119,16 +127,7 @@ private fun folderDigest(s: UserSettings): String {
 
 @Composable
 private fun audioDigest(s: UserSettings): String =
-    "ALAC · ${s.bitDepth}-bit · ${rateLabel(s.maxSampleRate)}"
-
-@Composable
-private fun rateLabel(rate: Int) = when (rate) {
-    0 -> stringResource(R.string.set_auto_rate)
-    44100 -> "44.1 kHz"
-    48000 -> "48 kHz"
-    96000 -> "96 kHz"
-    else -> "${rate / 1000} kHz"
-}
+    qualityLabel(s.downloadPolicy().ceiling) + " · " + stringResource(if (s.asksDownloadQuality) R.string.set_dl_quality_ask else R.string.set_dl_quality_default)
 
 @Composable
 private fun tagsDigest(s: UserSettings): String {
@@ -427,10 +426,36 @@ internal fun DownloadAudioPanel(onBack: () -> Unit) {
     val s by store.state.collectAsStateWithLifecycle()
 
     SettingsPanel(stringResource(R.string.set_audio_quality), onBack) {
-        item(key = "format") {
+        item(key = "mode") {
             SettingsGroup {
-                Label(stringResource(R.string.set_format), stringResource(R.string.set_dl_format_hint))
-                Connected(listOf("alac", "aac"), s.downloadCodec, { codecLabel(it) }) { v -> store.update { it.copy(downloadCodec = v) } }
+                Label(stringResource(R.string.set_dl_quality_mode), stringResource(R.string.set_dl_quality_mode_hint))
+                Connected(
+                    listOf(QUALITY_MODE_ASK, QUALITY_MODE_DEFAULT), if (s.asksDownloadQuality) QUALITY_MODE_ASK else QUALITY_MODE_DEFAULT,
+                    { if (it == QUALITY_MODE_ASK) stringResource(R.string.set_dl_quality_ask) else stringResource(R.string.set_dl_quality_default) },
+                ) { v -> store.update { it.copy(downloadQualityMode = v) } }
+            }
+        }
+        item(key = "quality") {
+            val current = s.downloadPolicy().ceiling
+            // The ladder, plus what an older setting meant if that is not one of its rungs (shown so nothing is hidden).
+            val rungs = (RenditionSpec.LADDER + current).distinct()
+            SettingsGroup {
+                Label(stringResource(R.string.set_dl_default_quality), stringResource(R.string.set_dl_default_quality_hint))
+                rungs.forEach { spec ->
+                    ListItem(
+                        headlineContent = { Text(qualityLabel(spec)) },
+                        supportingContent = qualityHint(spec)?.let { hint -> { Text(hint) } },
+                        leadingContent = { androidx.compose.material3.RadioButton(spec == current, onClick = null) },
+                        colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
+                        modifier = Modifier.selectable(spec == current, role = androidx.compose.ui.semantics.Role.RadioButton) {
+                            store.update { it.copy(downloadQuality = spec.format()) }
+                        },
+                    )
+                }
+            }
+        }
+        item(key = "atmos") {
+            SettingsGroup {
                 Label(
                     stringResource(R.string.set_dolby_atmos),
                     when (s.downloadAtmos) {
@@ -440,22 +465,6 @@ internal fun DownloadAudioPanel(onBack: () -> Unit) {
                     },
                 )
                 Connected(listOf("off", "spatial", "atmos"), s.downloadAtmos, { atmosLabel(it) }) { v -> store.update { it.copy(downloadAtmos = v) } }
-            }
-        }
-        item(key = "depth") {
-            SettingsGroup {
-                Label(stringResource(R.string.set_bit_depth), stringResource(R.string.set_dl_depth_hint))
-                Connected(listOf(24, 16), s.bitDepth, { "$it-bit" }) { v ->
-                    store.update { it.copy(bitDepth = v) }
-                }
-            }
-        }
-        item(key = "rate") {
-            SettingsGroup {
-                Label(stringResource(R.string.set_max_rate), stringResource(R.string.set_dl_rate_hint))
-                Connected(listOf(0, 44100, 48000, 96000, 192000), s.maxSampleRate, { rateLabel(it) }) { v ->
-                    store.update { it.copy(maxSampleRate = v) }
-                }
             }
         }
         item(key = "pad") { Spacer(Modifier.height(28.dp)) }

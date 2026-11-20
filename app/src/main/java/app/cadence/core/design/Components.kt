@@ -4,6 +4,7 @@ import androidx.compose.animation.core.RepeatMode
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import app.cadence.R
 import androidx.compose.animation.core.animateFloat
@@ -239,19 +240,24 @@ fun EqualizerBars(playing: Boolean, modifier: Modifier = Modifier) {
 
 /** Enqueues one song for download with the size-agnostic artwork template. The single place that
  *  builds a per-song download request, reused by every download affordance. */
-fun downloadSong(context: android.content.Context, info: TrackInfo) {
-    app.cadence.backend.engine.DownloadEngine.downloadTrack(
-        context = context,
-        trackId = info.id,
-        title = info.track.title,
-        artist = info.artist.name,
-        albumTitle = info.album.title,
-        hlsUrl = info.track.audio,
-        artworkTemplate = coverTemplate(info.album.cover),
-        kind = app.cadence.backend.engine.DownloadKind.SINGLE,
-        releaseDate = info.album.released,
-        genre = info.album.genre,
-        trackNumber = info.track.number,
+fun downloadSong(@Suppress("UNUSED_PARAMETER") context: android.content.Context, info: TrackInfo) {
+    // Through the request flow: it may ask which quality to use, or warn that the song is already downloaded.
+    app.cadence.feature.download.DownloadRequests.request(
+        listOf(
+            app.cadence.backend.engine.DownloadEngine.DownloadItem(
+                trackId = info.id,
+                title = info.track.title,
+                artist = info.artist.name,
+                albumTitle = info.album.title,
+                hlsUrl = info.track.audio,
+                artworkTemplate = coverTemplate(info.album.cover),
+                kind = app.cadence.backend.engine.DownloadKind.SINGLE,
+                releaseDate = info.album.released,
+                genre = info.album.genre,
+                trackNumber = info.track.number,
+                durationMs = info.track.durationMs,
+            )
+        )
     )
 }
 
@@ -282,6 +288,8 @@ fun TrackRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     leadingNumber: Int? = null,
+    /** Drawn highlighted (a song opened from a link); not played. */
+    selected: Boolean = false,
     showArtwork: Boolean = leadingNumber == null,
     trailing: @Composable (() -> Unit)? = null,
 ) {
@@ -293,10 +301,10 @@ fun TrackRow(
     val available = info.track.available
     ListItem(
         modifier = modifier
-            .semantics(mergeDescendants = true) {}
+            .semantics(mergeDescendants = true) { this.selected = selected }
             .clickable(enabled = available, onClick = onClick)
             .alpha(if (available) 1f else 0.38f),
-        colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
+        colors = ListItemDefaults.colors(containerColor = if (selected) MaterialTheme.colorScheme.secondaryContainer else androidx.compose.ui.graphics.Color.Transparent),
         leadingContent = {
             Box(Modifier.size(if (showArtwork) 48.dp else 28.dp), contentAlignment = Alignment.Center) {
                 if (showArtwork) Artwork(info.album.id, info.album.colors, Modifier.size(48.dp), RoundedCornerShape(10.dp), coverUrl = info.album.cover)

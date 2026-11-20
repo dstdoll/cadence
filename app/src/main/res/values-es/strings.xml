@@ -357,9 +357,6 @@
     <string name="set_playlist_folder">Carpeta de lista</string>
     <string name="set_playlist_track_file">Archivo de canción de lista</string>
     <string name="set_album_date_tag">Etiqueta de fecha del álbum</string>
-    <string name="set_format">Formato</string>
-    <string name="set_bit_depth">Profundidad de bits</string>
-    <string name="set_max_rate">Frecuencia de muestreo máxima</string>
     <string name="set_reuse_cache">Reutilizar la caché de reproducción</string>
     <string name="set_download_as_you_go">Descargar sobre la marcha</string>
     <string name="set_write_tags">Escribir etiquetas</string>
@@ -524,14 +521,10 @@
     <string name="set_tokens">Marcadores</string>
     <string name="set_preview">Vista previa</string>
     <string name="set_reset_default">Restablecer</string>
-    <string name="set_dl_format_hint">Lossless es ALAC; AAC es de 256 kbps y pesa más o menos una quinta parte. Los dos se guardan como .m4a.</string>
     <string name="set_dl_atmos_hint_atmos">Las canciones mezcladas en Dolby Atmos se guardan con esa mezcla (E-AC-3, unos 768 kbps, en un .m4a). Necesita un reproductor con decodificador Dolby; las demás canciones mantienen el formato de arriba.</string>
     <string name="set_dl_atmos_hint_spatial">Las canciones mezcladas en Dolby Atmos se guardan en su versión para audífonos (AAC 256 kbps), espacial en cualquier audífono y cualquier reproductor. Las demás canciones mantienen el formato de arriba.</string>
     <string name="set_dl_atmos_hint_off">Las canciones siempre se guardan en el formato de arriba, aunque tengan mezcla Dolby Atmos.</string>
-    <string name="set_dl_depth_hint">La profundidad preferida cuando Apple publica más de una variante Lossless.</string>
-    <string name="set_dl_rate_hint">Automática toma la mejor variante que ofrece la canción.</string>
     <string name="set_write_tags_sub">Título, artista, álbum, pista, disco, fecha y género dentro del archivo.</string>
-    <string name="set_auto_rate">Frecuencia automática</string>
     <string name="set_digest_tags">Etiquetas</string>
     <string name="set_digest_cover">Carátula %1$s</string>
     <string name="set_digest_lyrics">Letras %1$s</string>
@@ -709,4 +702,46 @@
     <string name="native_notice_out_of_memory">El motor de reproducción se quedó con poca memoria. Cierra otras apps si la reproducción se entrecorta.</string>
     <string name="native_notice_previous_crash">Cadence se cerró inesperadamente la última vez. Los detalles se guardaron en el registro.</string>
     <string name="native_notice_unknown">Algo salió mal en el motor de reproducción. Se controló; los detalles están en el registro.</string>
+    <string name="set_dl_quality_mode">Al descargar</string>
+    <string name="set_dl_quality_mode_hint">Preguntar qué calidad usar, o usar siempre tu calidad predeterminada.</string>
+    <string name="set_dl_quality_ask">Preguntar siempre</string>
+    <string name="set_dl_quality_default">Usar la predeterminada</string>
+    <string name="set_dl_default_quality">Calidad predeterminada</string>
+    <string name="set_dl_default_quality_hint">Si una canción no la tiene, se usa la mejor siguiente.</string>
+    <string name="quality_best">La más alta disponible</string>
+    <string name="quality_best_hint">La mejor calidad Lossless que tenga la canción, hasta 24 bits / 192 kHz.</string>
+    <string name="quality_hires_fmt">Hi-Res Lossless · %1$d bits / %2$s</string>
+    <string name="quality_lossless_fmt">Lossless · %1$d bits / %2$s</string>
+    <string name="quality_aac_fmt">AAC · %1$d kbps</string>
+    <string name="quality_he_fmt">Ahorro de datos · HE-AAC %1$d kbps</string>
+    <string name="dq_title">Calidad de descarga</string>
+    <plurals name="dq_songs"><item quantity="one">%d canción</item><item quantity="other">%d canciones</item></plurals>
+    <string name="dq_checking">Comprobando las calidades disponibles…</string>
+    <string name="dq_unchecked_all">No se pudieron comprobar las calidades disponibles. Se usará tu calidad predeterminada.</string>
+    <plurals name="dq_unchecked_some"><item quantity="one">%d canción no se pudo comprobar y usará tu calidad predeterminada.</item><item quantity="other">%d canciones no se pudieron comprobar y usarán tu calidad predeterminada.</item></plurals>
+    <string name="dq_coverage">%1$d de %2$d canciones la tienen; las demás usan la siguiente mejor.</string>
+    <string name="dq_size">≈ %s</string>
+    <string name="dq_atmos">Dolby Atmos · E-AC-3 %d kbps</string>
+    <string name="dq_atmos_hint">Requiere un reproductor compatible.</string>
+    <string name="dq_spatial">Audio espacial · AAC binaural</string>
+    <string name="dq_spatial_hint">La versión para auriculares de la mezcla Dolby Atmos.</string>
+    <string name="dq_make_default">Usar como mi calidad predeterminada</string>
+    <string name="dq_download">Descargar</string>
+    <string name="dq_download_again">Descargar de nuevo</string>
+    <string name="dq_cancel">Cancelar</string>
+    <string name="dq_already_one">Ya descargada como %1$s · %2$s. Descargarla de nuevo añade un segundo archivo.</string>
+    <string name="dq_already_unknown">Ya descargada antes (calidad no registrada). Descargarla de nuevo añade un segundo archivo.</string>
+    <plurals name="dq_already_many"><item quantity="one">%1$d de %2$d canciones ya está descargada. Descargarla de nuevo añade un segundo archivo.</item><item quantity="other">%1$d de %2$d canciones ya están descargadas. Descargarlas de nuevo añade un segundo archivo para cada una.</item></plurals>
+    <string name="dq_change_in_settings">Puedes cambiarlo en Ajustes → Descargas → Calidad de audio.</string>
+    <string name="dq_quality_unknown">calidad desconocida</string>
+    <string name="dq_field_label">Calidad</string>
+    <string name="dq_highest_top">Hasta %1$s en %2$d de %3$d canciones</string>
+    <string name="quality_album_hires">Hi-Res Lossless en %1$d de %2$d canciones · hasta %3$s</string>
+    <plurals name="quality_album_unchecked"><item quantity="one">%d canción no se pudo comprobar</item><item quantity="other">%d canciones no se pudieron comprobar</item></plurals>
+    <string name="track_copy_link">Copiar enlace</string>
+    <string name="link_copied">Enlace copiado</string>
+    <string name="cd_share_album">Compartir álbum</string>
+    <string name="link_not_found">No se encontró en Apple Music</string>
+    <string name="link_unsupported">Cadence aún no puede abrir este tipo de enlace</string>
+    <string name="radio_for_you">Emisoras para ti</string>
 </resources>

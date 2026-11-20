@@ -158,6 +158,8 @@ object EngineDownloader {
         /** Non-fragmented `.m4p` download + its `SVSampleDecryptor` context; null for HLS paths. */
         internal val m4pFile: File? = null,
         internal val m4pCtx: Long = 0L,
+        /** The rendition this download is (`alac:24:96000`, `aac:128`, `atmos:768`, `spatial`), "" when unknown. */
+        internal val quality: String = "",
     ) {
         /** Removes the staged package; for a staged track that will not be finished. */
         fun discard() {
@@ -181,14 +183,17 @@ object EngineDownloader {
     /** The `{codec}` naming value: "atmos" and "spatial" name the Atmos renditions, so they never collide with stereo files. */
     private fun namingCodec(plan: FairPlayPlan): String = if (plan.kind == "atmos" || plan.kind == "spatial") plan.kind else plan.codec
 
-    /** The resolved rendition's (codec, bitDepth, sampleRate) for naming; the requested settings on failure. */
-    private suspend fun resolveQuality(track: Track, prefs: DownloadPreferences): Triple<String, Int, Int> =
+    /** The resolved rendition for naming, and the plan it came from (null when resolving failed and the requested quality is used). */
+    private class ResolvedQuality(val codec: String, val bitDepth: Int, val sampleRate: Int, val plan: FairPlayPlan?)
+
+    private suspend fun resolveQuality(track: Track, prefs: DownloadPreferences): ResolvedQuality =
         runCatching {
-            val p = WrapperKeyClient.resolve(track, prefs.bitDepth, prefs.maxSampleRate, prefs.codec, prefs.atmos)
-            Triple(namingCodec(p), p.bitDepth, p.sampleRate)
+            val p = WrapperKeyClient.resolve(track, prefs.policy())
+            ResolvedQuality(namingCodec(p), p.bitDepth, p.sampleRate, p)
         }.getOrElse {
             AppLog.error("Cadence", "quality resolve for naming failed; using requested settings", it)
-            Triple(prefs.codec, prefs.bitDepth, if (prefs.maxSampleRate > 0) prefs.maxSampleRate else 0)
+            val c = prefs.policy().ceiling
+            ResolvedQuality(if (c.family == QualityFamily.LOSSLESS) "alac" else "aac", c.bitDepth, c.sampleRate, null)
         }
 
     private fun trackOf(item: DownloadEngine.DownloadItem, hls: String) = Track(
@@ -267,9 +272,12 @@ object EngineDownloader {
     suspend fun stage(
         context: Context,
         item: DownloadEngine.DownloadItem,
-        prefs: DownloadPreferences,
+        defaults: DownloadPreferences,
         onState: (DownloadState) -> Unit = {},
     ): Staged {
+        // The quality picked for THIS download, if any, replaces the default for everything below (naming, cache, resolving).
+        val prefs = defaults.forQuality(item.quality)
+        if (item.quality != null) AppLog.log("QUALITY", "track=${item.trackId} picked ${prefs.downloadVariant()} (default would be ${defaults.downloadVariant()})")
         if (prefs.streamingDownload) {
             // Per-segment download (fetch + decrypt each segment as it arrives, reusing anything
             // playback already decrypted). Any failure falls back to the proven two-phase path;
@@ -300,8 +308,8 @@ object EngineDownloader {
         // lists AAC before ALAC, and handing the master straight to HlsDownloader would download the
         // 256 kbps stream). Doing it before naming also lets the folder/file reflect the real quality.
         onState(DownloadState(running = true, phase = "downloading", message = "Resolving"))
-        val plan = WrapperKeyClient.resolve(trackOf(item, hls), prefs.bitDepth, prefs.maxSampleRate, prefs.codec, prefs.atmos)
-        AppLog.log("Cadence", "resolved media=${plan.mediaUrl} key=${plan.keyUri} quality=${plan.kind}/${plan.bitDepth}bit/${plan.sampleRate}Hz")
+        val plan = WrapperKeyClient.resolve(trackOf(item, hls), prefs.policy())
+        AppLog.log("Cadence", "resolved media=${plan.mediaUrl} key=${plan.keyUri} quality=${plan.kind}/${plan.bitDepth}bit/${plan.sampleRate}Hz spec=${plan.spec}")
 
         val setup = prepareJob(item, prefs, hls, namingCodec(plan), plan.bitDepth, plan.sampleRate)
         val track = setup.track
@@ -345,7 +353,7 @@ object EngineDownloader {
                 runCatching { android.net.Uri.parse(saved).path?.let { java.io.File(it).delete() } }
                 throw t
             }
-            Staged(item, track, album, settings, prefs.albumDate, saved, metadata, kds, relativeDir, folder, fileName)
+            Staged(item, track, album, settings, prefs.albumDate, saved, metadata, kds, relativeDir, folder, fileName, quality = plan.spec)
         }
     }
 
@@ -369,9 +377,14 @@ object EngineDownloader {
      * downloads instantly) is only correct when the download and streaming qualities resolve to the
      * same rendition; otherwise, and when the user turns sharing off, a dedicated cache is used.
      */
-    private fun pickCache(context: Context, prefs: DownloadPreferences): StreamCache {
-        val share = prefs.shareStreamCache && prefs.downloadVariant() == prefs.streamVariant()
-        return if (share) StreamPlayback.cache(context) else dedicatedCache(context)
+    private fun pickCache(context: Context, prefs: DownloadPreferences): Pair<StreamCache, StreamResolver?> {
+        val policy = prefs.policy()
+        // A 16-bit limit is the one case where playback's older picker and the download planner can choose differently
+        // (a song without 16-bit lossless), so it never shares: the file must be the rendition that was logged and recorded.
+        val depthLimited = policy.ceiling.family == QualityFamily.LOSSLESS && policy.ceiling.bitDepth < 24
+        val share = prefs.shareStreamCache && prefs.downloadVariant() == prefs.streamVariant() && !depthLimited
+        // Not shared: the dedicated cache, resolved at THIS download's quality (never the global setting).
+        return if (share) StreamPlayback.cache(context) to null else dedicatedCache(context) to DownloadStreamResolver(context, policy)
     }
 
     /**
@@ -389,15 +402,15 @@ object EngineDownloader {
         // Name from the real resolved quality. The stream cache does its own resolution, so this is
         // a best-effort extra lookup for the `{quality}` tokens; failure falls back to the settings.
         val hls = freshHlsUrl(context, item.trackId) ?: item.hlsUrl
-        val (qCodec, qDepth, qRate) = resolveQuality(trackOf(item, hls), prefs)
-        val setup = prepareJob(item, prefs, hls, qCodec, qDepth, qRate)
+        val resolved = resolveQuality(trackOf(item, hls), prefs)
+        val setup = prepareJob(item, prefs, hls, resolved.codec, resolved.bitDepth, resolved.sampleRate)
         AppLog.log(
             "Cadence",
             "stream download start track=${item.trackId} kind=${item.kind} dir=${setup.relativeDir} " +
                 "file=${setup.fileName} share=${prefs.shareStreamCache} variant=${prefs.downloadVariant()}",
         )
         onState(DownloadState(running = true, phase = "downloading", message = "Resolving"))
-        val cache = pickCache(context, prefs)
+        val (cache, resolver) = pickCache(context, prefs)
         val clearPackage = File(context.cacheDir, "cadence_clear_${System.nanoTime()}.mp4")
         coroutineScope {
             // Tags (lyrics + cover) are network work with no key; build them while segments download.
@@ -405,7 +418,7 @@ object EngineDownloader {
                 DrmService.prepareTags(setup.settings, session(context), setup.track, setup.album, prefs.albumDate)
             }
             try {
-                val stream = cache.stream(item.trackId)
+                val stream = if (resolver == null) cache.stream(item.trackId) else cache.stream(item.trackId, resolver)
                 AppLog.log("Cadence", "stream download segments=${stream.segmentCount} cached=${stream.cachedSegments()}")
                 stream.writePackage(clearPackage) { done, total ->
                     onState(
@@ -427,6 +440,7 @@ object EngineDownloader {
                 item, setup.track, setup.album, setup.settings, prefs.albumDate,
                 saved = "", tags = tags.await(), kds = LongArray(0),
                 setup.relativeDir, setup.folder, setup.fileName, clearPackage = clearPackage,
+                quality = resolved.plan?.spec.orEmpty(),
             )
         }
     }
@@ -437,9 +451,17 @@ object EngineDownloader {
         staged: Staged,
         onState: (DownloadState) -> Unit = {},
     ): String {
-        staged.clearPackage?.let { return finishStreaming(context, staged, it, onState) }
-        staged.m4pFile?.let { return finishM4p(context, staged, it, onState) }
-        return finishTwoPhase(context, staged, onState)
+        val uri = when {
+            staged.clearPackage != null -> finishStreaming(context, staged, staged.clearPackage, onState)
+            staged.m4pFile != null -> finishM4p(context, staged, staged.m4pFile, onState)
+            else -> finishTwoPhase(context, staged, onState)
+        }
+        // Remember what quality this file is, so the next download of the song can say "already downloaded as ...".
+        runCatching {
+            DownloadRegistry.record(context, DownloadRecord(staged.item.trackId, staged.quality, uri, staged.fileName, System.currentTimeMillis()))
+            AppLog.log("QUALITY", "downloaded track=${staged.item.trackId} as ${staged.quality.ifBlank { "unknown quality" }} -> $uri")
+        }.onFailure { AppLog.error("QUALITY", "could not record the download", it) }
+        return uri
     }
 
     private suspend fun stageM4p(
@@ -501,6 +523,7 @@ object EngineDownloader {
                 fileName = setup.fileName,
                 m4pFile = m4pFile,
                 m4pCtx = asset.decryptorCtx,
+                quality = "aac:256",
             )
         } catch (t: Throwable) {
             m4pFile.delete()
@@ -642,16 +665,15 @@ object EngineDownloader {
  * keeps a quality mismatch - downloading lossless while streaming AAC - from reusing the wrong
  * rendition. Mirrors `AmpStreamResolver.fromMaster` with `codec` in place of `streamCodec`.
  */
-internal class DownloadStreamResolver(private val context: Context) : StreamResolver {
-    override val variant: String get() = DownloadEngine.preferences.downloadVariant()
+internal class DownloadStreamResolver(private val context: Context, private val policy: QualityPolicy? = null) : StreamResolver {
+    /** The quality of one download when [policy] is given; otherwise the current default (only for the cache's own default resolver). */
+    private fun wanted(): QualityPolicy = policy ?: DownloadEngine.preferences.policy()
+    override val variant: String get() = wanted().cacheKey()
 
     override fun media(trackId: String): HlsMedia = runBlocking {
-        val prefs = DownloadEngine.preferences
         val master = EngineDownloader.freshHlsUrl(context, trackId)
             ?: throw IOException("Track $trackId has no stream")
-        val plan = WrapperKeyClient.resolve(
-            Track(trackId, "", "", 0, 1, 0L, master), prefs.bitDepth, prefs.maxSampleRate, prefs.codec, prefs.atmos,
-        )
+        val plan = WrapperKeyClient.resolve(Track(trackId, "", "", 0, 1, 0L, master), wanted())
         val playlist = plan.mediaPlaylist.ifBlank { Http.text(plan.mediaUrl) }
         HlsMediaParser.parse(playlist, plan.mediaUrl).copy(declaredBitDepth = plan.bitDepth, declaredSampleRate = plan.sampleRate)
     }

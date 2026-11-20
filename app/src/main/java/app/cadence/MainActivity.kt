@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -30,6 +32,8 @@ import androidx.compose.animation.togetherWith
 
 class MainActivity : ComponentActivity() {
     private val openPlayer = mutableIntStateOf(0)
+    private var linkText by mutableStateOf<String?>(null)
+    private val linkRequest = mutableIntStateOf(0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -53,7 +57,7 @@ class MainActivity : ComponentActivity() {
                     val session by container.backend.auth.session.collectAsStateWithLifecycle()
                     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
                         AnimatedContent(session != null, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "gate") { signedIn ->
-                            if (signedIn) AppShell(openPlayer.intValue) else AuthFlow()
+                            if (signedIn) AppShell(openPlayer.intValue, linkText, linkRequest.intValue) else AuthFlow()
                         }
                         app.cadence.feature.settings.UpdateDialog()
                     }
@@ -87,6 +91,18 @@ class MainActivity : ComponentActivity() {
 
     private fun handle(intent: Intent?) {
         if (intent?.getBooleanExtra(EXTRA_OPEN_PLAYER, false) == true) openPlayer.intValue++
+        // Shared text or an opened Apple Music link. The intent is untrusted: the text is only parsed, never fetched as-is.
+        val text = when (intent?.action) {
+            Intent.ACTION_SEND -> intent.getStringExtra(Intent.EXTRA_TEXT)
+            Intent.ACTION_VIEW -> intent.dataString
+            else -> null
+        }
+        if (text != null && app.cadence.backend.links.AppleLinks.parse(text) != null) {
+            linkText = text
+            linkRequest.intValue++
+            // Consume it so a recreation does not replay the link.
+            setIntent(Intent(this, MainActivity::class.java))
+        }
     }
 
     companion object {

@@ -1,5 +1,6 @@
 package app.cadence
 
+import app.cadence.state.settings.downloadPolicy
 import android.app.Application
 import android.content.Context
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -44,6 +45,10 @@ class AppContainer(context: Context) {
             settings.state.collect { DownloadEngine.configure(it.toDownloadPreferences()) }
         }
         updates.checkIfDue()
+        // Every download (song, album, playlist) goes through this, which may ask which quality to use.
+        app.cadence.feature.download.DownloadRequests.attach(context, settings, scope)
+        // What each song's masters offer (cached), so album pages can say "Hi-Res Lossless" when every song has it.
+        app.cadence.backend.engine.media.QualityIndex.attach(context)
     }
 }
 
@@ -89,6 +94,7 @@ internal fun UserSettings.toDownloadPreferences() = DownloadPreferences(
     streamAtmos = streamAtmos,
     atmos = downloadAtmos,
     shareStreamCache = shareDownloadCache,
+    quality = downloadPolicy(),
 )
 
 val LocalContainer = staticCompositionLocalOf<AppContainer> { error("No AppContainer") }

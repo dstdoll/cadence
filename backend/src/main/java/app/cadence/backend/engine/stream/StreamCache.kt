@@ -98,20 +98,27 @@ class StreamCache(
 
     /** The stream for [trackId], resolving its playlist and init segment on first use. Blocks. */
     @Throws(IOException::class)
-    fun stream(trackId: String): ClearStream {
+    fun stream(trackId: String): ClearStream = stream(trackId, resolver)
+
+    /**
+     * The stream for [trackId] as [using] resolves it. A download names its own quality this way instead of the
+     * cache reading a global setting, so two downloads at different qualities never see each other's choice.
+     */
+    @Throws(IOException::class)
+    fun stream(trackId: String, using: StreamResolver): ClearStream {
         // Read once: the quality setting can change while this runs.
-        val variant = resolver.variant
+        val variant = using.variant
         val key = key(trackId, variant)
         synchronized(streams) { streams[key] }?.let { return it }
         return synchronized(openLocks.computeIfAbsent(trackId) { Any() }) {
             synchronized(streams) { streams[key] }
-                ?: open(trackId, variant).also { synchronized(streams) { streams[key] = it } }
+                ?: open(trackId, variant, using).also { synchronized(streams) { streams[key] = it } }
         }
     }
 
-    private fun open(trackId: String, variant: String): ClearStream {
+    private fun open(trackId: String, variant: String, using: StreamResolver): ClearStream {
         openFromDisk(trackId, variant)?.let { return it }
-        val media = resolver.media(trackId)
+        val media = using.media(trackId)
         val originalInit = source.fetch(media.initUrl, media.initOffset, media.initLength)
         val timescale = Mp4Integrity.mediaTimescale(originalInit)
         if (timescale <= 0) throw IOException("Init segment of $trackId declares no timescale")

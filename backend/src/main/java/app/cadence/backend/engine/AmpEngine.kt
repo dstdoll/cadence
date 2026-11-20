@@ -83,6 +83,9 @@ class AmpEngine(private val cfg: AmpConfig) {
      * Applies a freshly signed-in account so catalogue/lyrics requests use its
      * media token immediately, without restarting the app.
      */
+    /** The storefront known right now (the account's once resolved, else the configured one); never blocks. */
+    fun storefrontNow(): String = resolvedStorefront ?: cfg.storefront
+
     fun updateAccount(mediaUserToken: String, storefront: String?) {
         if (mediaUserToken.isNotBlank()) mediaToken = mediaUserToken
         // A blank storefront clears the cached one so storefront() re-resolves it from /v1/me/storefront
@@ -533,6 +536,7 @@ object Mapping {
             cover = Artwork.at(Artwork.template(attrs), "300x300"),
             userCreated = false,
             available = isAvailable(attrs),
+            stationKind = attrs.optString("kind").takeIf { it.isNotBlank() },
         )
     }
 

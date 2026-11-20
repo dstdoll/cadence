@@ -10,6 +10,8 @@ internal data class HlsVariant(
     val bandwidth: Long,
     val groupId: String?,
     val group: Map<String, String>,
+    /** The playlist's `AVERAGE-BANDWIDTH` (bits/s): the real mean bit rate, used for size estimates; 0 if absent. */
+    val averageBandwidth: Long = 0L,
 ) {
     private val channels: String get() = group["CHANNELS"].orEmpty()
 
@@ -26,6 +28,12 @@ internal data class HlsVariant(
     val atmos: Boolean get() = codecs.equals("ec-3", ignoreCase = true)
 
     val alac: Boolean get() = codecs.equals("alac", ignoreCase = true)
+
+    /** HE-AAC (SBR), the 64 kbps "data saver" rendition (`mp4a.40.5`). */
+    val heAac: Boolean get() = codecs.equals("mp4a.40.5", ignoreCase = true)
+
+    /** The plain stereo mix: not Atmos, not Apple's binaural render or stereo downmix of it. */
+    val stereoMix: Boolean get() = !atmos && !binaural && !downmix
 }
 
 /** The rendition [HlsVariants.choose] picked: [codec] is `alac`, `aac` or `ec-3`; [kind] adds `atmos` and `spatial`. */
@@ -66,6 +74,7 @@ internal object HlsVariants {
                 bandwidth = attrs["BANDWIDTH"]?.toLongOrNull() ?: 0L,
                 groupId = groupId,
                 group = groupId?.let(groups::get).orEmpty(),
+                averageBandwidth = attrs["AVERAGE-BANDWIDTH"]?.toLongOrNull() ?: 0L,
             )
         }
         return out

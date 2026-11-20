@@ -29,6 +29,28 @@ interface MusicRepository {
     // BACKEND: here go curated playlists ("Made for you", editorial).
     val playlists: List<Playlist>
 
+    /** Apple's own radio station seeded by [track] (what "Start radio" on a song plays), or null (offline, none). Id is `st:ra.<id>`. */
+    suspend fun stationOfSong(track: TrackInfo): Playlist? = null
+
+    /** Apple's station seeded by an artist, or null. */
+    suspend fun stationOfArtist(artistId: String): Playlist? = null
+
+    /** The account's personal station ("<name>'s Station"), or null. */
+    suspend fun personalStation(): Playlist? = null
+
+    /** Apple's genre stations (Pop, Rock, ...), in Apple's order. Empty when offline. */
+    suspend fun genreStations(): List<Playlist> = emptyList()
+
+    /** The next batch of songs of a station (`st:ra.<id>` or `ra.<id>`); Apple sends about two per call, never the same twice in a row. */
+    suspend fun stationFeed(stationId: String): List<TrackInfo> = emptyList()
+
+    /** The account's storefront (two letters) as known right now, for building shareable links. */
+    val storefront: String get() = "us"
+
+    /** Looks a parsed Apple Music link up and registers what it points at, so its page can open. */
+    suspend fun resolveLink(link: app.cadence.backend.links.AppleLink): app.cadence.backend.links.LinkTarget = app.cadence.backend.links.LinkTarget.NotFound
+
+
     fun track(id: String): TrackInfo?
     fun album(id: String): Album?
     fun artist(id: String): Artist?

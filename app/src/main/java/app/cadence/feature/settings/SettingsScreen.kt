@@ -85,6 +85,7 @@ import app.cadence.LocalContainer
 import app.cadence.core.design.ListScaffold
 import app.cadence.core.design.SectionHeader
 import app.cadence.state.settings.ColorSource
+import app.cadence.state.settings.downloadPolicy
 import app.cadence.state.settings.DarkMode
 import app.cadence.state.settings.LyricsAlign
 
@@ -235,7 +236,7 @@ private fun SettingsRoot(onOpen: (SettingsPage) -> Unit) {
             SettingsNavCard(
                 icon = Icons.Rounded.Download,
                 title = stringResource(R.string.set_page_downloads),
-                summary = "${folderSummary(s.downloadTreeUri, custom)} · ALAC ${s.bitDepth}-bit",
+                summary = "${folderSummary(s.downloadTreeUri, custom)} · ${app.cadence.core.design.qualityLabel(s.downloadPolicy().ceiling)}",
             ) { onOpen(SettingsPage.Downloads) }
         }
         item(key = "library") {

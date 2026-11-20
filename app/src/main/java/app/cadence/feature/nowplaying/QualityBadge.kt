@@ -41,7 +41,7 @@ import app.cadence.backend.model.QualityTier
 
 /** Compact pill: "Hi-Res Lossless" / "Lossless" / codec name. Tap for the full breakdown. */
 @Composable
-fun QualityBadge(format: AudioFormatInfo, color: Color = MaterialTheme.colorScheme.onSurfaceVariant) {
+fun QualityBadge(format: AudioFormatInfo, color: Color = MaterialTheme.colorScheme.onSurfaceVariant, albumNote: String? = null) {
     var open by remember { mutableStateOf(false) }
     val tier = AudioQuality.tier(format)
     // Sized and typeset like the time labels it sits between: same label style, same 24dp row,
@@ -67,11 +67,11 @@ fun QualityBadge(format: AudioFormatInfo, color: Color = MaterialTheme.colorSche
             style = MaterialTheme.typography.labelMedium, color = color, maxLines = 1,
         )
     }
-    if (open) QualitySheet(format) { open = false }
+    if (open) QualitySheet(format, albumNote) { open = false }
 }
 
 @Composable
-private fun QualitySheet(format: AudioFormatInfo, onDismiss: () -> Unit) {
+private fun QualitySheet(format: AudioFormatInfo, albumNote: String?, onDismiss: () -> Unit) {
     val tier = AudioQuality.tier(format)
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 24.dp).navigationBarsPadding()) {
@@ -90,6 +90,10 @@ private fun QualitySheet(format: AudioFormatInfo, onDismiss: () -> Unit) {
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.padding(vertical = 16.dp),
             )
+            albumNote?.let { note ->
+                // The album's real story: its songs differ, so the pill (strict) and this line (the count) together tell it.
+                Text(note, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(bottom = 12.dp))
+            }
             HorizontalDivider()
             Spec(stringResource(R.string.quality_format), format.codec + if (AudioQuality.isLossless(format)) " " + stringResource(R.string.quality_lossless) else "")
             format.bitDepth?.let { Spec(stringResource(R.string.quality_bit_depth), stringResource(R.string.quality_bits, it)) }
@@ -135,3 +139,16 @@ internal fun tierDescription(tier: QualityTier): String = stringResource(
         QualityTier.Lossy -> R.string.quality_desc_lossy
     },
 )
+
+/**
+ * The album line of the quality details: "Hi-Res Lossless on 9 of 17 songs · up to 24-bit / 96 kHz", plus how many songs
+ * could not be checked. Null when no checked song has a hi-res rendition (then there is nothing to add).
+ */
+@Composable
+fun albumQualityNote(q: app.cadence.backend.engine.media.AlbumQuality?): String? {
+    if (q == null || !q.anyHiRes) return null
+    val top = AudioQuality.spec(AudioFormatInfo("ALAC", bitDepth = 24, sampleRate = q.maxRate))
+    val base = stringResource(R.string.quality_album_hires, q.hiRes, q.total, top)
+    val unchecked = q.total - q.known
+    return if (unchecked > 0) base + " · " + androidx.compose.ui.res.pluralStringResource(R.plurals.quality_album_unchecked, unchecked, unchecked) else base
+}

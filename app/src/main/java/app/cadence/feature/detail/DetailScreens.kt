@@ -1,5 +1,8 @@
 package app.cadence.feature.detail
 
+import androidx.compose.material.icons.rounded.Share
+import app.cadence.backend.model.AudioFormatInfo
+import androidx.compose.runtime.produceState
 import app.cadence.core.design.plural
 import app.cadence.core.design.releaseDateLine
 import app.cadence.core.design.runtimeLine
@@ -146,7 +149,7 @@ private fun LazyListScope.header(
 }
 
 @Composable
-fun AlbumScreen(id: String) {
+fun AlbumScreen(id: String, selectSongId: String? = null) {
     val c = LocalContainer.current
     val repo = c.repository
     val nav = LocalNavigator.current
@@ -171,7 +174,25 @@ fun AlbumScreen(id: String) {
     val lib by c.library.state.collectAsStateWithLifecycle()
     val saved = tracks.isNotEmpty() && tracks.all { lib.inLibrary(it.id) }
     val pinned = "al:$id" in lib.pinned
+    val bestFormat = tracks.mapNotNull { it.track.format }.minByOrNull { AudioQuality.tier(it).ordinal }
+    // The catalogue does not know sample rates (only the masters do): when every song of a lossless album has a hi-res
+    // rendition, the pill says so. A song nobody could check never lets the album claim it.
+    val albumQuality by produceState<app.cadence.backend.engine.media.AlbumQuality?>(null, id, tracks.map { it.id }) {
+        value = if (bestFormat != null && AudioQuality.isLossless(bestFormat) && tracks.isNotEmpty())
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                // Reading up to ~40 masters is only done off a metered connection; cached songs are always used.
+                val metered = runCatching { ctx.getSystemService(android.net.ConnectivityManager::class.java).isActiveNetworkMetered }.getOrDefault(true)
+                runCatching { app.cadence.backend.engine.media.QualityIndex.albumQuality(tracks.map { it.id to it.track.audio }, allowFetch = !metered) }.getOrNull()
+            } else null
+    }
+    val albumListState = androidx.compose.foundation.lazy.rememberLazyListState()
+    // A song opened from a link: scroll to it once the tracklist is there (header and play row come first).
+    LaunchedEffect(selectSongId, tracks.size) {
+        val at = tracks.indexOfFirst { it.id == selectSongId }
+        if (at >= 0) albumListState.animateScrollToItem(at + 2)
+    }
     ListScaffold(
+        listState = albumListState,
         title = album.title, showBack = true, showSettings = false, largeTitle = false,
         actions = {
             IconButton(onClick = {
@@ -193,8 +214,7 @@ fun AlbumScreen(id: String) {
                         android.widget.Toast.makeText(ctx, noTracksText, android.widget.Toast.LENGTH_SHORT).show()
                         return@launch
                     }
-                    DownloadEngine.enqueue(
-                        ctx,
+                    app.cadence.feature.download.DownloadRequests.request(
                         list.map { t ->
                             DownloadEngine.DownloadItem(
                                 trackId = t.id,
@@ -208,11 +228,18 @@ fun AlbumScreen(id: String) {
                                 genre = t.album.genre,
                                 trackNumber = t.track.number,
                                 trackTotal = list.size,
+                                durationMs = t.track.durationMs,
                             )
                         },
                     )
                 }
             }) { DownloadStatusIcon(albumJobs, stringResource(R.string.cd_download_album), completed = albumDone) }
+            IconButton(onClick = {
+                val link = app.cadence.backend.links.AppleLinks.album(repo.storefront, id)
+                val line = "${album.title} · ${artist?.name.orEmpty()}".trimEnd(' ', '·')
+                ctx.startActivity(android.content.Intent.createChooser(android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain")
+                    .putExtra(android.content.Intent.EXTRA_TEXT, if (link == null) line else "$line\n$link"), null))
+            }) { Icon(Icons.Rounded.Share, stringResource(R.string.cd_share_album)) }
             IconButton(onClick = { c.library.update { it.togglePin("al:$id") } }) {
                 Icon(if (pinned) Icons.Rounded.PushPin else Icons.Outlined.PushPin, if (pinned) stringResource(R.string.detail_unpin_album) else stringResource(R.string.detail_pin_album))
             }
@@ -220,17 +247,18 @@ fun AlbumScreen(id: String) {
     ) {
         // Badge the album by its best track, the way stores label a release by its top available quality.
         val best = tracks.mapNotNull { it.track.format }.minByOrNull { AudioQuality.tier(it).ordinal } // tiers are ordered best-first
+        val pill = if (albumQuality?.allHiRes == true) AudioFormatInfo("ALAC", bitDepth = 24, sampleRate = albumQuality!!.minRate) else best
         header(
             album.id, album.colors, album.title,
             artist?.name.orEmpty(), "${album.genre} · ${album.year}",
             motion = album.motion,
             cover = album.cover,
-            badge = best?.takeIf { AudioQuality.isLossless(it) }?.let { { QualityBadge(it) } },
+            badge = pill?.takeIf { AudioQuality.isLossless(it) }?.let { { QualityBadge(it, albumNote = app.cadence.feature.nowplaying.albumQualityNote(albumQuality)) } },
             onSubtitle = { artist?.let { nav.artist(it.id) } },
         )
         item(key = "play") { PlayShuffleRow(tracks, album.title) }
         itemsIndexed(tracks, key = { _, t -> t.id }) { i, t ->
-            TrackRow(t, onClick = { c.player.play(tracks, i, contextTitle = album.title) }, leadingNumber = t.track.number)
+            TrackRow(t, onClick = { c.player.play(tracks, i, contextTitle = album.title) }, leadingNumber = t.track.number, selected = t.id == selectSongId)
         }
         item(key = "footer") {
             // Album footer, the way a store labels a release: release date, runtime, then the
@@ -450,8 +478,7 @@ fun PlaylistScreen(id: String) {
                         c.downloadsOpen.value = true
                         return@IconButton
                     }
-                    app.cadence.backend.engine.DownloadEngine.downloadAll(
-                        ctx,
+                    app.cadence.feature.download.DownloadRequests.request(
                         tracks.mapIndexed { index, t ->
                             app.cadence.backend.engine.DownloadEngine.DownloadItem(
                                 trackId = t.id,
@@ -466,6 +493,7 @@ fun PlaylistScreen(id: String) {
                                 genre = t.album.genre,
                                 trackNumber = index + 1,
                                 trackTotal = tracks.size,
+                                durationMs = t.track.durationMs,
                             )
                         },
                     )
