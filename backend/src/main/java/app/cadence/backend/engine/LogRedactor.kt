@@ -14,6 +14,8 @@ object LogRedactor {
     private val handle = Regex("(handle=)-?\\d{6,}")
     // The device's own address in socket errors ("failed to connect to /host from /ADDR"): it can be
     // a public IPv6 address. The server side of those messages stays, it is what a log is read for.
+    // Identifiers Apple's libraries print: the account's DSID/person id, GUIDs, device serial/UDID.
+    private val appleIds = Regex("(?i)\\b(dsid|dsPersonId|personId|guid|udid|serial(?:Number)?|uniqueDeviceId|machineId|deviceGuid)\\b([\\s=:\"']+)[A-Za-z0-9._-]{6,}")
     private val localAddress = Regex("(\\bfrom /)[^\\s)]+")
     // Private and carrier-grade NAT IPv4 addresses (10/8, 172.16/12, 192.168/16, 100.64/10).
     private val privateV4 = Regex(
@@ -43,6 +45,7 @@ object LogRedactor {
         .replace(email, "$1***@$2")
         .replace(deviceId, "$1<id>")
         .replace(handle, "$1<kd>")
+        .replace(appleIds) { "${it.groupValues[1]}${it.groupValues[2]}<id>" }
         .replace(localAddress, "$1<local>")
         .replace(privateV4, "<lan-ip>")
         .replace(opaque) { "<secret:${it.value.length}>" }

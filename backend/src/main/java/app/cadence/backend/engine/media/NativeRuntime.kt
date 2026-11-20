@@ -19,7 +19,9 @@ object NativeRuntime {
                     Settings.Secure.ANDROID_ID,
                 ) ?: "unknown"
                 AppLog.log("Native", "auto init base=${context.filesDir.absolutePath} device=$deviceId")
+                app.cadence.backend.engine.Provisioning.dir = context.filesDir
                 ready = NativeWrapper.init(context.filesDir.absolutePath, deviceId, ProcessNetwork.activeDnsServers(context))
+                app.cadence.backend.engine.Provisioning.log("after native init")
                 AppLog.log("Native", "auto init result=$ready")
             }.onFailure { AppLog.error("Native", "auto init failed", it) }
         }.start()

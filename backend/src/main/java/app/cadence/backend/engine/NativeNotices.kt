@@ -48,6 +48,7 @@ object NativeNotices {
         val target = listener
         CadenceLog.i("native", "notice ${notice.kind} impact=${notice.impact} entry=${notice.entry} ${notice.detail}".trim() +
             if (!shown) " (not shown: rate limit)" else if (target == null) " (not shown: no UI yet)" else "")
+        if (notice.kind == "KEY_REJECTED") Provisioning.logOnKeyRejected()
         if (shown) target?.invoke(notice)
     }
 }

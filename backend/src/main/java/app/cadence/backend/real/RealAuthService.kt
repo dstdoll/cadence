@@ -54,6 +54,8 @@ class RealAuthService(
         // profile from Apple on launch using the saved media-user-token - no OTP, no sign-in.
         val s = state.value
         if (s != null && s.accessToken.isNotBlank()) scope.launch {
+            // A returning user's rejected keys need the subscription state too, not only a fresh sign-in's.
+            AmpConfig.load(context)?.let { runCatching { queryProfile(it.devToken, s.accessToken, "account?meta=subscription") } }
             val p = runCatching { fetchProfile(s.accessToken) }.getOrNull() ?: return@launch
             val name = p.name?.takeIf { it.isNotBlank() } ?: return@launch
             if (name != s.displayName || (p.email != null && p.email != s.email)) {
@@ -145,6 +147,9 @@ class RealAuthService(
         // writes MUSIC_TOKEN, so the catalogue is the user's personalised page, not the dev-token feed.
         val token = readNativeFile("MUSIC_TOKEN")
         CadenceLog.i("auth", "media-user-token after sign-in: ${if (token.isBlank()) "none" else "present (${token.length})"}")
+        app.cadence.backend.engine.Provisioning.loginAtMs = System.currentTimeMillis()
+        app.cadence.backend.engine.Provisioning.log("after sign-in")
+        token.takeIf { it.isNotBlank() && amp != null }?.let { runCatching { queryProfile(amp!!.devToken, it, "account?meta=subscription") } }
         val sf = readNativeFile("STOREFRONT_ID").ifBlank { amp?.storefront ?: "us" }
         val profile = token.takeIf { it.isNotBlank() }?.let { runCatching { fetchProfile(it) }.getOrNull() }
         val s = Session(
@@ -240,6 +245,11 @@ class RealAuthService(
             val body = (if (code in 200..299) conn.inputStream else conn.errorStream)
                 ?.bufferedReader()?.use { it.readText() }.orEmpty()
             if (code !in 200..299) { CadenceLog.i("auth", "profile $path -> $code"); return null }
+            if (path.contains("subscription")) {
+                val d = app.cadence.backend.engine.Provisioning.describeSubscription(body)
+                app.cadence.backend.engine.Provisioning.subscription = d
+                CadenceLog.i("auth", "subscription: $d")
+            }
             val root = org.json.JSONObject(body)
             val data0 = root.optJSONArray("data")?.optJSONObject(0) ?: root.optJSONObject("data")
             val attrs = data0?.optJSONObject("attributes")

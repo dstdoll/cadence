@@ -64,7 +64,7 @@ object EngineDownloader {
         // capture that thread's state. Initialize the same way instead of on a
         // coroutine pool thread, then let the KD run from the download coroutine.
         var ready = false
-        val initThread = Thread({ ready = NativeWrapper.init(baseDir, deviceId, dnsServers) }, "cadence-native-init")
+        val initThread = Thread({ app.cadence.backend.engine.Provisioning.dir = java.io.File(baseDir); ready = NativeWrapper.init(baseDir, deviceId, dnsServers) }, "cadence-native-init")
         initThread.start()
         initThread.join()
         nativeReady = ready

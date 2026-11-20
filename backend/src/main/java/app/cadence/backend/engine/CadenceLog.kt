@@ -16,7 +16,6 @@ import java.util.Locale
 object CadenceLog {
     private const val TAG = "Cadence"
     private var file: File? = null
-    private val time = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
 
     fun init(context: Context) {
         if (file != null) return
@@ -25,21 +24,24 @@ object CadenceLog {
             val dir = File(context.filesDir, "logs")
             dir.mkdirs()
             file = File(dir, "cadence.log")
+            LogSink.file = file
             file?.let { rescrub(it, File(dir, ".redaction")) }
+            file?.let { trimToTail(it) }
             file?.appendText("\n=== start ${Date()} ===\n")
         }
     }
 
     fun i(tag: String, rawMessage: String) {
         val message = LogRedactor.clean(rawMessage)
+        if (tag == "amp" && message.startsWith("storefront=")) app.cadence.backend.engine.Provisioning.storefront = message.removePrefix("storefront=").substringBefore(' ')
         runCatching { Log.i(TAG, "$tag: $message") }
-        write("I/$tag", message)
+        write("I", tag, message)
     }
 
     fun e(tag: String, rawMessage: String, t: Throwable? = null) {
         val message = LogRedactor.clean(rawMessage)
         runCatching { Log.e(TAG, "$tag: $message", t) }
-        write("E/$tag", if (t == null) message else "$message :: ${t.javaClass.simpleName}: ${LogRedactor.clean(t.message.orEmpty())}")
+        write("E", tag, message, t?.let { LogSink.trace(it) })
     }
 
     /** Bumped whenever [LogRedactor] gains a rule, so older log lines get the new rule too. */
@@ -64,8 +66,19 @@ object CadenceLog {
         }
     }
 
-    private fun write(level: String, message: String) {
-        val f = file ?: return
-        runCatching { f.appendText("${time.format(Date())} $level $message\n") }
+    private const val MAX_BYTES = 3_000_000L
+    private const val KEEP_CHARS = 1_500_000
+
+    /** The log is appended forever; past [MAX_BYTES] only the newest [KEEP_CHARS] (from a line start) are kept. */
+    internal fun trimToTail(log: File, maxBytes: Long = MAX_BYTES, keep: Int = KEEP_CHARS) {
+        runCatching {
+            if (!log.isFile || log.length() <= maxBytes) return
+            val text = log.readText()
+            val tail = text.takeLast(keep)
+            val cut = tail.indexOf('\n').let { if (it >= 0) it + 1 else 0 }
+            log.writeText("=== earlier lines trimmed (${text.length - tail.length + cut} chars) ===\n" + tail.substring(cut))
+        }
     }
+
+    private fun write(level: String, tag: String, message: String, trace: String? = null) = LogSink.append(level, tag, message, trace)
 }

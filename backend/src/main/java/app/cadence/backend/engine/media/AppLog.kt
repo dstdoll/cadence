@@ -32,6 +32,7 @@ object AppLog {
             val dir = File(context.filesDir, "logs")
             dir.mkdirs()
             file = File(dir, FILE_NAME)
+            app.cadence.backend.engine.LogSink.file = file
             if (!installed) {
                 installed = true
                 installCrashHandler()
@@ -56,7 +57,7 @@ object AppLog {
 
     fun clear() {
         synchronized(lock) {
-            runCatching { file?.writeText("") }
+            app.cadence.backend.engine.LogSink.clear()
             write("I", "Log", "log cleared", null)
         }
     }
@@ -102,20 +103,8 @@ object AppLog {
         }
     }
 
-    private fun write(level: String, tag: String, message: String, throwable: Throwable?) {
-        synchronized(lock) {
-            val f = file ?: return
-            f.parentFile?.mkdirs()
-            val line = "${stamp.format(Date())} $level/${Thread.currentThread().name} $tag: $message\n"
-            val body = if (throwable == null) line else buildString {
-                append(line)
-                append(Log.getStackTraceString(throwable))
-                append('\n')
-            }
-            runCatching { f.appendText(body) }
-                .onFailure { Log.e(TAG, "cannot append log", it) }
-        }
-    }
+    private fun write(level: String, tag: String, message: String, throwable: Throwable?) =
+        app.cadence.backend.engine.LogSink.append(level, tag, message, throwable?.let { app.cadence.backend.engine.LogSink.trace(it) })
 
     private fun installCrashHandler() {
         val previous = Thread.getDefaultUncaughtExceptionHandler()
