@@ -27,6 +27,14 @@ use std::path::{Path, PathBuf};
 /// Variable que vuelve obligatoria la captura (CI la pone en 1).
 pub const ENV_REQUIRED: &str = "CADENCE_VECTORS_REQUIRED";
 
+/// Variable que apunta a la captura directamente, sin deducirla del crate.
+///
+/// La ruta normal sale de `CARGO_MANIFEST_DIR`, que se fija **al compilar** y es una ruta de la
+/// maquina que compilo. Un binario de tests cruzado para Android y corrido en el dispositivo no
+/// la tiene, asi que ahi la captura se le indica por esta variable. Si esta puesta manda sobre
+/// todo lo demas, y si apunta a algo que no existe es un fallo: quien la puso queria ese archivo.
+pub const ENV_FILE: &str = "CADENCE_VECTORS_FILE";
+
 /// La captura real del dispositivo. Gitignorada: trae su ANDROID_ID y su GUID.
 const REAL: &str = "../vectors.json";
 /// La muestra sintetica que sí va al repositorio. La genera
@@ -54,8 +62,25 @@ pub fn load(manifest_dir: &str) -> Option<serde_json::Value> {
 /// depender de si `CADENCE_VECTORS_REQUIRED` esta puesta en la shell que los corre (que es
 /// justo lo que hace `test-ports.sh`).
 pub fn load_exigiendo(manifest_dir: &str, exigir: bool) -> Option<serde_json::Value> {
+    let forzada = std::env::var_os(ENV_FILE).map(PathBuf::from);
+    load_desde(manifest_dir, exigir, forzada)
+}
+
+/// Que archivo se va a leer: el indicado a mano si lo hay, si no la captura real, si no la muestra.
+pub fn ruta(manifest_dir: &str, forzada: Option<PathBuf>) -> PathBuf {
+    if let Some(p) = forzada {
+        return p;
+    }
     let real = Path::new(manifest_dir).join(REAL);
-    let path: PathBuf = if real.exists() { real } else { Path::new(manifest_dir).join(MUESTRA) };
+    if real.exists() { real } else { Path::new(manifest_dir).join(MUESTRA) }
+}
+
+/// [`load_exigiendo`] con la ruta forzada explicita, para poder probarla sin tocar el entorno
+/// del proceso (que comparten todos los tests que corren en paralelo).
+pub fn load_desde(manifest_dir: &str, exigir: bool, forzada: Option<PathBuf>) -> Option<serde_json::Value> {
+    // Un archivo indicado a mano se exige siempre: si no esta, es un fallo y no un salto.
+    let exigir = exigir || forzada.is_some();
+    let path = ruta(manifest_dir, forzada);
     match std::fs::read_to_string(&path) {
         Ok(texto) => Some(serde_json::from_str(&texto).unwrap_or_else(|e| {
             panic!("vectors.json existe en {} pero no parsea: {e}", path.display())
@@ -206,6 +231,25 @@ mod tests {
     fn sin_captura_pero_exigida_revienta() {
         let c = Caso::nuevo("exigida", None);
         let _ = load_exigiendo(&c.manifest(), true);
+    }
+
+    /// La ruta indicada a mano manda sobre la captura del crate.
+    #[test]
+    fn la_ruta_forzada_le_gana_a_todo() {
+        let c = Caso::nuevo("forzada", Some(("vectors.json", r#"{"userAgent":"del crate"}"#)));
+        let otra = c.raiz.join("otra.json");
+        std::fs::write(&otra, r#"{"userAgent":"forzada"}"#).unwrap();
+        let v = load_desde(&c.manifest(), false, Some(otra)).expect("la forzada");
+        assert_eq!(v["userAgent"], "forzada");
+    }
+
+    /// Y si apunta a algo que no existe es un fallo aunque no se haya exigido la captura: quien
+    /// la indico queria ese archivo, no "el que haya".
+    #[test]
+    #[should_panic(expected = "esta puesta y no hay")]
+    fn una_ruta_forzada_que_no_existe_revienta() {
+        let c = Caso::nuevo("forzada-falta", Some(("vectors.json", BUENO)));
+        let _ = load_desde(&c.manifest(), false, Some(c.raiz.join("no-existe.json")));
     }
 
     #[test]
