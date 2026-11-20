@@ -259,6 +259,72 @@ static AUTH: Mutex<AuthState> = Mutex::new(AuthState {
 });
 static CODE_CV: Condvar = Condvar::new();
 
+/// Comprueba que el port `device-guid` reproduce el GUID que arma la libreria cerrada.
+///
+/// No llama a nada nuevo: toma el GUID que `DeviceGUID::guid()` ya devolvio, le saca el
+/// campo 1 (los 36 hex de FairPlay, lo unico del GUID que no esta portado) y reconstruye
+/// los otros cinco campos con el port. Si el resultado es identico, queda demostrado sobre
+/// el dispositivo real que el algoritmo del port es el correcto: el hash del ANDROID_ID, el
+/// ancho de los campos y el orden.
+///
+/// Es la comprobacion previa a dejar de llamar a `DeviceGUID`. Hacerlo asi, reusando el
+/// campo 1 en vez de pedirselo a `FairPlayGetAndroidGUIDFields`, es deliberado: esa funcion
+/// no se importa estaticamente en ningun lado, la resuelven por `dlsym` desde
+/// `libmedialibrarycore.so`, y llamarla sin las precondiciones de su caller real mata el
+/// proceso con SIGSEGV (probado). Mientras no se sepa como prepararla, el campo 1 se saca
+/// de donde ya esta.
+///
+/// **Nunca registra el GUID**, que identifica el dispositivo: solo el veredicto.
+fn verificar_guid(de_la_libreria: &str) {
+    let Some(partes) = device_guid::parse(de_la_libreria) else {
+        nlog("guid: la libreria devolvio algo que no tiene la forma esperada");
+        return;
+    };
+    let android_id = {
+        let Ok(g) = CONFIG.lock() else { return };
+        match g.as_ref() {
+            Some(c) if !c.android_id.is_empty() => c.android_id.clone(),
+            _ => {
+                nlog("guid: sin ANDROID_ID, no puedo reconstruirlo");
+                return;
+            }
+        }
+    };
+    let campo1 = de_la_libreria.split('.').next().unwrap_or_default().to_owned();
+    let nuestro = device_guid::build(&device_guid::DeviceInfo {
+        android_id: android_id.clone(),
+        serial: String::new(), // la mayoria de los Android no lo exponen
+        fairplay_field1: Some(campo1),
+        fairplay_field2: None, // en el dispositivo de referencia sale en ceros
+    });
+    if nuestro == de_la_libreria {
+        nlog(&format!(
+            "guid: el port lo reproduce identico ({} chars, {} campos, hash del ANDROID_ID ok)",
+            nuestro.len(),
+            nuestro.split('.').count(),
+        ));
+        return;
+    }
+    let a: Vec<&str> = nuestro.split('.').collect();
+    let b: Vec<&str> = de_la_libreria.split('.').collect();
+    if a.len() != b.len() {
+        nlog(&format!("guid: DIFIERE en cantidad de campos ({} contra {})", a.len(), b.len()));
+        return;
+    }
+    let distintos: Vec<String> = a
+        .iter()
+        .zip(b.iter())
+        .enumerate()
+        .filter(|(_, (x, y))| x != y)
+        .map(|(i, (x, y))| format!("campo{} (largo {} contra {})", i + 1, x.len(), y.len()))
+        .collect();
+    nlog(&format!(
+        "guid: DIFIERE en {} | coincide con el ANDROID_ID: {}",
+        distintos.join(", "),
+        partes.matches_android_id(&android_id),
+    ));
+}
+
 /// El `(dt:NN)` del User-Agent. No sale de la config: lo agrega la capa de red, y en el
 /// trafico capturado del dispositivo es 66.
 const MINT_DT: u32 = 66;
@@ -404,6 +470,20 @@ pub fn configure(base_dir_in: &str, dns_servers: &str, android_id_in: &str) {
                 &conf3 as *const u32 as *mut c_void,
                 &conf4 as *const bool as *mut c_void,
             );
+            // Ya configurado, se puede leer el GUID y contrastarlo con el del port. Va aca y
+            // no solo en el mint porque el mint no corre en cada arranque: si la sesion sigue
+            // valida se lo saltea, y el contraste tardaria dias en aparecer.
+            let mut buf = [0u8; 128];
+            if bridges::cadence_device_guid_string(
+                guid_obj,
+                buf.as_mut_ptr() as *mut c_char,
+                buf.len() as c_int,
+            ) != 0
+            {
+                let de_la_libreria =
+                    CStr::from_ptr(buf.as_ptr() as *const c_char).to_string_lossy().into_owned();
+                verificar_guid(&de_la_libreria);
+            }
         }
     }
     nlog("init: FootHill done");
