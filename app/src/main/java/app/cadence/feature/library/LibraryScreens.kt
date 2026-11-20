@@ -231,7 +231,7 @@ fun LibraryScreen() {
                             AlbumTile(t.album.copy(title = t.track.title), t.artist.name) { c.player.play(listOf(t), contextTitle = pinnedTitle) }
                         }
                         "al" -> repo.album(id)?.let { a -> AlbumTile(a, repo.artist(a.artistId)?.name.orEmpty()) { nav.album(a.id) } }
-                        "p" -> (lib.playlists + repo.libraryPlaylists + repo.playlists).firstOrNull { it.id == id }?.let { p -> PlaylistTile(p) { nav.playlist(p.id) } }
+                        "p" -> (lib.playlists + repo.libraryPlaylists + repo.playlists).firstOrNull { it.id == id }?.let { p -> PlaylistTile(p) { if (p.id.startsWith("st:")) c.player.startAppleStation(p) else nav.playlist(p.id) } }
                     }
                 }
             }

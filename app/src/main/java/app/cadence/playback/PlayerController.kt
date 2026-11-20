@@ -199,6 +199,16 @@ class PlayerController(
         }
     }
 
+    /** Starts an Apple Music radio station (`st:...`) directly as an endless station queue. */
+    fun startAppleStation(playlist: app.cadence.backend.model.Playlist) {
+        scope.launch {
+            controller ?: return@launch
+            val picks = repo.preparePlaylist(playlist.id, forceRefresh = true)
+            if (picks.isEmpty()) return@launch
+            startQueue(picks, contextTitle = playlist.title, isStation = true)
+        }
+    }
+
     // A station keeps itself full even when the global autoplay toggle is off; normal [play] clears it.
     @Volatile private var stationMode = false
 

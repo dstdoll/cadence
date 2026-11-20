@@ -406,7 +406,7 @@ private fun HitRow(hit: SearchHit, nav: Navigator, c: AppContainer, ambiguousArt
             when (hit) {
                 is SearchHit.ArtistHit -> nav.artist(hit.artist.id)
                 is SearchHit.AlbumHit -> nav.album(hit.album.id)
-                is SearchHit.PlaylistHit -> nav.playlist(hit.playlist.id)
+                is SearchHit.PlaylistHit -> if (hit.playlist.id.startsWith("st:")) c.player.startAppleStation(hit.playlist) else nav.playlist(hit.playlist.id)
                 is SearchHit.SongHit -> c.player.play(listOf(hit.track), contextTitle = searchTitle)
                 is SearchHit.LyricHit -> c.player.play(listOf(hit.track), contextTitle = searchTitle)
             }

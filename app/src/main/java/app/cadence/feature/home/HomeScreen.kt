@@ -90,7 +90,7 @@ fun HomeScreen() {
     val shelves = remember(revision, tick) { repo.shelves }
     fun pick(item: ShelfItem) = when (item) {
         is ShelfItem.AlbumItem -> item.album.let { a -> Pick(a.id, a.title, repo.artist(a.artistId)?.name.orEmpty(), a.colors, cover = a.cover) { nav.album(a.id) } }
-        is ShelfItem.PlaylistItem -> item.playlist.let { p -> Pick(p.id, p.title, p.description, p.colors, cover = p.cover) { nav.playlist(p.id) } }
+        is ShelfItem.PlaylistItem -> item.playlist.let { p -> Pick(p.id, p.title, p.description, p.colors, cover = p.cover) { if (p.id.startsWith("st:")) c.player.startAppleStation(p) else nav.playlist(p.id) } }
     }
     // The service marks one shelf as the leading one; without shelves Home builds its own.
     val hero = shelves.firstOrNull { it.hero } ?: shelves.firstOrNull()
@@ -168,7 +168,7 @@ fun HomeScreen() {
                     TileRow(shelf.items, { it.key }) { item ->
                         when (item) {
                             is ShelfItem.AlbumItem -> AlbumTile(item.album, repo.artist(item.album.artistId)?.name.orEmpty()) { nav.album(item.album.id) }
-                            is ShelfItem.PlaylistItem -> PlaylistTile(item.playlist) { nav.playlist(item.playlist.id) }
+                            is ShelfItem.PlaylistItem -> PlaylistTile(item.playlist) { val p = item.playlist; if (p.id.startsWith("st:")) c.player.startAppleStation(p) else nav.playlist(p.id) }
                         }
                     }
                 }
