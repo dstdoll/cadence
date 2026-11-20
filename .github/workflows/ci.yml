@@ -16,9 +16,13 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -48,3 +52,13 @@ jobs:
 
       - name: Run Rust E-AC-3 tests
         run: cargo test --manifest-path native/cadence-eac3/Cargo.toml
+
+      - name: Upload Gradle test reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-test-reports
+          path: |
+            app/build/reports/tests
+            backend/build/reports/tests
+          retention-days: 7

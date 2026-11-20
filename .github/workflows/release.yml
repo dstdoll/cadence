@@ -23,6 +23,7 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -115,6 +116,17 @@ jobs:
             }
           done
 
+          mkdir -p "$RUNNER_TEMP/so"
+          unzip -q -o "$APK" "lib/arm64-v8a/libcadence*.so" -d "$RUNNER_TEMP/so"
+          for so in "$RUNNER_TEMP/so/lib/arm64-v8a/"*.so; do
+            if readelf -lW "$so" | awk '/LOAD/ { if ($NF != "0x4000" && $NF != "0x10000") exit 1 }'; then
+              :
+            else
+              echo "ELF LOAD alignment < 16 KB in $(basename "$so")" >&2
+              exit 1
+            fi
+          done
+
           (cd app/build/outputs/apk/release && sha256sum app-release.apk > app-release.apk.sha256)
           SIZE_MB=$(awk "BEGIN { printf \"%.2f\", $(stat -c%s "$APK") / 1048576 }")
           {
@@ -124,6 +136,13 @@ jobs:
             echo "- **APK size:** ${SIZE_MB} MB"
             echo "- **SHA-256:** \`$(cat app/build/outputs/apk/release/app-release.apk.sha256)\`"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Archive R8 mapping
+        uses: actions/upload-artifact@v4
+        with:
+          name: r8-mapping-${{ steps.meta.outputs.tag }}
+          path: app/build/outputs/mapping/release/mapping.txt
+          retention-days: 90
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
