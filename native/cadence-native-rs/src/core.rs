@@ -410,14 +410,14 @@ fn android_release() -> String {
     if v.is_empty() { FALLBACK.to_owned() } else { v }
 }
 
-/// La identidad que la app declara a la tienda, en un solo lugar.
+/// The identity the app declares to the store, in one place.
 ///
-/// Es el port `store-config` (`storeservicescore::RequestContextConfig`). Importa que sea
-/// una sola instancia: estos nueve campos alimentan tanto los setters de
-/// `RequestContextConfig` en `init_ctx` como el `User-Agent` del mint, y antes se
-/// escribian por separado **y no coincidian** -- la config decia `5.0.2 / Pixel 8 /
-/// 7663314` y la cabecera decia `Music/4.9 ... Samsung S9 ... 7663313`. Dos identidades
-/// distintas en la misma sesion son una huella trivial de detectar.
+/// Uses the `store-config` port (`storeservicescore::RequestContextConfig`). Keeping a single
+/// instance matters: these nine fields feed both the `RequestContextConfig` setters in
+/// `init_ctx` and the mint `User-Agent`, which previously were written separately **and did not
+/// match** -- the config said `5.0.2 / Pixel 8 / 7663314` while the header said
+/// `Music/4.9 ... Samsung S9 ... 7663313`. Two distinct identities in the same session are a
+/// trivial fingerprint to detect.
 fn store_cfg() -> &'static store_config::RequestContextConfig {
     static CFG: OnceLock<store_config::RequestContextConfig> = OnceLock::new();
     CFG.get_or_init(|| {
