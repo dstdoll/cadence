@@ -3,7 +3,9 @@ use cadence_hooks::plt::{jump_slots, FileImage, R_AARCH64_JUMP_SLOT};
 use std::path::PathBuf;
 
 fn libs_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../backend/src/main/jniLibs/arm64-v8a")
+    // CADENCE_JNILIBS lets the same test run on a device, where the compile-time path does not exist.
+    std::env::var_os("CADENCE_JNILIBS").map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../backend/src/main/jniLibs/arm64-v8a"))
 }
 
 fn slots(lib: &str, wanted: &[&str]) -> Vec<(String, u64)> {

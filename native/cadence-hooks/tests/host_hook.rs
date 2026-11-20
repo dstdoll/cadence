@@ -1,13 +1,17 @@
 //! The real mechanics on a real C++ library: patch its `__cxa_throw` PLT slot, throw through the wrapper,
 //! check the C++ catch still works and the hook saw the throw. (x86_64 glibc here; arm64/bionic only
 //! differs in the relocation constant and is covered by `real_libs.rs` + the on-device selftest.)
-#![cfg(target_os = "linux")]
+#![cfg(any(target_os = "linux", target_os = "android"))]
 use cadence_hooks::plt::{self, JUMP_SLOT};
 use cadence_hooks::record::Kind;
 use std::ffi::{c_void, CString};
 use std::process::Command;
 
 fn build_thrower() -> String {
+    // CADENCE_THROWER_SO: a prebuilt thrower (the device run builds it with the NDK on the host and pushes it).
+    if let Some(p) = std::env::var_os("CADENCE_THROWER_SO") {
+        return p.to_string_lossy().into_owned();
+    }
     let dir = std::env::temp_dir().join(format!("cadence-hooks-test-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let out = dir.join("libthrower.so");
