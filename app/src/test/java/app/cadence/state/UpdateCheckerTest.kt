@@ -120,4 +120,35 @@ class UpdateCheckerTest {
         assertTrue(info!!.isChannelSwitch)
         assertTrue(info.isDowngrade)
     }
+
+    @Test
+    fun devChannelPicksHighestSemVerEvenAfterNewerStableHotfix() {
+        val payload = """
+            [
+              {
+                "tag_name": "v0.1.8",
+                "name": "v0.1.8",
+                "body": "Hotfix published after dev",
+                "prerelease": false,
+                "draft": false,
+                "html_url": "https://github.com/dstdoll/cadence/releases/tag/v0.1.8",
+                "assets": []
+              },
+              {
+                "tag_name": "v0.2.0-dev.1",
+                "name": "v0.2.0-dev.1",
+                "body": "Next feature dev",
+                "prerelease": true,
+                "draft": false,
+                "html_url": "https://github.com/dstdoll/cadence/releases/tag/v0.2.0-dev.1",
+                "assets": []
+              }
+            ]
+        """.trimIndent()
+
+        val info = UpdateChecker.evaluateReleasePayload(payload, UpdateChannel.Dev, "0.1.7")
+        assertNotNull(info)
+        assertEquals("v0.2.0-dev.1", info!!.tag)
+        assertTrue(info.prerelease)
+    }
 }

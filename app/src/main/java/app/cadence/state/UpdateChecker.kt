@@ -313,9 +313,18 @@ class UpdateChecker(
             val json = when (channel) {
                 UpdateChannel.Release -> root.jsonObject
                 UpdateChannel.Dev -> {
-                    root.jsonArray
+                    val candidates = root.jsonArray
                         .map { it.jsonObject }
-                        .firstOrNull { it["draft"]?.jsonPrimitive?.booleanOrNull != true }
+                        .filter { it["draft"]?.jsonPrimitive?.booleanOrNull != true }
+                    candidates
+                        .mapNotNull { obj ->
+                            val ver = obj["tag_name"]?.jsonPrimitive?.content?.trim()
+                                ?.let { SemVer.parse(it) }
+                            ver?.let { obj to it }
+                        }
+                        .maxWithOrNull(compareBy { it.second })
+                        ?.first
+                        ?: candidates.firstOrNull()
                         ?: return null
                 }
             }
