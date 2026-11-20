@@ -1,20 +1,20 @@
-//! Seam ABI hacia las librerias cerradas de StoreServices, bajo el guard de excepciones.
+//! ABI seam to the closed StoreServices libraries, under the exception guard.
 //!
-//! Los **tipos** (layout de libc++ y los portadores sret) ya no se definen aca: vienen del
-//! crate `apple-ss-sys`, que es el catalogo auditado de los 62 simbolos y la unica fuente
-//! de verdad del layout. Antes estaban duplicados en los dos lados, que es justo donde un
-//! desajuste de un campo corrompe memoria sin avisar.
+//! **Types** (libc++ layout and sret carriers) are no longer defined here: they come from the
+//! `apple-ss-sys` crate, which is the audited catalog of the 62 symbols and the single source of
+//! truth for layout. Previously they were duplicated on both sides, which is right where a
+//! single-field mismatch silently corrupts memory.
 //!
-//! Las **llamadas** sí se declaran aca, y a proposito: `apple_externs!` las envuelve en
-//! `cxx_guard`, que atrapa los `throw` de C++ de Apple y los convierte en un retorno en
-//! cero. `apple-ss-sys` declara los externs crudos (`extern "C-unwind"`, que permite el
-//! unwind pero no lo atrapa), asi que no se puede llamar directo desde la ruta viva: un
-//! throw subiria por frames de Rust. Si hace falta un simbolo nuevo, se copia su firma
-//! desde `apple-ss-sys` a este bloque, no se llama alla.
+//! **Calls** are declared here intentionally: `apple_externs!` wraps them in `cxx_guard`, which
+//! catches Apple's C++ `throw`s and converts them into a zero return. `apple-ss-sys` declares the
+//! raw externs (`extern "C-unwind"`, which allows unwinding without catching it), so it must not
+//! be called directly from live code paths: a throw would unwind across Rust frames. If a new
+//! symbol is needed, copy its signature from `apple-ss-sys` into this block instead of calling it
+//! there.
 //!
-//! Todo lo de aca es `unsafe`: punteros crudos a librerias cerradas por simbolo mangled,
-//! con layouts de libc++ calzados a mano. Rust no lo hace mas seguro que el C que
-//! reemplazo; localiza la costura y deja construir con cargo solo.
+//! Everything here is `unsafe`: raw pointers into closed libraries via mangled symbols, with
+//! hand-matched libc++ layouts. Rust does not make it safer than the C it replaced; it isolates
+//! the seam and lets Cargo build standalone.
 #![allow(dead_code)]
 
 use std::ffi::{c_char, c_int, c_void, CStr};

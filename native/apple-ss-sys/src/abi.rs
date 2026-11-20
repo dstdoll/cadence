@@ -1,17 +1,16 @@
-//! Primitivas del ABI de libc++ (`__ndk1`) necesarias para llamar a las librerías C++
-//! de Apple desde Rust.
+//! libc++ (`__ndk1`) ABI primitives needed to call Apple's C++ libraries from Rust.
 //!
-//! Nada de esto lo hace Rust más seguro que el C que reemplaza: son punteros crudos a
-//! librerías cerradas, resueltos por símbolo manglado, con layouts copiados a mano. Lo
-//! que sí hace es **localizar** el `unsafe` en un solo módulo.
+//! None of this makes Rust safer than the C it replaced: these are raw pointers into closed
+//! libraries, resolved by mangled symbol, with hand-copied layouts. What it does achieve is
+//! **isolating** the `unsafe` surface in a single module.
 //!
-//! Los layouts están fijados a la libc++ del NDK con la que Apple compiló estas libs;
-//! un cambio de toolchain podría moverlos. Los `const _: () = assert!(...)` del final
-//! son el seguro: fallan en compilación, no en el dispositivo.
+//! Layouts are pinned to the NDK libc++ Apple built these libraries against; a toolchain change
+//! could shift them. The `const _: () = assert!(...)` checks at the end are the safety net: they
+//! fail at compile time, not on the device.
 
 use core::ffi::{c_char, c_void};
 
-/// `std::__ndk1::shared_ptr<T>`: el puntero al objeto y el bloque de control.
+/// `std::__ndk1::shared_ptr<T>`: pointer to the object and control block.
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct SharedPtr {
@@ -42,17 +41,16 @@ pub struct StdVector {
     pub end_cap: *mut c_void,
 }
 
-/// Un `std::string` **no propietario** para pasar como argumento.
+/// Non-owning `std::string` for passing arguments.
 ///
-/// libc++ guarda las cadenas en dos modos. En *short mode* los bytes viven inline y el
-/// primer byte lleva `len << 1` (bit bajo en 0). En *long mode* el bit bajo de la
-/// capacidad está en 1 y la estructura es `{cap, size, data}`.
+/// libc++ stores strings in two modes. In *short mode* the bytes live inline and the first byte
+/// holds `len << 1` (low bit 0). In *long mode* the low bit of capacity is 1 and the layout is
+/// `{cap, size, data}`.
 ///
-/// Para pasar una cadena prestada se arma un long mode con capacidad `1`: el bit bajo
-/// queda en 1, así que la librería lee `data`, y nunca intenta liberar porque sólo
-/// recibe una referencia const.
+/// To pass a borrowed string we construct a long-mode struct with capacity `1`: the low bit is 1,
+/// so the library reads `data` and never attempts to free it because it only receives a const ref.
 ///
-/// Los bytes prestados tienen que vivir más que la llamada.
+/// The borrowed bytes must outlive the call.
 #[repr(C)]
 pub struct StdString {
     cap: usize,
@@ -61,42 +59,38 @@ pub struct StdString {
 }
 
 impl StdString {
-    /// Presta un `&str` como `std::string const&`.
+    /// Borrows a `&str` as `std::string const&`.
     ///
-    /// No hace falta que termine en NUL: libc++ usa `size`, no `strlen`.
+    /// Does not need to be NUL-terminated: libc++ uses `size`, not `strlen`.
     pub fn borrow(s: &str) -> Self {
         Self { cap: 1, size: s.len(), data: s.as_ptr() }
     }
 
-    /// Presta un slice de bytes.
+    /// Borrows a byte slice.
     pub fn borrow_bytes(b: &[u8]) -> Self {
         Self { cap: 1, size: b.len(), data: b.as_ptr() }
     }
 
-    /// Lee un `std::string` devuelto por la librería, en cualquiera de los dos modos.
+    /// Borrows an existing `CStr` without copying.
     ///
-    /// # Safety
-    /// `p` tiene que apuntar a un `std::string` válido y vivo.
-    /// Presta un `CStr` ya existente, sin copiar.
-    ///
-    /// Es [`borrow`](Self::borrow) para quien ya tiene un `CString` en la mano, que es
-    /// como arma las cadenas la capa JNI: ahorra reconstruir un `&str` solo para volver
-    /// a prestarlo. El `CStr` tiene que seguir vivo mientras se use el `StdString`.
+    /// Like [`borrow`](Self::borrow) for callers that already hold a `CString` (such as the JNI
+    /// layer): avoids rebuilding a `&str` just to borrow it again. The `CStr` must outlive the
+    /// `StdString`.
     pub fn borrow_cstr(s: &core::ffi::CStr) -> Self {
         Self::borrow_bytes(s.to_bytes())
     }
 
-    /// Puntero crudo a los bytes de un `std::string`, resolviendo short/long mode.
+    /// Raw pointer to the bytes of a `std::string`, handling short/long mode.
     ///
-    /// Devuelve el puntero sin copiar ni validar UTF-8; para leer el contenido es mejor
-    /// [`read`](Self::read) o [`read_utf8`](Self::read_utf8). Existe porque la capa nativa
-    /// pasa el puntero directo a funciones que esperan `const char*`.
+    /// Returns the pointer without copying or validating UTF-8; to read the content, prefer
+    /// [`read`](Self::read) or [`read_utf8`](Self::read_utf8). Exists because the native layer
+    /// passes the pointer directly to functions expecting `const char*`.
     ///
     /// # Safety
-    /// `p` tiene que apuntar a un `std::string` valido de libc++.
+    /// `p` must point to a valid, live libc++ `std::string`.
     pub unsafe fn data(p: *const StdString) -> *const core::ffi::c_char {
-        // Bit 0 del primer byte: 0 = short mode (los bytes van en sitio, despues del byte
-        // de largo), 1 = long mode (el puntero `data` es el bueno).
+        // Bit 0 of the first byte: 0 = short mode (bytes are inline after the length byte),
+        // 1 = long mode (`data` pointer is active).
         let first = unsafe { *(p as *const u8) };
         if first & 1 == 0 {
             unsafe { (p as *const u8).add(1) as *const core::ffi::c_char }
@@ -105,13 +99,13 @@ impl StdString {
         }
     }
 
-    /// Los bytes de un `std::string` de libc++, en short o long mode, copiados a un `Vec`.
+    /// Copies the bytes of a libc++ `std::string` (short or long mode) into a `Vec`.
     ///
-    /// Devuelve `None` para un puntero nulo o un short mode con un largo imposible.
+    /// Returns `None` for a null pointer or a short mode with an impossible length.
     ///
     /// # Safety
-    /// `p` tiene que ser nulo o apuntar a un `std::string` valido de libc++ que siga vivo durante
-    /// la llamada; en long mode, su puntero de datos tiene que cubrir los bytes que declara.
+    /// `p` must be null or point to a valid, live libc++ `std::string` during the call; in long
+    /// mode, its data pointer must cover the declared byte count.
     pub unsafe fn read(p: *const StdString) -> Option<Vec<u8>> {
         if p.is_null() {
             return None;
@@ -119,7 +113,7 @@ impl StdString {
         unsafe {
             let first = *(p as *const u8);
             if first & 1 == 0 {
-                // short mode: los bytes van justo después del byte de longitud
+                // short mode: bytes follow immediately after the length byte
                 let len = (first >> 1) as usize;
                 if len > 22 {
                     return None;
@@ -136,23 +130,23 @@ impl StdString {
         }
     }
 
-    /// Como [`read`](Self::read), pero validando UTF-8.
+    /// Like [`read`](Self::read), but validates UTF-8.
     ///
     /// # Safety
-    /// Igual que [`read`](Self::read).
+    /// Same as [`read`](Self::read).
     pub unsafe fn read_utf8(p: *const StdString) -> Option<String> {
         unsafe { Self::read(p) }.and_then(|v| String::from_utf8(v).ok())
     }
 }
 
-// ---- retornos indirectos (sret) -----------------------------------------------------
+// ---- indirect returns (sret) --------------------------------------------------------
 //
-// En AArch64 una función C++ que devuelve un tipo no trivial lo escribe a través de x8,
-// no en x0. Rust usa la misma convención para cualquier `repr(C)` de más de 16 bytes:
-// declarando el tipo de retorno con ese tamaño, las convenciones coinciden y el callee
-// escribe donde corresponde. Por eso los carriers llevan padding explícito.
+// On AArch64, a C++ function returning a non-trivial type writes through x8 rather than x0.
+// Rust uses the same convention for any `repr(C)` larger than 16 bytes: declaring the return
+// type with that size aligns both conventions and the callee writes to the expected slot. That
+// is why the carriers carry explicit padding.
 
-/// Carrier de 24 bytes para un `shared_ptr` devuelto por valor.
+/// 24-byte carrier for a `shared_ptr` returned by value.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct SretShared {
@@ -166,7 +160,7 @@ impl SretShared {
     }
 }
 
-/// Carrier de 24 bytes para un `mediaplatform::Data` (`{bytes, size}`) devuelto por valor.
+/// 24-byte carrier for a `mediaplatform::Data` (`{bytes, size}`) returned by value.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct SretData {
@@ -180,10 +174,10 @@ impl SretData {
         Self { bytes: core::ptr::null_mut(), size: 0, _pad: 0 }
     }
 
-    /// Copia los bytes a un `Vec`.
+    /// Copies the bytes into a `Vec`.
     ///
     /// # Safety
-    /// El `Data` tiene que seguir vivo.
+    /// The `Data` must still be alive.
     pub unsafe fn to_vec(&self) -> Option<Vec<u8>> {
         if self.bytes.is_null() || self.size == 0 || self.size > (1 << 24) {
             return None;
@@ -192,8 +186,7 @@ impl SretData {
     }
 }
 
-/// `RequestContext::init` devuelve 88 bytes por valor que sólo se usan por su efecto
-/// colateral.
+/// `RequestContext::init` returns 88 bytes by value used only for its side effect.
 #[repr(C)]
 pub struct ReqCtxInit88 {
     _b: [u8; 88],
@@ -205,7 +198,7 @@ impl Default for ReqCtxInit88 {
     }
 }
 
-/// `DeviceGUID::configure` devuelve 256 bytes por valor, también descartables.
+/// `DeviceGUID::configure` returns 256 bytes by value, also discardable.
 #[repr(C)]
 pub struct DevGuidConf256 {
     _b: [u8; 256],
@@ -217,11 +210,11 @@ impl Default for DevGuidConf256 {
     }
 }
 
-// ---- seguros de layout ---------------------------------------------------------------
+// ---- layout guards -------------------------------------------------------------------
 const _: () = assert!(size_of::<SharedPtr>() == 16);
 const _: () = assert!(size_of::<StdString>() == 24);
 const _: () = assert!(size_of::<StdVector>() == 24);
-// > 16 bytes fuerza el retorno indirecto por x8
+// > 16 bytes forces indirect return via x8
 const _: () = assert!(size_of::<SretShared>() == 24);
 const _: () = assert!(size_of::<SretData>() == 24);
 
@@ -246,7 +239,7 @@ mod tests {
 
     #[test]
     fn lee_short_mode() {
-        // short mode armado a mano: primer byte = len << 1, después los bytes
+        // hand-crafted short mode: first byte = len << 1, followed by the bytes
         let mut buf = [0u8; 24];
         buf[0] = 5 << 1;
         buf[1..6].copy_from_slice(b"corto");

@@ -1,11 +1,10 @@
-//! Validación contra vectores capturados del dispositivo.
+//! Validation against vectors captured from the device.
 //!
-//! `vectors.json` lo produce `export-vectors.js` enganchando las librerías de Apple
-//! mientras la app reproduce. Estos tests comprueban que el port genera exactamente lo
-//! mismo que la implementación original a partir de los mismos insumos.
+//! `vectors.json` is produced by `export-vectors.js` hooking Apple's libraries during playback.
+//! These tests verify that the port generates the exact same output as the original implementation
+//! from the same inputs.
 //!
-//! Si el archivo no está, los tests se saltan: el resto del crate se valida sin
-//! dispositivo.
+//! If the file is missing, tests are skipped: the rest of the crate is validated without a device.
 
 use fairplay_proto::*;
 
@@ -13,39 +12,38 @@ fn vectors() -> Option<serde_json::Value> {
     vectors_fixture::load(env!("CARGO_MANIFEST_DIR"))
 }
 
-/// Un arreglo de la captura que **tiene** que traer algo.
+/// An array from the capture that **must** contain items.
 ///
-/// Antes se usaba `as_array().cloned().unwrap_or_default()`: con la seccion ausente
-/// quedaba un vector vacio y los tests que iteran sobre el pasaban sin comprobar nada.
+/// Previously `as_array().cloned().unwrap_or_default()` was used: when the section was missing, it
+/// left an empty vector and tests iterating over it passed without checking anything.
 fn arreglo(v: &serde_json::Value, clave: &str) -> Vec<serde_json::Value> {
     let s = v.get(clave).unwrap_or_else(|| {
-        panic!("vectors.json no trae la seccion {clave:?}")
+        panic!("vectors.json missing section {clave:?}")
     });
     let a = s
         .as_array()
-        .unwrap_or_else(|| panic!("vectors.json: {clave:?} deberia ser un arreglo"));
-    assert!(!a.is_empty(), "vectors.json: {clave:?} esta vacio, no hay nada que validar");
+        .unwrap_or_else(|| panic!("vectors.json: {clave:?} should be an array"));
+    assert!(!a.is_empty(), "vectors.json: {clave:?} is empty, nothing to validate");
     a.clone()
 }
 
-/// Reconstruye cada cuerpo capturado a partir de sus campos y comprueba que coincide.
+/// Reconstructs each captured body from its fields and verifies it matches.
 ///
-/// Es la prueba de que el serializador reproduce byte a byte lo que manda la app: mismo
-/// orden de claves, mismo tratamiento de `offline`, mismos nombres.
+/// Proves the serializer reproduces byte for byte what the app sends: same key order, same
+/// `offline` handling, same field names.
 ///
-/// El esperado se arma recorriendo las claves **en el orden capturado**: volver a
-/// serializar el `Value` no sirve, porque serde_json ordena los mapas alfabéticamente y
-/// el original no lo hace.
+/// The expected string is built by walking keys **in captured order**: re-serializing the `Value`
+/// does not work because `serde_json` sorts maps alphabetically while the original does not.
 ///
-/// Los mensajes de error nunca incluyen el cuerpo: el SPC identifica al dispositivo.
+/// Error messages never include the body: the SPC identifies the device.
 #[test]
 fn reproduce_los_cuerpos_capturados() {
     let Some(v) = vectors() else {
-        eprintln!("sin vectors.json: salteado");
+        eprintln!("no vectors.json: skipped");
         return;
     };
     let reqs = arreglo(&v, "ckcRequests");
-    assert!(!reqs.is_empty(), "vectors.json no trae ningún cuerpo");
+    assert!(!reqs.is_empty(), "vectors.json has no request bodies");
 
     for (i, r) in reqs.iter().enumerate() {
         let p = &r["parsed"];
@@ -77,22 +75,22 @@ fn reproduce_los_cuerpos_capturados() {
                 .zip(theirs.bytes())
                 .position(|(a, b)| a != b)
                 .unwrap_or_else(|| ours.len().min(theirs.len()));
-            // recortamos el contexto: el cuerpo lleva el SPC del dispositivo
+            // trim context: the body carries the device's SPC
             panic!(
-                "el cuerpo {i} difiere en el byte {at} (nuestro largo {}, capturado {})",
+                "body {i} differs at byte {at} (our len {}, captured {})",
                 ours.len(),
                 theirs.len()
             );
         }
 
-        // y el largo también, que es lo que midió el hook
+        // and length too, which is what the hook measured
         let len = r["raw_len"].as_u64().unwrap() as usize;
-        assert_eq!(ours.len(), len, "el largo del cuerpo {i} no coincide");
+        assert_eq!(ours.len(), len, "body {i} length mismatch");
     }
 }
 
-/// Las claves del JSON, en orden, son las que usa Apple.
-/// El orden canonico de las claves del cuerpo CKC, tal como lo emite el original.
+/// The JSON keys, in order, match what Apple uses.
+/// Canonical key order of the CKC body as emitted by the original.
 const ORDEN_CANONICO: [&str; 5] = ["guid", "offline", "adamId", "spc", "keyUri"];
 
 #[test]
@@ -167,11 +165,11 @@ fn las_constantes_coinciden_con_los_argumentos_reales() {
     }
 }
 
-/// El `keyUri` y el `adamId` concuerdan en todos los requests capturados.
+/// `keyUri` and `adamId` match in every captured request.
 ///
-/// No se asume que el contexto compartido sea el primero: se pide una vez por sesión de
-/// FairPlay, así que una captura que empieza con la app ya en marcha no lo incluye. Lo
-/// que sí vale siempre es la concordancia entre la forma del URI y el `adamId`.
+/// Does not assume the shared context is first: it is requested once per FairPlay session, so a
+/// capture starting with the app already running does not include it. What always holds is the
+/// match between URI form and `adamId`.
 #[test]
 fn el_uri_concuerda_con_el_adam_id_en_todo_lo_capturado() {
     let Some(v) = vectors() else {
@@ -204,7 +202,7 @@ fn el_uri_concuerda_con_el_adam_id_en_todo_lo_capturado() {
     eprintln!("clasificados: {compartidos} contexto compartido, {tracks} de track");
 }
 
-/// Si la captura trae el contexto compartido, es el primero de la sesión.
+/// If the capture includes the shared context, it is the first request of the session.
 #[test]
 fn el_contexto_compartido_abre_la_sesion() {
     let Some(v) = vectors() else { return };

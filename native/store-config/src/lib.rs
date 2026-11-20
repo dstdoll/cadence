@@ -1,55 +1,55 @@
-//! Port de `storeservicescore::RequestContextConfig`.
+//! Port of `storeservicescore::RequestContextConfig`.
 //!
-//! Son los nueve campos que la app oficial setea antes de `RequestContext::init`, y que
-//! terminan determinando el `User-Agent` y varias cabeceras del request.
+//! These are the nine fields the official app sets before `RequestContext::init`, which determine
+//! the `User-Agent` and several request headers.
 //!
-//! Los valores por defecto acá no son inventados: salen del `User-Agent` observado en
-//! el tráfico real del dispositivo de pruebas:
+//! The default values here are not invented: they come from the `User-Agent` observed in real
+//! traffic from the test device:
 //!
 //! ```text
 //! User-Agent: Music/5.0.2 Android/10 model/Pixel 8 build/7663314 (dt:66)
 //! ```
 //!
-//! Cada campo del struct es **exactamente** el argumento de su setter homonimo en
-//! `RequestContextConfig`, para que el struct sirva de reemplazo directo. Ojo con dos:
-//! `platform_identifier` es `"Android"` a secas y `product_version` es el release del
-//! sistema (`"10"`), no la version de la app; el `Android/10` del User-Agent sale de
-//! concatenar los dos. La version de la app va en `version_identifier`.
+//! Each struct field matches **exactly** the argument of its namesake setter on
+//! `RequestContextConfig`, so the struct serves as a drop-in replacement. Note two of them:
+//! `platform_identifier` is bare `"Android"` and `product_version` is the OS release (`"10"`), not
+//! the app version; `Android/10` in the User-Agent comes from concatenating both. The app version
+//! goes in `version_identifier`.
 //!
-//! Nótese que la app **no reporta el modelo real del dispositivo**: dice `Pixel 8` corra
-//! donde corra, y el log de referencia se capturó en una tablet de otro fabricante. El
-//! `deviceModel` es un valor fijo del build, no algo que se consulte al sistema.
+//! Note that the app **does not report the real device model**: it says `Pixel 8` wherever it runs,
+//! and the reference log was captured on a tablet from another manufacturer. `deviceModel` is a
+//! fixed build constant, not queried from the system.
 
 #![forbid(unsafe_code)]
 
 use std::fmt;
 
-/// Identificador de cliente de Apple Music.
+/// Apple Music client identifier.
 pub const CLIENT_IDENTIFIER: &str = "Music";
-/// Versión del producto que reporta la app observada.
+/// Product version reported by the observed app.
 pub const PRODUCT_VERSION: &str = "5.0.2";
-/// Identificador de plataforma, sin el release (ese va en `product_version`).
+/// Platform identifier without the release (which goes in `product_version`).
 pub const PLATFORM_IDENTIFIER: &str = "Android";
-/// Modelo que la app declara, con independencia del hardware real.
+/// Model declared by the app, regardless of actual hardware.
 pub const DEVICE_MODEL: &str = "Pixel 8";
-/// Número de build que acompaña al modelo.
+/// Build number accompanying the model.
 pub const BUILD_VERSION: &str = "7663314";
 
-/// Los nueve campos de `RequestContextConfig`.
+/// The nine fields of `RequestContextConfig`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RequestContextConfig {
-    /// Dónde viven `adi.pb`, `fsi.pdat` y el resto del estado nativo.
+    /// Where `adi.pb`, `fsi.pdat`, and the rest of the native state live.
     pub base_directory_path: String,
     /// `Music`.
     pub client_identifier: String,
-    /// La versión que se concatena al `client_identifier` en el User-Agent.
+    /// Version concatenated to `client_identifier` in the User-Agent.
     pub version_identifier: String,
-    /// `Android`. Es el identificador de plataforma a secas: el release va en
-    /// `product_version`, que es como los recibe `RequestContextConfig`.
+    /// `Android`. Bare platform identifier: the release goes in `product_version`, matching how
+    /// `RequestContextConfig` receives them.
     pub platform_identifier: String,
-    /// El release de Android (`"10"`), **no** la version de la app. Asi lo recibe
-    /// `setProductVersion` en la libreria cerrada; en el User-Agent sale como
-    /// `Android/10` al concatenarse con `platform_identifier`.
+    /// Android release (`"10"`), **not** the app version. That is how `setProductVersion` receives
+    /// it in the closed library; in the User-Agent it appears as `Android/10` when concatenated
+    /// with `platform_identifier`.
     pub product_version: String,
     pub device_model: String,
     pub build_version: String,
@@ -58,8 +58,8 @@ pub struct RequestContextConfig {
 }
 
 impl RequestContextConfig {
-    /// Config equivalente a la que arma la app oficial, parametrizada por lo único que
-    /// depende del dispositivo: dónde guardar el estado y qué versión de Android corre.
+    /// Config equivalent to what the official app builds, parameterized only by device-dependent
+    /// inputs: where to store state and which Android version is running.
     pub fn for_android(base_directory_path: impl Into<String>, android_release: &str) -> Self {
         Self {
             base_directory_path: base_directory_path.into(),
@@ -74,10 +74,10 @@ impl RequestContextConfig {
         }
     }
 
-    /// Reconstruye el `User-Agent` tal como se observó en el tráfico.
+    /// Reconstructs the `User-Agent` exactly as observed in traffic.
     ///
-    /// El sufijo `(dt:66)` lo agrega la capa de red; no sale de esta config, así que se
-    /// recibe como parámetro.
+    /// The `(dt:66)` suffix is added by the network layer rather than this config, so it is passed
+    /// as a parameter.
     pub fn user_agent(&self, dt: u32) -> String {
         format!(
             "{}/{} {}/{} model/{} build/{} (dt:{})",
@@ -98,10 +98,9 @@ impl fmt::Display for RequestContextConfig {
     }
 }
 
-/// Storefront de Apple: el número identifica el país.
+/// Apple storefront: the numeric ID identifies the country.
 ///
-/// En el tráfico se observó `X-Apple-Store-Front: 143483-2,31 t:music31`, donde
-/// `143483` es Chile.
+/// Traffic showed `X-Apple-Store-Front: 143483-2,31 t:music31`, where `143483` is Chile.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StoreFront {
     pub id: u32,
@@ -116,10 +115,10 @@ impl StoreFront {
         Self { id, suffix: "2,31".into() }
     }
 
-    /// El valor de la cabecera `X-Apple-Store-Front`.
+    /// `X-Apple-Store-Front` header value.
     ///
-    /// Se observaron dos variantes: con y sin el sufijo ` t:music31`. La app manda la
-    /// corta en el primer request de una cadena y la larga después.
+    /// Two variants were observed: with and without the ` t:music31` suffix. The app sends the
+    /// short one on the first request of a chain and the long one afterward.
     pub fn header_value(&self, with_music_tag: bool) -> String {
         if with_music_tag {
             format!("{}-{} t:music31", self.id, self.suffix)
@@ -144,7 +143,7 @@ mod tests {
 
     #[test]
     fn el_modelo_es_fijo_no_el_del_dispositivo() {
-        // Se capturó en una tablet de otro fabricante y aun así dice Pixel 8.
+        // Captured on a tablet from another manufacturer and it still says Pixel 8.
         let c = RequestContextConfig::for_android("/x", "10");
         assert_eq!(c.device_model, "Pixel 8");
     }

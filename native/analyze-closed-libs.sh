@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
-# Mide la superficie real de las librerias cerradas de Apple que la app embarca.
+# Measures the actual call surface of the closed Apple libraries shipped in the app.
 #
-# La pregunta que responde es "¿que habria que implementar para poder sacar esta libreria?",
-# y la respuesta no es "todos sus exports": casi ninguno se usa. Se mide de dos formas,
-# porque las dos juntas son las que dan el numero:
+# The question it answers is "what would have to be implemented to remove this library?",
+# and the answer is not "all of its exports": almost none are used. It measures in two ways,
+# because both together give the real number:
 #
-#   1. Imports estaticos: que simbolos de cada libreria referencia otra en su dynsym. Los
-#      nombres se normalizan quitando el sufijo `@@VERSION`; sin eso, una libreria con
-#      simbolos versionados (libxml2, libCoreFP) parece no usarse cuando si se usa.
-#   2. Resolucion dinamica: que exports aparecen como **string** en otra libreria. Es como
-#      libandroidappmusic alcanza a CoreFP/CoreLSKD/CoreADI: dlopen por nombre de archivo y
-#      dlsym por nombre de funcion, sin dejar ni un import estatico. Mirar solo el dynsym
-#      da el veredicto equivocado ("nadie las usa, se pueden borrar") y rompe el playback.
+#   1. Static imports: which symbols of each library another references in its dynsym. Names are
+#      normalized by stripping the `@@VERSION` suffix; without that, a library with versioned
+#      symbols (libxml2, libCoreFP) looks unused when it is actually used.
+#   2. Dynamic resolution: which exports appear as a **string** in another library. That is how
+#      libandroidappmusic reaches CoreFP/CoreLSKD/CoreADI: dlopen by filename and dlsym by
+#      function name, leaving zero static imports. Looking only at dynsym gives the wrong
+#      verdict ("nobody uses them, they can be deleted") and breaks playback.
 #
-# Necesita el NDK (ANDROID_NDK_HOME, o el mas nuevo bajo ANDROID_HOME).
+# Requires the NDK (ANDROID_NDK_HOME, or the newest one under ANDROID_HOME).
 #
 #   ./native/analyze-closed-libs.sh
 set -euo pipefail

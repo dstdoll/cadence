@@ -1,80 +1,76 @@
-//! Port del `storeservicescore::DeviceGUID` de Apple Music para Android.
+//! Port of Apple Music for Android's `storeservicescore::DeviceGUID`.
 //!
-//! El GUID que viaja en el campo `guid` del request al key server son **seis campos de
-//! ancho fijo separados por `.`**:
+//! The GUID sent in the `guid` field of key-server requests consists of **six fixed-width fields
+//! separated by `.`**:
 //!
 //! ```text
-//! fairplay1 . fairplay2 . serial . androidIdHash . relleno . relleno
-//!     36          14         14          14           14        14
+//! fairplay1 . fairplay2 . serial . androidIdHash . filler . filler
+//!     36          14        14          14           14       14
 //! ```
 //!
-//! Total: `36 + 14*5 + 5 separadores = 111` caracteres, que es exactamente lo que se
-//! observa en el tráfico real.
+//! Total: `36 + 14*5 + 5 separators = 111` characters, matching what is observed in real traffic.
 //!
-//! La clave del formato es que **ningún campo se deja vacío**: los que no tienen dato se
-//! rellenan con ceros ASCII hasta su ancho. Por eso un GUID de un dispositivo que no
-//! reporta serial no trae `..` sino catorce ceros.
+//! The key format rule is that **no field is left empty**: fields without data are ASCII zero-padded
+//! to their width. That is why a GUID from a device that exposes no serial has fourteen zeros
+//! rather than `..`.
 //!
-//! # Qué está confirmado y qué no
+//! # What is confirmed and what is not
 //!
-//! Confirmado contra el dispositivo, con los hooks de `export-vectors.js` y
-//! `probe-guid-fields.py`:
+//! Confirmed against the device using the `export-vectors.js` and `probe-guid-fields.py` hooks:
 //!
-//! * El GUID completo: largos `[36, 14, 14, 14, 14, 14]`, 111 chars.
-//! * El **campo 1** es el base16 de un blob de **18 bytes** que entrega
-//!   `FairPlayGetAndroidGUIDFields`. Se leyó el buffer de salida de esa función: el flag
-//!   en `+0`, los 18 bytes en `+1`, y su largo (`18`) en `+24`. El base16 de esos bytes
-//!   coincide carácter por carácter con el campo 1 del GUID que viajó al key server.
-//! * El **campo 4** es `sha1(android_id_ascii)` en hex, recortado a sus últimos 14. Se
-//!   verificó por dos caminos: el digest capturado de
-//!   `mediaplatform::CryptoHexStringFromData` y el campo del GUID real.
+//! * Full GUID: lengths `[36, 14, 14, 14, 14, 14]`, 111 chars.
+//! * **Field 1** is the lowercase hex of an **18-byte** blob returned by
+//!   `FairPlayGetAndroidGUIDFields`. Its output buffer was inspected: flag at `+0`, 18 bytes at
+//!   `+1`, and length (`18`) at `+24`. Hex-encoding those bytes matches field 1 of the GUID sent to
+//!   the key server character for character.
+//! * **Field 4** is `sha1(android_id_ascii)` in hex, truncated to its last 14 chars. Verified two
+//!   ways: the digest captured from `mediaplatform::CryptoHexStringFromData` and the field in the
+//!   real GUID.
 //!
-//! Lo que **no** está confirmado:
+//! What is **not** confirmed:
 //!
-//! * El **campo 2** sale en catorce ceros en todas las capturas, y el descriptor que
-//!   sigue al primero en el buffer de FairPlay dice `len = 7` -- siete bytes son
-//!   justo 14 chars en hex, así que lo más probable es que sea el segundo campo de
-//!   FairPlay y no un relleno. No se pudo leer su contenido (el puntero de ese
-//!   descriptor no resultó legible), así que queda como lectura, no como hecho. Por eso
-//!   este crate lo expone como un campo **opcional de FairPlay** y no como una
-//!   constante: en otro dispositivo podría traer datos, y tratarlo como relleno
-//!   produciría un GUID que el key server rechaza.
-//! * Los campos 5 y 6 salieron en catorce ceros siempre. El decompilado de `configure`
-//!   los muestra como literales, aunque con largos 15 y 14 en vez de 14 y 14; donde el
-//!   decompilado y la captura no coinciden, manda la captura.
+//! * **Field 2** is fourteen zeros in all captures, and the descriptor following the first in the
+//!   FairPlay buffer says `len = 7` -- seven bytes is exactly 14 hex chars, so it is most likely
+//!   the second FairPlay field rather than filler. Its contents could not be read (that
+//!   descriptor's pointer was unreadable), so it remains a reading rather than an established fact.
+//!   That is why this crate exposes it as an **optional FairPlay field** rather than a constant: on
+//!   another device it might carry data, and treating it as filler would yield a GUID rejected by
+//!   the key server.
+//! * Fields 5 and 6 were always fourteen zeros. The decompiled `configure` shows them as literals,
+//!   though with lengths 15 and 14 instead of 14 and 14; where decompilation and capture disagree,
+//!   the capture wins.
 
 use sha1::{Digest, Sha1};
 
-/// Ancho del primer campo, el que aporta FairPlay.
+/// Width of the first field, supplied by FairPlay.
 pub const FAIRPLAY_LEN: usize = 36;
-/// Ancho de los otros cinco campos.
+/// Width of the remaining five fields.
 pub const FIELD_LEN: usize = 14;
-/// Cantidad de campos.
+/// Number of fields.
 pub const FIELD_COUNT: usize = 6;
-/// Largo total con todos los campos presentes.
+/// Total length with all fields present.
 pub const GUID_LEN: usize = FAIRPLAY_LEN + FIELD_LEN * 5 + (FIELD_COUNT - 1);
 
-/// Largo en bytes del blob que FairPlay entrega para el primer campo.
+/// Byte length of the blob FairPlay returns for the first field.
 ///
-/// 18 bytes -> 36 chars en hex. Medido en el buffer de salida de
-/// `FairPlayGetAndroidGUIDFields`.
+/// 18 bytes -> 36 hex chars. Measured from the output buffer of `FairPlayGetAndroidGUIDFields`.
 pub const FAIRPLAY_FIELD1_BYTES: usize = 18;
 
-/// Largo en bytes que el descriptor del segundo campo declara.
+/// Byte length declared by the second field's descriptor.
 ///
-/// 7 bytes -> 14 chars en hex, que es justo el ancho del campo 2. Ver la nota del módulo:
-/// el contenido no se pudo leer.
+/// 7 bytes -> 14 hex chars, matching field 2's width. See the module note: its contents could not
+/// be read.
 pub const FAIRPLAY_FIELD2_BYTES: usize = 7;
 
-/// El relleno que Apple usa para un campo sin dato.
+/// Padding Apple uses for an empty field.
 fn padding(width: usize) -> String {
     "0".repeat(width)
 }
 
-/// Recorta o rellena a `width`, como hace el original.
+/// Truncates or pads to `width`, matching the original.
 ///
-/// Si sobra, se queda con los **últimos** `width` caracteres (`erase(0, len - width)`);
-/// si falta, agrega ceros por la derecha.
+/// If longer, keeps the **last** `width` characters (`erase(0, len - width)`); if shorter,
+/// right-pads with zeros.
 fn fit(value: &str, width: usize) -> String {
     if value.len() > width {
         value[value.len() - width..].to_owned()
@@ -88,41 +84,41 @@ fn fit(value: &str, width: usize) -> String {
     }
 }
 
-/// Campo 4: `sha1` del Android ID **como cadena ASCII**, en hex, recortado a 14 chars.
+/// Field 4: `sha1` of the Android ID **as an ASCII string**, hex-encoded and truncated to 14 chars.
 ///
-/// Apple hashea los 16 caracteres del Android ID, no los 8 bytes que representan.
+/// Apple hashes the 16 characters of the Android ID, not the 8 bytes they represent.
 pub fn android_id_hash(android_id: &str) -> String {
     fit(&hex::encode(Sha1::digest(android_id.as_bytes())), FIELD_LEN)
 }
 
-/// Pasa un blob de FairPlay a la forma en que entra al GUID.
+/// Converts a FairPlay blob into the form used in the GUID.
 ///
-/// Es `Base16Representation`: hex en minúsculas, y después el ajuste al ancho del campo.
+/// `Base16Representation`: lowercase hex, then fitted to the field width.
 pub fn fairplay_hex(bytes: &[u8], width: usize) -> String {
     fit(&hex::encode(bytes), width)
 }
 
-/// Lo que el dispositivo aporta al GUID.
+/// Device inputs used to build the GUID.
 ///
-/// Los dos campos de FairPlay son `Option` a propósito: con `None` quedan en relleno, lo
-/// que produce un GUID bien formado pero que el key server rechaza. Son lo único que no
-/// se puede derivar sin la blob.
+/// Both FairPlay fields are `Option` intentionally: `None` zero-pads them, producing a well-formed
+/// GUID that the key server rejects. They are the only parts that cannot be derived without the
+/// native blob.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DeviceInfo {
-    /// El Android ID (16 hex chars). Es lo único imprescindible.
+    /// Android ID (16 hex chars). The only strictly required field.
     pub android_id: String,
-    /// Serial del dispositivo. La mayoría de los Android no lo exponen; vacío es normal.
+    /// Device serial. Most Android devices do not expose it; empty is normal.
     pub serial: String,
-    /// Campo 1: los 36 chars de `FairPlayGetAndroidGUIDFields` (18 bytes en hex).
+    /// Field 1: the 36 chars from `FairPlayGetAndroidGUIDFields` (18 bytes in hex).
     pub fairplay_field1: Option<String>,
-    /// Campo 2: los 14 chars del segundo campo de FairPlay, si trae algo.
+    /// Field 2: the 14 chars of the second FairPlay field, if non-empty.
     ///
-    /// En el dispositivo de pruebas sale en ceros. Ver la nota del módulo.
+    /// On the test device this is all zeros. See the module note.
     pub fairplay_field2: Option<String>,
 }
 
 impl DeviceInfo {
-    /// Construye los campos de FairPlay desde los blobs crudos, como los entrega la blob.
+    /// Builds the FairPlay fields from raw blobs as returned by the native library.
     pub fn with_fairplay_bytes(mut self, field1: &[u8], field2: Option<&[u8]>) -> Self {
         self.fairplay_field1 = Some(fairplay_hex(field1, FAIRPLAY_LEN));
         self.fairplay_field2 = field2.map(|b| fairplay_hex(b, FIELD_LEN));
@@ -130,7 +126,7 @@ impl DeviceInfo {
     }
 }
 
-/// Arma el GUID.
+/// Builds the GUID.
 pub fn build(info: &DeviceInfo) -> String {
     let campo1 = info
         .fairplay_field1
@@ -179,7 +175,7 @@ pub struct GuidParts {
 }
 
 impl GuidParts {
-    /// Si los anchos son los esperados y los rellenos finales están en ceros.
+    /// Whether widths match expectations and trailing fillers are zeroed.
     pub fn looks_valid(&self) -> bool {
         self.fairplay1.len() == FAIRPLAY_LEN
             && self.fairplay2.len() == FIELD_LEN
@@ -189,21 +185,21 @@ impl GuidParts {
             && self.filler2 == padding(FIELD_LEN)
     }
 
-    /// Si el campo 4 corresponde a este Android ID.
+    /// Whether field 4 matches this Android ID.
     pub fn matches_android_id(&self, android_id: &str) -> bool {
         self.android_id_hash == android_id_hash(android_id)
     }
 
-    /// Si el GUID trae los datos de FairPlay que el key server necesita.
+    /// Whether the GUID carries the FairPlay data the key server needs.
     ///
-    /// Un GUID con el campo 1 en ceros está bien formado pero no sirve: se arma cuando no
-    /// se pudo hablar con la blob.
+    /// A GUID with field 1 zeroed is well-formed but unusable: it occurs when the native blob
+    /// could not be queried.
     pub fn tiene_fairplay(&self) -> bool {
         self.fairplay1 != padding(FAIRPLAY_LEN)
     }
 }
 
-/// Descompone un GUID capturado.
+/// Parses a captured GUID.
 pub fn parse(guid: &str) -> Option<GuidParts> {
     let p: Vec<&str> = guid.split('.').collect();
     if p.len() != FIELD_COUNT {
@@ -223,17 +219,16 @@ pub fn parse(guid: &str) -> Option<GuidParts> {
 mod tests {
     use super::*;
 
-    // Valores **sinteticos**. El ANDROID_ID y el GUID de un dispositivo real son
-    // identificadores suyos y no van en el repositorio; lo que estos tests comprueban es
-    // el algoritmo, que no depende de qué ID se le dé. Los valores observados en el
-    // dispositivo se validan aparte, en `tests/vectors.rs` contra `native/vectors.json`
-    // (gitignorado). Son los mismos que usa `native/vectors-sample`, asi que la muestra y
-    // estos tests cuentan la misma historia.
+    // **Synthetic** values. A real device's ANDROID_ID and GUID are its own identifiers and do
+    // not belong in the repository; what these tests verify is the algorithm, which does not
+    // depend on which ID is passed. Values observed on-device are validated separately in
+    // `tests/vectors.rs` against `native/vectors.json` (gitignored). These match what
+    // `native/vectors-sample` uses, so the sample and these tests tell the same story.
 
-    /// ANDROID_ID sintetico: 16 hex como los de verdad, pero inventado.
+    /// Synthetic ANDROID_ID: 16 hex chars like a real one, but fabricated.
     const ANDROID_ID: &str = "0123456789abcdef";
 
-    /// `sha1("0123456789abcdef")`, que es lo que hace
+    /// `sha1("0123456789abcdef")`, matching what the library computes.
     /// `mediaplatform::CryptoHexStringFromData` sobre el ID en ASCII.
     const OBSERVED_SHA1: &str = "fe5567e8d769550852182cdf69d74bb16dff8e29";
 

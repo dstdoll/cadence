@@ -1,59 +1,59 @@
-//! Protocolo de key delivery de FairPlay para Apple Music en Android.
+//! FairPlay key-delivery protocol for Apple Music on Android.
 //!
-//! Reconstruido decompilando `SVFootHillSessionCtrl::_getCKC`
-//! (`libandroidappmusic.so` @ `0x20d1e8`) y **verificado contra tráfico real**
-//! capturado con Frida en un dispositivo.
+//! Reconstructed by decompiling `SVFootHillSessionCtrl::_getCKC`
+//! (`libandroidappmusic.so` @ `0x20d1e8`) and **verified against real traffic** captured with
+//! Frida on a device.
 //!
-//! El cliente arma un SPC (Server Playback Context) con la blob de FairPlay, lo manda
-//! en un POST JSON al key server de Apple, y recibe un CKC (Content Key Context) que
-//! vuelve a entrar a la blob para derivar la clave de contenido.
+//! The client builds an SPC (Server Playback Context) with the FairPlay blob, sends it in a JSON
+//! POST to Apple's key server, and receives a CKC (Content Key Context) that feeds back into the
+//! blob to derive the content key.
 //!
-//! Este crate cubre **sólo la parte de red y serialización**: lo que entra y sale del
-//! key server. La generación del SPC y el procesado del CKC siguen siendo de la blob.
+//! This crate covers **only the network and serialization layer**: what goes to and from the key
+//! server. SPC generation and CKC processing still stay inside the native blob.
 //!
-//! Hay dos formatos de request según el `keyServerProtocolType`:
+//! There are two request formats depending on `keyServerProtocolType`:
 //!
-//! * `"simplified"` -- un objeto plano. Es el que usa Apple Music hoy.
-//! * cualquier otro -- el wrapper `fairplay-streaming-request` anidado, que es el
-//!   formato genérico de los key servers FPS.
+//! * `"simplified"` -- a flat object. This is what Apple Music uses today.
+//! * anything else -- the nested `fairplay-streaming-request` wrapper, which is the generic FPS
+//!   key-server format.
 
 #![forbid(unsafe_code)]
 
 use serde::{Deserialize, Serialize};
 
-/// Endpoint de key delivery de Apple Music.
+/// Apple Music key-delivery endpoint.
 pub const KEY_SERVER_URL: &str = "https://play.itunes.apple.com/WebObjects/MZPlay.woa/music/fps";
 
-/// Valor de `keyFormat` que espera `getPersistentKey`.
+/// `keyFormat` value expected by `getPersistentKey`.
 pub const KEY_FORMAT: &str = "com.apple.streamingkeydelivery";
-/// Valor de `keyFormatVersion`.
+/// `keyFormatVersion` value.
 pub const KEY_FORMAT_VERSION: &str = "1";
-/// El `keyServerProtocolType` que selecciona el formato plano.
+/// `keyServerProtocolType` selecting the flat format.
 pub const PROTOCOL_SIMPLIFIED: &str = "simplified";
 
-/// `adamId` que Apple usa para el contexto compartido previo a cualquier track.
+/// `adamId` Apple uses for the shared context prior to any track.
 ///
-/// Cuando llega con este valor, la implementación original cachea el contexto
-/// resultante y lo reutiliza para toda la sesión.
+/// When this value arrives, the original implementation caches the resulting context and reuses it
+/// for the whole session.
 pub const PRESHARE_ADAM_ID: &str = "0";
 
-/// El key server devolvió este status cuando no hay slot offline disponible.
+/// Key-server status returned when no offline slot is available.
 ///
-/// El cliente original reintenta el request completo con `offline = false`.
+/// The original client retries the full request with `offline = false`.
 pub const CKC_STATUS_SLOT_ERROR: i32 = -1004;
 
-/// Qué formato de cuerpo usar.
+/// Which request body format to use.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Protocol {
-    /// Objeto plano con `guid`/`offline`/`adamId`/`spc`/`keyUri`.
+    /// Flat object with `guid`/`offline`/`adamId`/`spc`/`keyUri`.
     Simplified,
     /// Wrapper `fairplay-streaming-request` -> `streaming-keys` -> `[{id, spc, uri}]`.
     Legacy,
 }
 
 impl Protocol {
-    /// Interpreta el `keyServerProtocolType` como lo hace `_getCKC`: compara contra
-    /// `"simplified"` y cualquier otra cosa cae en el formato anidado.
+    /// Interprets `keyServerProtocolType` like `_getCKC`: compares against `"simplified"`, and
+    /// anything else falls back to the nested format.
     pub fn from_type(key_server_protocol_type: &str) -> Self {
         if key_server_protocol_type == PROTOCOL_SIMPLIFIED {
             Self::Simplified
@@ -63,32 +63,32 @@ impl Protocol {
     }
 }
 
-/// Qué pide un `keyUri`.
+/// What a `keyUri` requests.
 ///
-/// Las dos formas se distinguen por la **caja de la letra** que abre la ruta, algo que no
-/// se nota hasta tener capturas de ambas:
+/// Both forms are distinguished by the **case of the leading letter** in the path, something not
+/// obvious until captures of both exist:
 ///
 /// ```text
-/// skd://itunes.apple.com/P000000000/s1/e1    contexto compartido   (P mayúscula, /sN/eN)
-/// skd://itunes.apple.com/p1000000001/c23     clave de un track     (p minúscula, /cN)
+/// skd://itunes.apple.com/P000000000/s1/e1    shared context   (uppercase P, /sN/eN)
+/// skd://itunes.apple.com/p1000000001/c23     track key        (lowercase p, /cN)
 /// ```
 ///
-/// La forma del URI y el `adamId` tienen que concordar: el contexto compartido viaja con
-/// `adamId` en [`PRESHARE_ADAM_ID`], y un track con el suyo.
+/// The URI form and `adamId` must match: the shared context travels with `adamId` set to
+/// [`PRESHARE_ADAM_ID`], and a track with its own ID.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KeyUriKind {
-    /// El contexto compartido que se pide una vez por sesión.
+    /// Shared context requested once per session.
     SharedContext,
-    /// La clave de una pista concreta.
+    /// Key for a specific track.
     Track,
 }
 
-/// El host que aparece en todos los `keyUri` observados.
+/// Host appearing in all observed `keyUri` values.
 pub const KEY_URI_HOST: &str = "skd://itunes.apple.com/";
 
-/// Clasifica un `keyUri`.
+/// Classifies a `keyUri`.
 ///
-/// Devuelve `None` si no tiene ninguna de las dos formas conocidas.
+/// Returns `None` if it matches neither of the two known forms.
 pub fn classify_key_uri(key_uri: &str) -> Option<KeyUriKind> {
     let resto = key_uri.strip_prefix(KEY_URI_HOST)?;
     let (primero, cola) = resto.split_once('/')?;
@@ -119,15 +119,14 @@ pub struct KeyRequest {
     pub offline: bool,
 }
 
-/// Cuerpo del formato `simplified`.
+/// Request body for the `simplified` format.
 ///
-/// El orden de los campos replica el del original, que los inserta en un
-/// `CFDictionary` en esta secuencia.
+/// Field order matches the original, which inserts them into a `CFDictionary` in this sequence.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SimplifiedRequest {
     pub guid: String,
-    /// Sólo aparece cuando se pide una clave offline. Apple lo manda como el **string**
-    /// `"true"`, no como booleano JSON.
+    /// Only present when requesting an offline key. Apple sends it as the **string** `"true"`, not
+    /// a JSON boolean.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub offline: Option<String>,
     #[serde(rename = "adamId")]
@@ -137,7 +136,7 @@ pub struct SimplifiedRequest {
     pub key_uri: String,
 }
 
-/// Una entrada de `streaming-keys` en el formato legacy.
+/// An entry in `streaming-keys` for the legacy format.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct LegacyKeyEntry {
     pub id: u32,
@@ -158,12 +157,12 @@ pub struct LegacyRequest {
 }
 
 impl KeyRequest {
-    /// Serializa el cuerpo del POST en el formato pedido.
+    /// Serializes the POST body in the requested format.
     pub fn to_json(&self, protocol: Protocol) -> Result<String, Error> {
         let json = match protocol {
             Protocol::Simplified => serde_json::to_string(&SimplifiedRequest {
                 guid: self.guid.clone(),
-                // el original sólo agrega la clave cuando corresponde; si es false, no va
+                // the original only adds the key when true; if false, omit it
                 offline: self.offline.then(|| "true".to_owned()),
                 adam_id: self.adam_id.clone(),
                 spc: self.spc_base64.clone(),
@@ -182,15 +181,15 @@ impl KeyRequest {
         Ok(json)
     }
 
-    /// Si este request es el del contexto compartido.
+    /// Whether this request is for the shared context.
     pub fn is_preshare(&self) -> bool {
         self.adam_id == PRESHARE_ADAM_ID
     }
 
-    /// Si el `keyUri` y el `adamId` concuerdan.
+    /// Whether `keyUri` and `adamId` match.
     ///
-    /// Un request bien formado pide el contexto compartido con [`PRESHARE_ADAM_ID`] y un
-    /// URI con `P` mayúscula, o una pista con su `adamId` y un URI con `p` minúscula.
+    /// A well-formed request asks for the shared context with [`PRESHARE_ADAM_ID`] and an
+    /// uppercase-`P` URI, or a track with its `adamId` and a lowercase-`p` URI.
     pub fn uri_concuerda_con_adam_id(&self) -> bool {
         match classify_key_uri(&self.key_uri) {
             Some(KeyUriKind::SharedContext) => self.is_preshare(),
@@ -200,7 +199,7 @@ impl KeyRequest {
     }
 }
 
-/// Una clave devuelta por el server.
+/// A key returned by the server.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct StreamingKey {
     pub status: i32,
@@ -208,7 +207,7 @@ pub struct StreamingKey {
 }
 
 impl StreamingKey {
-    /// Si el server pide reintentar sin slot offline.
+    /// Whether the server asks to retry without an offline slot.
     pub fn is_slot_error(&self) -> bool {
         self.status == CKC_STATUS_SLOT_ERROR
     }
@@ -226,11 +225,11 @@ struct LegacyResponse {
     fairplay_streaming_response: LegacyResponseInner,
 }
 
-/// Lee la respuesta del key server.
+/// Reads the key-server response.
 ///
-/// En `simplified` el objeto raíz ya trae `status` y `ckc`. En legacy hay que bajar por
-/// `fairplay-streaming-response` -> `streaming-keys` -> primer elemento, que es
-/// exactamente el recorrido que hace `_getCKCFromResponse`.
+/// In `simplified` the root object directly carries `status` and `ckc`. In legacy we walk
+/// `fairplay-streaming-response` -> `streaming-keys` -> first element, matching
+/// `_getCKCFromResponse`.
 pub fn parse_response(body: &str, protocol: Protocol) -> Result<StreamingKey, Error> {
     match protocol {
         Protocol::Simplified => Ok(serde_json::from_str::<StreamingKey>(body)?),
@@ -246,18 +245,18 @@ pub fn parse_response(body: &str, protocol: Protocol) -> Result<StreamingKey, Er
     }
 }
 
-/// Qué hacer después de leer una respuesta.
+/// What to do after reading a response.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Outcome {
-    /// Clave lista; el CKC en base64 va a la blob.
+    /// Key ready; the base64 CKC goes back into the native blob.
     Key { ckc_base64: String, status: i32 },
-    /// El server rechazó el slot offline: repetir el request con `offline = false`.
+    /// Server rejected the offline slot: retry the request with `offline = false`.
     RetryWithoutOfflineSlot,
 }
 
-/// Aplica la política de reintento de `_getCKC`.
+/// Applies `_getCKC`'s retry policy.
 ///
-/// El original sólo reintenta cuando **pidió** offline y recibió
+/// The original only retries when offline was **requested** and received
 /// [`CKC_STATUS_SLOT_ERROR`]; con cualquier otro status se queda con la clave tal cual,
 /// incluso si el status no es cero (quien decide si sirve es la blob, al procesarla).
 pub fn evaluate(key: StreamingKey, requested_offline: bool) -> Outcome {
@@ -268,8 +267,7 @@ pub fn evaluate(key: StreamingKey, requested_offline: bool) -> Outcome {
     }
 }
 
-/// Cabeceras fijas del POST. El resto (autenticación, Anisette, cookies) las agrega la
-/// capa de `RequestContext`.
+/// Fixed POST headers. The rest (auth, Anisette, cookies) are added by `RequestContext`.
 pub const CONTENT_TYPE: (&str, &str) = ("Content-Type", "application/json");
 
 #[derive(Debug, thiserror::Error)]
@@ -284,9 +282,9 @@ pub enum Error {
 mod tests {
     use super::*;
 
-    /// Cuerpo real capturado con Frida sobre `HTTPMessage::setBody` en el dispositivo de
-    /// pruebas, con los valores largos recortados (el `guid` real mide 111 y el `spc`
-    /// 9600 caracteres). Lo que importa acá es la forma: nombres, orden y tipos.
+    /// Real body captured with Frida on `HTTPMessage::setBody` on the test device, with long
+    /// values trimmed (real `guid` is 111 chars and `spc` is 9600 chars). What matters here is the
+    /// shape: field names, order, and types.
     const CAPTURADO_PRESHARE: &str = r#"{"guid":"G","offline":"true","adamId":"0","spc":"S","keyUri":"skd://itunes.apple.com/P000000000/s1/e1"}"#;
 
     const CAPTURADO_TRACK: &str = r#"{"guid":"G","offline":"true","adamId":"1632087479","spc":"S","keyUri":"skd://itunes.apple.com/p1492777545/c6"}"#;
@@ -339,7 +337,7 @@ mod tests {
 
     #[test]
     fn el_legacy_ignora_el_flag_offline() {
-        // El formato anidado no tiene dónde ponerlo: el original tampoco lo manda.
+        // Nested format has nowhere to put it; the original omits it too.
         let a = req("1", "skd://x", true).to_json(Protocol::Legacy).unwrap();
         let b = req("1", "skd://x", false).to_json(Protocol::Legacy).unwrap();
         assert_eq!(a, b);
@@ -384,7 +382,7 @@ mod tests {
 
     #[test]
     fn el_slot_error_sin_haber_pedido_offline_no_reintenta() {
-        // Si no se pidió offline, el original no entra en el bucle de reintento.
+        // If offline was not requested, the original does not enter the retry loop.
         let k = StreamingKey { status: CKC_STATUS_SLOT_ERROR, ckc: "X".into() };
         assert_eq!(
             evaluate(k, false),
