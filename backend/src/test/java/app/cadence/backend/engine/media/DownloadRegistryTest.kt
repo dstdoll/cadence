@@ -9,7 +9,9 @@ import java.nio.file.Files
 class DownloadRegistryTest {
     private val dir = Files.createTempDirectory("registry").toFile()
     private val file = File(dir, "downloads_registry.json")
-    private val present = HashSet<String>()
+    // Filled from several threads at once by concurrentWritersDoNotLoseEntries: a plain HashSet can lose an
+    // insertion there, the store then sees that file as deleted and drops its entry, failing the test at random.
+    private val present: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
     private fun store(limit: Int = 5000) = DownloadRegistryStore(file, exists = { it in present }, limit = limit)
     private fun rec(track: String, spec: String, uri: String, at: Long = 1L) = DownloadRecord(track, spec, uri, "name", at).also { present += uri }
 
