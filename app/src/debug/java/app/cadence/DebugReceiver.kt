@@ -191,7 +191,8 @@ class DebugReceiver : BroadcastReceiver() {
             //   ... --es cmd set --es servers 192.0.2.1   (a server that never answers)
             //   ... --es cmd refresh                       (back to the active network's servers)
             val net = app.cadence.backend.engine.media.ProcessNetwork
-            if (!app.cadence.backend.engine.media.NativeRuntime.ready) {
+            // Whichever path started the engine (app start, a sign-in, a download) has called ProcessNetwork.follow.
+            if (!net.engineReady) {
                 CadenceLog.i("e2e", "dns engine not ready")
                 return
             }
@@ -294,7 +295,10 @@ class DebugReceiver : BroadcastReceiver() {
                         appContext.contentResolver,
                         android.provider.Settings.Secure.ANDROID_ID,
                     ) ?: "unknown"
-                    CadenceLog.i("decrypt", "native init=" + NativeWrapper.init(appContext.filesDir.absolutePath, deviceId, app.cadence.backend.engine.media.ProcessNetwork.activeDnsServers(appContext)))
+                    val dns = app.cadence.backend.engine.media.ProcessNetwork.activeDnsServers(appContext)
+                    val ready = NativeWrapper.init(appContext.filesDir.absolutePath, deviceId, dns)
+                    if (ready) app.cadence.backend.engine.media.ProcessNetwork.follow(appContext, dns)
+                    CadenceLog.i("decrypt", "native init=$ready")
                     val plan = KeyPlan.parse(java.io.File(planPath).readText())
                     CadenceLog.i("decrypt", "plan segments=" + plan.segments.size + " input=" + java.io.File(input).length())
                     val t0 = System.currentTimeMillis()

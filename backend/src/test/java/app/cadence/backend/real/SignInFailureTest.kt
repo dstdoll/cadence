@@ -26,13 +26,16 @@ class SignInFailureTest {
         assertTrue(SignInFailure.classify(timedOut = true, reach = Reach.Reachable) is AuthError.SignInTimedOut)
     }
 
-    @Test fun appleReachableButTheEngineCannotResolveItIsADnsProblemNotAPasswordOne() {
-        for (timedOut in listOf(true, false)) {
-            val e = SignInFailure.classify(timedOut, Reach.Reachable, engineResolves = false)
-            assertTrue("timedOut=$timedOut", e is AuthError.SignInDnsFailed)
-            assertTrue(e.message!!, !e.message!!.contains("password"))
-            assertTrue(e.message!!, e.message!!.contains("Private DNS"))
-        }
+    @Test fun noAnswerWhileTheEngineCannotResolveAppleIsADnsProblemNotAPasswordOne() {
+        val e = SignInFailure.classify(timedOut = true, reach = Reach.Reachable, engineResolves = false)
+        assertTrue(e is AuthError.SignInDnsFailed)
+        assertTrue(e.message!!, !e.message!!.contains("password"))
+        assertTrue(e.message!!, e.message!!.contains("Private DNS"))
+    }
+
+    @Test fun anAnswerFromAppleIsARefusalEvenIfALaterLookupFails() {
+        // The sign-in reached Apple, so its DNS worked; a probe that fails afterwards must not hide a wrong password.
+        assertTrue(SignInFailure.classify(timedOut = false, reach = Reach.Reachable, engineResolves = false) is AuthError.SignInRejected)
     }
 
     @Test fun theLogLineSaysWhatWasObservedAndWhatWasShown() {
