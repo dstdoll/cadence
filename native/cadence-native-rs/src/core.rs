@@ -467,6 +467,37 @@ impl ShortStr {
     }
 }
 
+// ---- name resolution ----------------------------------------------------------------------------
+
+/// Installs the name servers the in-process resolver queries (see `dns`). Called at init and again
+/// whenever Android's default network changes: the servers of the network the app started on stop
+/// answering once the device is on another one (a home router's address is unreachable on mobile
+/// data), and every StoreServices request, the sign-in first, then fails to resolve. Installing a
+/// different list also empties bionic's answer cache for the network.
+pub fn set_nameservers(active: &str) {
+    let list = crate::dns::nameservers(active);
+    let owned: Vec<CString> = list.iter().filter_map(|s| CString::new(s.as_str()).ok()).collect();
+    let ptrs: Vec<*const c_char> = owned.iter().map(|c| c.as_ptr()).collect();
+    let dot = CString::new(".").unwrap();
+    // SAFETY: plain C; the strings outlive the call, which copies them.
+    unsafe { _resolv_set_nameservers_for_net(0, ptrs.as_ptr(), ptrs.len() as c_int, dot.as_ptr(), ptr::null()) };
+    if let Some(cfg) = CONFIG.lock().unwrap().as_mut() {
+        cfg.dns_servers = active.to_owned();
+    }
+    nlog(&format!("dns: {}", crate::dns::describe(&list)));
+}
+
+/// Whether the in-process resolver (the one StoreServices uses) can resolve `host` right now. A
+/// diagnostic for a failed sign-in: Kotlin's own requests resolve through Android and can succeed
+/// while this one cannot. Blocks for as long as the resolver tries; the caller bounds the wait.
+pub fn resolves(host: &str) -> bool {
+    use std::net::ToSocketAddrs;
+    match (host, 443).to_socket_addrs() {
+        Ok(mut addrs) => addrs.next().is_some(),
+        Err(_) => false,
+    }
+}
+
 // ---- configure + init ---------------------------------------------------------------------------
 
 /// FootHill init: DNS (active-network resolvers), FootHillConfig, DeviceGUID configure. Mirrors
@@ -485,8 +516,6 @@ pub fn configure(base_dir_in: &str, dns_servers: &str, android_id_in: &str) {
         let c = g.as_ref().unwrap();
         (c.base_dir.clone(), c.dns_servers.clone(), c.android_id.clone())
     };
-    let dns_count = if dns.is_empty() { 0 } else { dns.split(',').count() };
-    nlog(&format!("init: dns_count={dns_count}"));
     nlog(&format!("init: start base={base}"));
     nlog(&format!("init: android_id=<redacted len={}>", aid.len()));
 
@@ -494,20 +523,11 @@ pub fn configure(base_dir_in: &str, dns_servers: &str, android_id_in: &str) {
         let mode = CString::new("ANDROID_DNS_MODE").unwrap();
         let local = CString::new("local").unwrap();
         setenv(mode.as_ptr(), local.as_ptr(), 1);
+    }
+    // Resolve through the device's active-network DNS, with a public resolver as the last resort.
+    set_nameservers(&dns);
 
-        // Resolve through the device's active-network DNS (two servers), defaulting to public ones.
-        let (s0, s1): (CString, CString) = if dns.is_empty() {
-            (CString::new("1.1.1.1").unwrap(), CString::new("1.0.0.1").unwrap())
-        } else {
-            let mut it = dns.splitn(2, ',');
-            let a = it.next().unwrap_or("1.1.1.1").trim();
-            let b = it.next().unwrap_or(a).trim();
-            (CString::new(a).unwrap_or_default(), CString::new(b).unwrap_or_default())
-        };
-        let servers = [s0.as_ptr(), s1.as_ptr()];
-        let dot = CString::new(".").unwrap();
-        _resolv_set_nameservers_for_net(0, servers.as_ptr(), 2, dot.as_ptr(), ptr::null());
-
+    unsafe {
         // FootHillConfig::config(android_id); DeviceGUID::configure(android_id, "", 29, true).
         let aid_c = CString::new(aid.as_str()).unwrap_or_default();
         let empty_c = CString::new("").unwrap();

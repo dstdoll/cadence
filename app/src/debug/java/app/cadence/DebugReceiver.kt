@@ -185,6 +185,28 @@ class DebugReceiver : BroadcastReceiver() {
             CadenceLog.i("e2e", "identity ok=$done rotated=${identity.isRotated(appContext)} id=<${identity.describe(identity.id(appContext))}>")
             return
         }
+        if (intent.action == "app.cadence.DEBUG_DNS") {
+            // The engine's own resolver (the one the sign-in uses), for the device check:
+            //   ... -a app.cadence.DEBUG_DNS --es cmd probe [--es host init.itunes.apple.com]
+            //   ... --es cmd set --es servers 192.0.2.1   (a server that never answers)
+            //   ... --es cmd refresh                       (back to the active network's servers)
+            val net = app.cadence.backend.engine.media.ProcessNetwork
+            if (!app.cadence.backend.engine.media.NativeRuntime.ready) {
+                CadenceLog.i("e2e", "dns engine not ready")
+                return
+            }
+            GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                when (intent.getStringExtra("cmd").orEmpty()) {
+                    "set" -> net.install(intent.getStringExtra("servers").orEmpty(), "debug")
+                    "refresh" -> net.refresh(appContext, "debug")
+                }
+                val host = intent.getStringExtra("host") ?: "init.itunes.apple.com"
+                val start = System.nanoTime()
+                val ok = app.cadence.backend.engine.media.NativeWrapper.resolves(host)
+                CadenceLog.i("e2e", "dns probe host=$host resolves=$ok ms=${(System.nanoTime() - start) / 1_000_000}")
+            }
+            return
+        }
         if (intent.action == "app.cadence.DEBUG_SESSION") {
             // Session file round trip for the device check (debug builds only).
             //   adb shell am broadcast -n app.cadence/.DebugReceiver -a app.cadence.DEBUG_SESSION --es cmd export
