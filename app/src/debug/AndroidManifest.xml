@@ -32,6 +32,7 @@
                 <action android:name="app.cadence.DEBUG_PALETTE" />
                 <action android:name="app.cadence.DEBUG_SESSION" />
                 <action android:name="app.cadence.DEBUG_IDENTITY" />
+                <action android:name="app.cadence.DEBUG_DNS" />
             </intent-filter>
         </receiver>
     </application>

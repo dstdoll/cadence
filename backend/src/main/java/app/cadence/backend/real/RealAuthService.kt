@@ -10,6 +10,7 @@ import app.cadence.backend.engine.AmpConfig
 import app.cadence.backend.engine.CadenceLog
 import app.cadence.backend.engine.media.EngineDownloader
 import app.cadence.backend.engine.media.NativeWrapper
+import app.cadence.backend.engine.media.ProcessNetwork
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -22,6 +23,9 @@ import java.io.File
 
 /** How long a media-user-token request may take before the caller stops waiting for it. */
 private const val MINT_TIMEOUT_MS = 30_000L
+
+/** How long the engine's resolver may take to look Apple up after a failed sign-in. */
+private const val ENGINE_DNS_PROBE_MS = 8_000L
 
 /**
  * Real sign-in: Apple ID password (SRP) then the six-digit HSA2 code, bridged
@@ -80,6 +84,9 @@ class RealAuthService(
                 CadenceLog.e("auth", "native engine init failed")
                 return@withContext Result.failure(AuthError.EngineUnavailable())
             }
+            // The engine resolves names itself, with the servers of the network it last saw; the sign-in
+            // must use the current network's even if a change of network was missed.
+            ProcessNetwork.refresh(context, "sign-in")
             NativeWrapper.setCredentials(email, password)
             // login() drives the account sign-in and blocks in the credential handler until the 2FA
             // code is submitted (or returns when no second factor is needed). Run it detached.
@@ -110,8 +117,9 @@ class RealAuthService(
                     // login() answered false, or never answered in 45 s. Do not call that a connection problem unless it is one.
                     val timedOut = !job.isCompleted
                     val reach = SignInFailure.reach(context)
-                    val error = SignInFailure.classify(timedOut, reach)
-                    CadenceLog.e("auth", SignInFailure.describe(timedOut, reach, error) + " (the [native] auth: lines above say what StoreServices reported)")
+                    val engineResolves = reach != SignInFailure.Reach.Reachable || engineResolves(SignInFailure.ENGINE_PROBE_HOST)
+                    val error = SignInFailure.classify(timedOut, reach, engineResolves)
+                    CadenceLog.e("auth", SignInFailure.describe(timedOut, reach, error, engineResolves) + " (the [native] auth: lines above say what StoreServices reported)")
                     Result.failure(error)
                 }
             }
@@ -275,6 +283,15 @@ class RealAuthService(
         } finally {
             conn.disconnect()
         }
+    }
+
+    /**
+     * Whether the engine's resolver finds [host]. The native lookup cannot be interrupted, so it runs in the
+     * service scope and is given [ENGINE_DNS_PROBE_MS]: a lookup still going after that has failed too.
+     */
+    private suspend fun engineResolves(host: String): Boolean {
+        val lookup = scope.async(Dispatchers.IO) { runCatching { NativeWrapper.resolves(host) }.getOrDefault(false) }
+        return withTimeoutOrNull(ENGINE_DNS_PROBE_MS) { lookup.await() } ?: false
     }
 
     private fun mask(email: String): String =

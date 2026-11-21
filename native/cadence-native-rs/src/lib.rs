@@ -12,6 +12,7 @@ mod logfmt;
 mod bridges;
 mod core;
 mod cppfn;
+mod dns;
 mod hooks_glue;
 mod engine;
 mod identity;
@@ -129,6 +130,26 @@ pub extern "system" fn Java_app_cadence_backend_engine_media_NativeWrapper_init(
     let device = to_string(&mut env, &device_id);
     let dns = to_string(&mut env, &dns_servers);
     if engine::init(&base, &device, &dns) { JNI_TRUE } else { JNI_FALSE }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_cadence_backend_engine_media_NativeWrapper_setDnsServers(
+    mut env: JNIEnv,
+    _class: JClass,
+    dns_servers: JString,
+) {
+    let dns = to_string(&mut env, &dns_servers);
+    core::set_nameservers(&dns);
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_cadence_backend_engine_media_NativeWrapper_resolves(
+    mut env: JNIEnv,
+    _class: JClass,
+    host: JString,
+) -> jboolean {
+    let host = to_string(&mut env, &host);
+    if !host.is_empty() && core::resolves(&host) { JNI_TRUE } else { JNI_FALSE }
 }
 
 #[no_mangle]

@@ -42,6 +42,10 @@ object NativeWrapper {
     /** [dnsServers] is a comma-separated list of the active network's DNS server IPs; the native
      *  resolver uses them (reachable on any network) instead of a fixed public resolver. */
     external fun init(baseDir: String, deviceId: String, dnsServers: String): Boolean
+    /** Replaces the native resolver's servers after [init] (same format); see [ProcessNetwork.follow]. */
+    external fun setDnsServers(dnsServers: String)
+    /** Whether the native resolver, the one StoreServices uses, resolves [host] now. **Blocks** while it tries. */
+    external fun resolves(host: String): Boolean
     external fun m3u8(adamId: String): String?
     external fun kd(adamId: String, keyUri: String): Long
     external fun decryptSample(kd: Long, sample: ByteArray): ByteArray?
