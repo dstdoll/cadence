@@ -23,13 +23,15 @@ internal object SignInFailure {
 
     /**
      * The error to show. [timedOut]: the sign-in never answered; otherwise it answered with a failure.
-     * [engineResolves]: whether the engine's resolver could look Apple up after the failure.
+     * [engineResolves]: whether the engine's resolver could look Apple up after the failure. It only matters
+     * for a sign-in that never answered: one that answered reached Apple, so its DNS worked and a refusal is a
+     * refusal, whatever a later lookup says.
      */
     fun classify(timedOut: Boolean, reach: Reach, engineResolves: Boolean = true): AuthError = when {
         reach != Reach.Reachable -> AuthError.Network()
+        !timedOut -> AuthError.SignInRejected()
         !engineResolves -> AuthError.SignInDnsFailed()
-        timedOut -> AuthError.SignInTimedOut()
-        else -> AuthError.SignInRejected()
+        else -> AuthError.SignInTimedOut()
     }
 
     /** A one-line, greppable description for cadence.log. */

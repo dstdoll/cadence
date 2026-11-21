@@ -481,9 +481,13 @@ pub fn set_nameservers(active: &str) {
     let dot = CString::new(".").unwrap();
     // SAFETY: plain C; the strings outlive the call, which copies them.
     unsafe { _resolv_set_nameservers_for_net(0, ptrs.as_ptr(), ptrs.len() as c_int, dot.as_ptr(), ptr::null()) };
-    if let Some(cfg) = CONFIG.lock().unwrap().as_mut() {
+    // Called from Android's network-callback thread at any time: a poisoned lock must not turn into a
+    // panic across the JNI boundary (which aborts the process), so a poisoned guard is used as is.
+    let mut cfg = CONFIG.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(cfg) = cfg.as_mut() {
         cfg.dns_servers = active.to_owned();
     }
+    drop(cfg);
     nlog(&format!("dns: {}", crate::dns::describe(&list)));
 }
 
