@@ -17,7 +17,9 @@ object NativeRuntime {
                 // The id is not logged: it identifies the device, and this log can be exported.
                 AppLog.log("Native", "auto init base=${context.filesDir.absolutePath} device=<${DeviceIdentity.describe(deviceId)}${if (DeviceIdentity.isRotated(context)) " rotated" else ""}>")
                 app.cadence.backend.engine.Provisioning.dir = context.filesDir
-                ready = NativeWrapper.init(context.filesDir.absolutePath, deviceId, ProcessNetwork.activeDnsServers(context))
+                val dnsServers = ProcessNetwork.activeDnsServers(context)
+                ready = NativeWrapper.init(context.filesDir.absolutePath, deviceId, dnsServers)
+                if (ready) ProcessNetwork.follow(context, dnsServers)
                 app.cadence.backend.engine.Provisioning.log("after native init")
                 AppLog.log("Native", "auto init result=$ready")
             }.onFailure { AppLog.error("Native", "auto init failed", it) }

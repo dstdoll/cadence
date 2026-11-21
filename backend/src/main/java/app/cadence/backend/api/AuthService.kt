@@ -42,6 +42,11 @@ sealed class AuthError(message: String) : Exception(message) {
     class SignInRejected : AuthError("Apple didn't accept that sign-in. Check your email and password and try again.")
     /** Apple was reachable but did not answer the sign-in in time. */
     class SignInTimedOut : AuthError("Apple took too long to answer. Try again in a moment.")
+    /** Apple was reachable from the app, but the sign-in engine's own DNS lookups did not get an answer on this network. */
+    class SignInDnsFailed : AuthError(
+        "Apple is reachable, but sign-in couldn't look up Apple's servers on this network. " +
+            "If you use a VPN, Private DNS or a DNS ad blocker, pause it or switch between Wi-Fi and mobile data, then try again."
+    )
     /** The native playback/sign-in engine could not be loaded on this device (see the [NATIVE-LOAD] log line for why). */
     class EngineUnavailable : AuthError("Sign-in isn't available on this device: the playback engine couldn't start. The log has the details.")
     /** The Apple ID code was accepted but the MusicKit token exchange failed. */

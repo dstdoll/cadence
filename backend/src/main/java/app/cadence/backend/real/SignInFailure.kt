@@ -11,20 +11,31 @@ import java.net.URL
  * Why a sign-in that did not succeed failed, from what can be told apart on the device. The native sign-in
  * only answers true/false, so "wrong password" and "no connection" used to look the same ("Can't reach the
  * server"). A connection error is now reported only when the device is offline or Apple cannot be reached.
+ *
+ * The sign-in resolves names with the engine's own resolver, not Android's (see ProcessNetwork), so Apple
+ * can be reachable from the app while the sign-in cannot find it: [engineResolves] tells that case apart.
  */
 internal object SignInFailure {
     enum class Reach { Offline, AppleUnreachable, Reachable }
 
-    /** The error to show. [timedOut]: the sign-in never answered; otherwise it answered with a failure. */
-    fun classify(timedOut: Boolean, reach: Reach): AuthError = when {
+    /** The host the engine's sign-in asks first (StoreServices' bag). */
+    const val ENGINE_PROBE_HOST = "init.itunes.apple.com"
+
+    /**
+     * The error to show. [timedOut]: the sign-in never answered; otherwise it answered with a failure.
+     * [engineResolves]: whether the engine's resolver could look Apple up after the failure.
+     */
+    fun classify(timedOut: Boolean, reach: Reach, engineResolves: Boolean = true): AuthError = when {
         reach != Reach.Reachable -> AuthError.Network()
+        !engineResolves -> AuthError.SignInDnsFailed()
         timedOut -> AuthError.SignInTimedOut()
         else -> AuthError.SignInRejected()
     }
 
     /** A one-line, greppable description for cadence.log. */
-    fun describe(timedOut: Boolean, reach: Reach, error: AuthError): String =
-        "sign-in failed: ${if (timedOut) "no answer in time" else "Apple answered with a failure"}, network=$reach -> ${error.javaClass.simpleName}"
+    fun describe(timedOut: Boolean, reach: Reach, error: AuthError, engineResolves: Boolean = true): String =
+        "sign-in failed: ${if (timedOut) "no answer in time" else "Apple answered with a failure"}, network=$reach, " +
+            "engine dns=${if (engineResolves) "ok" else "failed"} -> ${error.javaClass.simpleName}"
 
     /**
      * Offline when Android has no network with internet; otherwise any HTTP answer from Apple (even a 401)
