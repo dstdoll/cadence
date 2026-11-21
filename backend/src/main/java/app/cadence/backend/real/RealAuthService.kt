@@ -24,8 +24,12 @@ import java.io.File
 /** How long a media-user-token request may take before the caller stops waiting for it. */
 private const val MINT_TIMEOUT_MS = 30_000L
 
-/** How long the engine's resolver may take to look Apple up after a failed sign-in. */
-private const val ENGINE_DNS_PROBE_MS = 8_000L
+/**
+ * How long the engine's resolver may take to look Apple up after a sign-in that never answered. Bionic waits
+ * about 5 s per try on a server that does not answer and tries twice: one dead server and then the public
+ * fallback answering takes about 10 s, measured on a device.
+ */
+private const val ENGINE_DNS_PROBE_MS = 12_000L
 
 /**
  * Real sign-in: Apple ID password (SRP) then the six-digit HSA2 code, bridged
@@ -117,7 +121,10 @@ class RealAuthService(
                     // login() answered false, or never answered in 45 s. Do not call that a connection problem unless it is one.
                     val timedOut = !job.isCompleted
                     val reach = SignInFailure.reach(context)
-                    val engineResolves = reach != SignInFailure.Reach.Reachable || engineResolves(SignInFailure.ENGINE_PROBE_HOST)
+                    // A sign-in that answered got through to Apple, so the engine's DNS worked: only a sign-in
+                    // that never answered, with Apple reachable from the app, needs the engine's resolver checked.
+                    val engineResolves = !timedOut || reach != SignInFailure.Reach.Reachable ||
+                        engineResolves(SignInFailure.ENGINE_PROBE_HOST)
                     val error = SignInFailure.classify(timedOut, reach, engineResolves)
                     CadenceLog.e("auth", SignInFailure.describe(timedOut, reach, error, engineResolves) + " (the [native] auth: lines above say what StoreServices reported)")
                     Result.failure(error)
@@ -285,12 +292,20 @@ class RealAuthService(
         }
     }
 
+    /** The engine-resolver lookup in progress, so repeated failed sign-ins share it instead of piling up threads. */
+    @Volatile private var dnsProbe: Deferred<Boolean>? = null
+
     /**
      * Whether the engine's resolver finds [host]. The native lookup cannot be interrupted, so it runs in the
-     * service scope and is given [ENGINE_DNS_PROBE_MS]: a lookup still going after that has failed too.
+     * service scope and is given [ENGINE_DNS_PROBE_MS]; a lookup still going after that counts as failed, since
+     * a resolver that slow cannot get a sign-in, which makes many lookups, through in time either.
      */
     private suspend fun engineResolves(host: String): Boolean {
-        val lookup = scope.async(Dispatchers.IO) { runCatching { NativeWrapper.resolves(host) }.getOrDefault(false) }
+        val lookup = synchronized(this) {
+            dnsProbe?.takeIf { it.isActive }
+                ?: scope.async(Dispatchers.IO) { runCatching { NativeWrapper.resolves(host) }.getOrDefault(false) }
+                    .also { dnsProbe = it }
+        }
         return withTimeoutOrNull(ENGINE_DNS_PROBE_MS) { lookup.await() } ?: false
     }
 

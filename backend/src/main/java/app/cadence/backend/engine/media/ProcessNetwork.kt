@@ -53,18 +53,39 @@ object ProcessNetwork {
     internal fun shouldReplace(installed: String?, next: String): Boolean =
         next.isNotEmpty() && next != installed
 
+    /** The list the native side holds, or null when it is not known (no successful init yet, or offline at init). */
     @Volatile private var installed: String? = null
     private val following = AtomicBoolean(false)
 
+    /** True once a [NativeWrapper.init] succeeded and [follow] ran: the native resolver can be driven. */
+    @Volatile var engineReady: Boolean = false
+        private set
+
     /**
      * Keeps the native resolver on the default network's servers from now on. Call after every
-     * successful [NativeWrapper.init] with the list it was given (each init installs its own list, so the
-     * latest one is what the native side holds). Registers the callback once per process.
+     * successful [NativeWrapper.init], with the list that init was given. Registers the callback once
+     * per process.
+     *
+     * [NativeWrapper.init] is idempotent: only the first successful one installs its list, a later one
+     * returns at once and leaves the first one's servers in place, possibly an older network's. So the
+     * current network's list is installed here explicitly, and [installed] always records what the
+     * native side really holds; were it set to [initial] instead, a list the native side never got could
+     * look installed and every later change to that same list would be skipped.
      */
     fun follow(context: Context, initial: String) {
-        synchronized(this) { installed = initial }
+        val current = activeDnsServers(context).ifEmpty { initial }
+        synchronized(this) {
+            installed = null
+            install(current, "engine start")
+            engineReady = true
+        }
         if (!following.compareAndSet(false, true)) return
-        val cm = context.applicationContext.getSystemService(ConnectivityManager::class.java) ?: return
+        val cm = context.applicationContext.getSystemService(ConnectivityManager::class.java)
+        if (cm == null) {
+            following.set(false)
+            AppLog.error("Network", "no ConnectivityManager; native DNS follows the network only at sign-in")
+            return
+        }
         runCatching {
             cm.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
                 // Called for a new default network (after onAvailable) and whenever its servers change.
@@ -74,7 +95,7 @@ object ProcessNetwork {
             })
         }.onFailure {
             following.set(false)
-            AppLog.error("Network", "cannot follow the default network; native DNS stays as set at start", it)
+            AppLog.error("Network", "cannot follow the default network; native DNS follows the network only at sign-in", it)
         }
     }
 
