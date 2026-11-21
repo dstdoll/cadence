@@ -56,7 +56,7 @@ object EngineDownloader {
         // The native resolver uses these (the active network's DNS) instead of a fixed public
         // resolver, so FairPlay key lookups work where external UDP/53 is blocked (some carriers).
         val dnsServers = ProcessNetwork.activeDnsServers(context)
-        AppLog.log("Cadence", "native dns=${dnsServers.ifBlank { "(none; native fallback)" }}")
+        AppLog.log("Cadence", "native dns=${ProcessNetwork.describe(dnsServers)}")
         // The wrapper is initialized on a dedicated thread; StoreServices/DeviceGUID
         // capture that thread's state. Initialize the same way instead of on a
         // coroutine pool thread, then let the KD run from the download coroutine.
@@ -70,6 +70,7 @@ object EngineDownloader {
         }, "cadence-native-init")
         initThread.start()
         initThread.join()
+        if (ready) ProcessNetwork.follow(context, dnsServers)
         nativeReady = ready
         AppLog.log("Cadence", "native init=$nativeReady")
         return nativeReady
