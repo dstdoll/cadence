@@ -30,7 +30,7 @@ backend/src/main/assets/native-data/
 backend/src/main/assets/session.json
 backend/src/main/assets/engine/
 
-# Captura de referencia tomada del dispositivo de pruebas: trae su ANDROID_ID, su GUID de
-# FairPlay, los SPC crudos y los IDs de los temas reproducidos. La muestra sintetica
-# equivalente (native/vectors.sample.json) sí se versiona.
+# Reference capture taken from the test device: it holds its ANDROID_ID, its FairPlay GUID,
+# the raw SPCs and the IDs of the tracks played. The equivalent synthetic sample
+# (native/vectors.sample.json) is committed.
 native/vectors.json

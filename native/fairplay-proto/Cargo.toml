@@ -2,7 +2,7 @@
 
 [package]
 name = "fairplay-proto"
-description = "Protocolo de key delivery de FairPlay para Apple Music Android (SPC/CKC)"
+description = "FairPlay key delivery protocol for Apple Music Android (SPC/CKC)"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"

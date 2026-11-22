@@ -352,7 +352,7 @@ unsafe extern "C-unwind" {
 unsafe extern "C-unwind" {
     /// `mediaplatform::HTTPMessage::HTTPMessage(std::string url, std::string method)`
     ///
-    /// Ambos argumentos van **por valor**, no por referencia.
+    /// Both arguments are passed **by value**, not by reference.
     #[link_name = "_ZN13mediaplatform11HTTPMessageC2ENSt6__ndk112basic_stringIcNS1_11char_traitsIcEENS1_9allocatorIcEEEES7_"]
     pub fn HTTPMessage_new(this: *mut c_void, url: StdString, method: StdString);
 

@@ -122,41 +122,41 @@ dependencies {
     testImplementation(libs.junit)
 }
 
-// Un release no puede llevar la sesion de pruebas. `assets/native-data/` y `assets/engine/`
-// traen el media-user-token, el developer token, el ANDROID_ID, el estado de FairPlay y el
-// mpl_db entero con las cookies de la cuenta: cualquiera con el APK firmado entra a ella.
+// A release must never carry the test session. `assets/native-data/` and `assets/engine/`
+// hold the media-user-token, the developer token, the ANDROID_ID, the FairPlay state and the
+// whole mpl_db with the account's cookies: anyone with the signed APK gets into that account.
 //
-// El .gitignore los deja fuera del repositorio, pero eso no protege un release construido en
-// una maquina que si los tiene -- los empaqueta en silencio, y el APK se ve normal. Por eso
-// la comprobacion vive en el build y no en la disciplina de quien compila.
+// .gitignore keeps them out of the repository, but that does not protect a release built on a
+// machine that has them -- they get packaged silently and the APK looks normal. That is why the
+// check lives in the build and not in the discipline of whoever builds it.
 //
-// Para un release local que se queda en el dispositivo propio: CADENCE_ALLOW_SEEDED_RELEASE=1.
-val rutasDeCredenciales = listOf(
+// For a local release that stays on your own device: CADENCE_ALLOW_SEEDED_RELEASE=1.
+val credentialPaths = listOf(
     rootProject.file("backend/src/main/assets/native-data"),
     rootProject.file("backend/src/main/assets/engine"),
 )
-val permitirSembrado = System.getenv("CADENCE_ALLOW_SEEDED_RELEASE") == "1"
-val comprobarCredenciales = tasks.register("checkNoSeededCredentials") {
+val allowSeeded = System.getenv("CADENCE_ALLOW_SEEDED_RELEASE") == "1"
+val checkCredentials = tasks.register("checkNoSeededCredentials") {
     group = "verification"
-    description = "Falla si un release llevaria las credenciales de prueba sembradas en assets."
-    val presentes = rutasDeCredenciales.filter { it.exists() }.map { it.relativeTo(rootProject.projectDir).path }
-    val permitido = permitirSembrado
+    description = "Fails if a release would carry the seeded test credentials in assets."
+    val present = credentialPaths.filter { it.exists() }.map { it.relativeTo(rootProject.projectDir).path }
+    val allowed = allowSeeded
     doLast {
-        if (presentes.isEmpty()) return@doLast
-        if (permitido) {
-            logger.warn("AVISO: este release lleva credenciales en vivo (${presentes.joinToString()}). " +
-                "CADENCE_ALLOW_SEEDED_RELEASE=1 esta puesta. No distribuyas este APK.")
+        if (present.isEmpty()) return@doLast
+        if (allowed) {
+            logger.warn("WARNING: this release carries live credentials (${present.joinToString()}). " +
+                "CADENCE_ALLOW_SEEDED_RELEASE=1 is set. Do not distribute this APK.")
             return@doLast
         }
         throw GradleException(
-            "Este release llevaria credenciales en vivo:\n" +
-                presentes.joinToString("\n") { "  - $it" } +
-                "\n\nSon la sesion de Apple Music de una cuenta real (media-user-token, developer " +
-                "token, ANDROID_ID, estado de FairPlay y el mpl_db con sus cookies). Quien tenga el " +
-                "APK firmado entra a esa cuenta.\n\nSaca esas carpetas antes de compilar un release, " +
-                "o pon CADENCE_ALLOW_SEEDED_RELEASE=1 si el APK se queda en tu propio dispositivo."
+            "This release would carry live credentials:\n" +
+                present.joinToString("\n") { "  - $it" } +
+                "\n\nThey are the Apple Music session of a real account (media-user-token, developer " +
+                "token, ANDROID_ID, FairPlay state and the mpl_db with its cookies). Anyone with the " +
+                "signed APK gets into that account.\n\nRemove those folders before building a release, " +
+                "or set CADENCE_ALLOW_SEEDED_RELEASE=1 if the APK stays on your own device."
         )
     }
 }
 tasks.matching { it.name == "mergeReleaseAssets" || it.name == "assembleRelease" || it.name == "bundleRelease" }
-    .configureEach { dependsOn(comprobarCredenciales) }
+    .configureEach { dependsOn(checkCredentials) }

@@ -2,7 +2,7 @@
 
 [package]
 name = "device-guid"
-description = "Port del algoritmo DeviceGUID de StoreServicesCore (Apple Music Android)"
+description = "Port of the StoreServicesCore DeviceGUID algorithm (Apple Music Android)"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
