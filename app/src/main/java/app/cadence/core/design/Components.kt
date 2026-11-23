@@ -13,6 +13,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -192,16 +193,43 @@ private val TileShape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bot
 
 @Composable
 fun AlbumTile(album: Album, subtitle: String, width: Dp = 156.dp, onClick: () -> Unit) {
-    Column(Modifier.width(width).clip(TileShape).semantics(mergeDescendants = true) {}.clickable(onClick = onClick).alpha(if (album.available) 1f else 0.38f).padding(bottom = 8.dp)) {
+    val haptic = LocalHapticFeedback.current
+    var menu by remember { mutableStateOf(false) }
+    Column(
+        Modifier
+            .width(width)
+            .clip(TileShape)
+            .semantics(mergeDescendants = true) {}
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); menu = true },
+            )
+            .alpha(if (album.available) 1f else 0.38f)
+            .padding(bottom = 8.dp),
+    ) {
         Artwork(album.id, album.colors, Modifier.fillMaxWidth(), RoundedCornerShape(16.dp), coverUrl = album.cover)
         Text(album.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
         Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
+    if (menu) AlbumActionSheet(album, subtitle) { menu = false }
 }
 
 @Composable
 fun PlaylistTile(playlist: Playlist, width: Dp = 156.dp, onClick: () -> Unit) {
-    Column(Modifier.width(width).clip(TileShape).semantics(mergeDescendants = true) {}.clickable(onClick = onClick).alpha(if (playlist.available) 1f else 0.38f).padding(bottom = 8.dp)) {
+    val haptic = LocalHapticFeedback.current
+    var menu by remember { mutableStateOf(false) }
+    Column(
+        Modifier
+            .width(width)
+            .clip(TileShape)
+            .semantics(mergeDescendants = true) {}
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); menu = true },
+            )
+            .alpha(if (playlist.available) 1f else 0.38f)
+            .padding(bottom = 8.dp),
+    ) {
         Artwork(playlist.id, playlist.colors, Modifier.fillMaxWidth(), RoundedCornerShape(16.dp), coverUrl = playlist.cover)
         Text(playlist.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
         // Recommendation/radio cards carry no tracklist until opened, so a song count would read "0".
@@ -210,14 +238,27 @@ fun PlaylistTile(playlist: Playlist, width: Dp = 156.dp, onClick: () -> Unit) {
             else playlist.description.ifBlank { stringResource(R.string.components_playlist_fallback) }
         Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
+    if (menu) PlaylistActionSheet(playlist) { menu = false }
 }
 
 /** Artists get a cookie-shaped avatar: a small expressive accent that also reads as "person, not album". */
 @Composable
 fun ArtistAvatar(artist: Artist, size: Dp = 112.dp, onClick: () -> Unit) {
     val shape = MaterialShapes.Cookie9Sided.toShape()
-    Column(Modifier.width(size).semantics(mergeDescendants = true) {}.clickable(onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally) {
+    val haptic = LocalHapticFeedback.current
+    var menu by remember { mutableStateOf(false) }
+    Column(
+        Modifier
+            .width(size)
+            .semantics(mergeDescendants = true) {}
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); menu = true },
+            ),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
         Artwork(artist.id, listOf(artist.color, "#1B1B1F", artist.color), Modifier.size(size), shape, coverUrl = artist.cover)
+    if (menu) ArtistActionSheet(artist) { menu = false }
         Text(artist.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
     }
 }
@@ -301,10 +342,16 @@ fun TrackRow(
     val isCurrent = state.current?.id == info.id
     val isFav = lib.isFavorite(info.id, c.repository.favoriteTrackIds)
     val available = info.track.available
+    val haptic = LocalHapticFeedback.current
+    var longPressSheet by remember { mutableStateOf(false) }
     ListItem(
         modifier = modifier
             .semantics(mergeDescendants = true) { this.selected = selected }
-            .clickable(enabled = available, onClick = onClick)
+            .combinedClickable(
+                enabled = available,
+                onClick = onClick,
+                onLongClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); longPressSheet = true },
+            )
             .alpha(if (available) 1f else 0.38f),
         colors = ListItemDefaults.colors(containerColor = if (selected) MaterialTheme.colorScheme.secondaryContainer else androidx.compose.ui.graphics.Color.Transparent),
         leadingContent = {
@@ -339,6 +386,7 @@ fun TrackRow(
             }
         },
     )
+    if (longPressSheet) TrackActionsSheet(info, onDismiss = { longPressSheet = false })
 }
 
 @Composable

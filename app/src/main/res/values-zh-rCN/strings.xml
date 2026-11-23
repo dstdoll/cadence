@@ -167,6 +167,8 @@
     <string name="alac_status_not_alac">非 ALAC</string>
     <string name="alac_status_unavailable">不可用</string>
     <string name="action_close">关闭</string>
+    <string name="action_open_artist">前往艺人页</string>
+    <string name="action_share">分享</string>
     <string name="track_create_station">创建电台</string>
     <string name="track_pin">置顶歌曲</string>
     <string name="track_unpin">取消置顶</string>

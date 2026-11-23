@@ -5,6 +5,9 @@ import androidx.compose.foundation.background
 import androidx.compose.ui.res.stringResource
 import app.cadence.R
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -62,11 +65,14 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.cadence.LocalContainer
 import app.cadence.core.design.AddToPlaylistDialog
+import app.cadence.core.design.AlbumActionSheet
 import app.cadence.core.design.AlbumTile
+import app.cadence.core.design.ArtistActionSheet
 import app.cadence.core.design.Artwork
 import app.cadence.core.design.LibraryKind
 import app.cadence.core.design.ListScaffold
 import app.cadence.core.design.LocalNavigator
+import app.cadence.core.design.PlaylistActionSheet
 import app.cadence.core.design.PlaylistTile
 import app.cadence.core.design.SectionHeader
 import app.cadence.core.design.TileRow
@@ -389,13 +395,19 @@ fun LibrarySectionScreen(kind: LibraryKind) {
                 val all = if (reversed) base.sortedWith(compareByDescending(ci) { it.title }) else base.sortedWith(compareBy(ci) { it.title })
                 if (all.isEmpty()) item(key = "empty") { Empty(stringResource(R.string.library_empty_playlists)) }
                 items(all, key = { it.id }) { p ->
+                    val haptic = LocalHapticFeedback.current
+                    var sheet by remember { mutableStateOf(false) }
                     ListItem(
                         content = { Text(p.title) },
                         supportingContent = { Text(if (p.userCreated) "Your playlist · ${plural(p.trackIds.size, "song")}" else plural(p.trackIds.size, "song")) },
                         leadingContent = { Artwork(p.id, p.colors, Modifier.size(56.dp), RoundedCornerShape(12.dp), coverUrl = p.cover) },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clickable { nav.playlist(p.id) }.alpha(if (p.available) 1f else 0.38f),
+                        modifier = Modifier.combinedClickable(
+                            onClick = { nav.playlist(p.id) },
+                            onLongClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); sheet = true },
+                        ).alpha(if (p.available) 1f else 0.38f),
                     )
+                    if (sheet) PlaylistActionSheet(p) { sheet = false }
                 }
             }
             LibraryKind.Artists -> {
@@ -407,6 +419,8 @@ fun LibrarySectionScreen(kind: LibraryKind) {
                 val albumCounts = libraryAlbums(repo, lib).groupingBy { it.artistId }.eachCount()
                 if (artists.isEmpty()) item(key = "empty") { Empty(stringResource(R.string.library_empty_artists)) }
                 items(artists, key = { it.id }) { a ->
+                    val haptic = LocalHapticFeedback.current
+                    var sheet by remember { mutableStateOf(false) }
                     ListItem(
                         content = { Text(a.name) },
                         supportingContent = { Text(artistSummary(songCounts[a.name.lowercase()] ?: 0, albumCounts[a.id] ?: 0)) },
@@ -416,8 +430,12 @@ fun LibrarySectionScreen(kind: LibraryKind) {
                             Artwork(a.id, listOf(a.color, "#1B1B1F", a.color), Modifier.size(56.dp), MaterialShapes.Cookie9Sided.toShape(), coverUrl = art)
                         },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clickable { nav.artist(a.id) },
+                        modifier = Modifier.combinedClickable(
+                            onClick = { nav.artist(a.id) },
+                            onLongClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); sheet = true },
+                        ),
                     )
+                    if (sheet) ArtistActionSheet(a) { sheet = false }
                 }
             }
             LibraryKind.Albums -> {
@@ -426,13 +444,20 @@ fun LibrarySectionScreen(kind: LibraryKind) {
                 val albums = base.sortedWith(if (reversed) albumCmp.reversed() else albumCmp)
                 if (albums.isEmpty()) item(key = "empty") { Empty(stringResource(R.string.library_empty_albums)) }
                 items(albums, key = { it.id }) { a ->
+                    val haptic = LocalHapticFeedback.current
+                    var sheet by remember { mutableStateOf(false) }
+                    val artistName = repo.artist(a.artistId)?.name.orEmpty()
                     ListItem(
                         content = { Text(a.title) },
-                        supportingContent = { Text("${repo.artist(a.artistId)?.name} · ${a.year}") },
+                        supportingContent = { Text("$artistName · ${a.year}") },
                         leadingContent = { Artwork(a.id, a.colors, Modifier.size(56.dp), RoundedCornerShape(12.dp), coverUrl = a.cover) },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clickable { nav.album(a.id) }.alpha(if (a.available) 1f else 0.38f),
+                        modifier = Modifier.combinedClickable(
+                            onClick = { nav.album(a.id) },
+                            onLongClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); sheet = true },
+                        ).alpha(if (a.available) 1f else 0.38f),
                     )
+                    if (sheet) AlbumActionSheet(a, artistName) { sheet = false }
                 }
             }
             LibraryKind.Genres -> {

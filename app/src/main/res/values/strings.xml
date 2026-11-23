@@ -171,6 +171,8 @@
     <string name="alac_status_not_alac">Not ALAC</string>
     <string name="alac_status_unavailable">Unavailable</string>
     <string name="action_close">Close</string>
+    <string name="action_open_artist">Go to artist</string>
+    <string name="action_share">Share</string>
     <string name="track_create_station">Create Station</string>
     <string name="track_pin">Pin Song</string>
     <string name="track_unpin">Unpin</string>

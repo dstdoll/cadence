@@ -169,6 +169,8 @@
     <string name="alac_status_not_alac">No es ALAC</string>
     <string name="alac_status_unavailable">No disponible</string>
     <string name="action_close">Cerrar</string>
+    <string name="action_open_artist">Ir al artista</string>
+    <string name="action_share">Compartir</string>
     <string name="track_create_station">Crear emisora</string>
     <string name="track_pin">Fijar canción</string>
     <string name="track_unpin">Dejar de fijar</string>
