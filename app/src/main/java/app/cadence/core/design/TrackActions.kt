@@ -38,6 +38,7 @@ import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.ThumbDown
 import androidx.compose.material.icons.rounded.ThumbDownOffAlt
+import androidx.compose.material.icons.rounded.Verified
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -101,6 +102,7 @@ fun TrackActionsSheet(
     var pickPlaylist by remember { mutableStateOf(false) }
     var shareLyrics by remember { mutableStateOf(false) }
     var sleep by remember { mutableStateOf(false) }
+    var verifyAlac by remember { mutableStateOf(false) }
     val hasLyrics by produceState(false, info.id) { value = c.repository.lyrics(info) !is Lyrics.None }
 
     val accountLibrary = c.repository.accountLibrary.trackIds
@@ -132,6 +134,7 @@ fun TrackActionsSheet(
         add(SheetAction(stringResource(R.string.track_copy_link), Icons.Rounded.Link) { act { copySongLink(context, info, c.repository.storefront) } })
         if (hasLyrics) add(SheetAction(stringResource(R.string.track_share_lyrics), Icons.Rounded.FormatQuote) { shareLyrics = true })
         add(SheetAction(stringResource(R.string.track_view_credits), Icons.Rounded.Info) { go { nav.credits(info.id) } })
+        add(SheetAction(stringResource(R.string.track_verify_alac), Icons.Rounded.Verified) { verifyAlac = true })
         add(SheetAction(stringResource(R.string.track_create_station), Icons.Rounded.Radio) { act { c.player.startStation(info) } })
         add(SheetAction(if (pinned) stringResource(R.string.track_unpin) else stringResource(R.string.track_pin), if (pinned) Icons.Rounded.PushPin else Icons.Outlined.PushPin) {
             act { c.library.update { it.togglePin("t:${info.id}") } }
@@ -187,6 +190,7 @@ fun TrackActionsSheet(
     if (pickPlaylist) AddToPlaylistDialog(listOf(info.id)) { pickPlaylist = false; onDismiss() }
     if (shareLyrics) ShareLyricsSheet(info) { shareLyrics = false; onDismiss() }
     if (sleep) SleepTimerDialog(onDismiss = { sleep = false; onDismiss() })
+    if (verifyAlac) AlacCheckDialog(info.track.title, listOf(info)) { verifyAlac = false; onDismiss() }
 }
 
 /** The text a shared song carries: its title, artist and album, then the Apple Music link that Cadence (or anything else) can open. */
