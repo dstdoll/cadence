@@ -98,7 +98,7 @@ impl AlacSession {
         if out.len() < needed {
             return Err(AlacError::BufferTooSmall { needed, available: out.len() });
         }
-        for (dst, &s) in out[..needed].chunks_exact_mut(2).zip(samples.iter()) {
+        for (dst, &s) in out[..needed].as_chunks_mut::<2>().0.iter_mut().zip(samples.iter()) {
             dst.copy_from_slice(&((s >> 16) as i16).to_le_bytes());
         }
         Ok(needed)
@@ -115,7 +115,7 @@ impl AlacSession {
         if out.len() < needed {
             return Err(AlacError::BufferTooSmall { needed, available: out.len() });
         }
-        for (dst, &s) in out[..needed].chunks_exact_mut(4).zip(samples.iter()) {
+        for (dst, &s) in out[..needed].as_chunks_mut::<4>().0.iter_mut().zip(samples.iter()) {
             let f = (s as f64 * SCALE) as f32;
             dst.copy_from_slice(&f.to_le_bytes());
         }

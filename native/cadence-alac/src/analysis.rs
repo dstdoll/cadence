@@ -81,7 +81,7 @@ pub fn analyze_mono_i32(samples: &[i32], sample_rate: u32, container_bits: u8) -
         .collect();
     let mut avg_power = vec![0.0_f64; FFT_SIZE / 2];
     let mut window_count = 0usize;
-    for chunk in samples.chunks_exact(FFT_SIZE) {
+    for chunk in samples.as_chunks::<FFT_SIZE>().0 {
         let mono: Vec<f64> = chunk.iter().map(|&s| (s as f64) / 2_147_483_648.0).collect();
         accumulate_fft(&mono, &hann, &mut avg_power);
         window_count += 1;
@@ -192,35 +192,4 @@ fn fft_radix2(re: &mut [f64], im: &mut [f64]) {
         }
         len <<= 1;
     }
-}
-
-/// Repairs a full-block uncompressed ALAC escape frame's 3-bit `END` marker (`111`) and zero-padding bits.
-/// Returns `true` if any bit was modified.
-pub fn repair_escape_tail(frame: &mut [u8], max_block: usize, channels: usize, bits: usize) -> bool {
-    let expected_len = (23 + max_block * channels * bits + 3 + 7) / 8;
-    if frame.len() != expected_len || frame.len() < 4 {
-        return false;
-    }
-    let end_bit = 23 + max_block * channels * bits;
-    let total_bits = expected_len * 8;
-    let mut changed = false;
-
-    for i in 0..3 {
-        let abs_bit = end_bit + i;
-        let byte_idx = abs_bit / 8;
-        let mask = 1u8 << (7 - (abs_bit % 8));
-        if (frame[byte_idx] & mask) == 0 {
-            frame[byte_idx] |= mask;
-            changed = true;
-        }
-    }
-    for abs_bit in (end_bit + 3)..total_bits {
-        let byte_idx = abs_bit / 8;
-        let mask = 1u8 << (7 - (abs_bit % 8));
-        if (frame[byte_idx] & mask) != 0 {
-            frame[byte_idx] &= !mask;
-            changed = true;
-        }
-    }
-    changed
 }

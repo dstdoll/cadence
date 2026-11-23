@@ -39,12 +39,10 @@ object AlacIntegrity {
         val channels: Int,
         val cookie: ByteArray = ByteArray(0),
     ) {
-        val rawPcmBytes: Int get() = maxBlock * channels * (bits / 8)
         val fullEscapeBytes: Int get() = ((23 + maxBlock * channels * bits + 3 + 7) / 8)
     }
 
     internal data class MoofSamples(
-        val moofSize: Int,
         val dataOffset: Int,
         val sizes: IntArray,
     )
@@ -132,7 +130,7 @@ object AlacIntegrity {
             if (hasFlags) p += 4
             if (hasCto) p += 4
         }
-        return MoofSamples(moof.end, dataOffset, sizes)
+        return MoofSamples(dataOffset, sizes)
     }
 
     /**

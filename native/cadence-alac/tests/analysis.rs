@@ -1,4 +1,4 @@
-use cadence_alac::analysis::{analyze_mono_i32, repair_escape_tail};
+use cadence_alac::analysis::analyze_mono_i32;
 use std::f64::consts::PI;
 
 #[test]
@@ -31,19 +31,4 @@ fn detects_true_24_bit_high_bandwidth_signal() {
     assert_eq!(res.effective_bits, 24);
     assert!(res.bandwidth_hz >= 34_000, "expected >=34kHz, got {}", res.bandwidth_hz);
     assert!(!res.upsampled_suspect);
-}
-
-#[test]
-fn repairs_missing_end_and_dirty_padding() {
-    let max_block = 4096usize;
-    let channels = 2usize;
-    let bits = 16usize;
-    let len = (23 + max_block * channels * bits + 3 + 7) / 8; // 16388
-    let mut frame = vec![0u8; len];
-    // Corrupt last 4 bytes with heap-like garbage.
-    frame[len - 4..].copy_from_slice(&[0x00, 0xAA, 0x55, 0xFF]);
-
-    assert!(repair_escape_tail(&mut frame, max_block, channels, bits));
-    // Re-running on an already clean frame must report false (idempotent).
-    assert!(!repair_escape_tail(&mut frame, max_block, channels, bits));
 }
