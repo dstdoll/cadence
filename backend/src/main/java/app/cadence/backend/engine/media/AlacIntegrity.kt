@@ -31,6 +31,7 @@ object AlacIntegrity {
         val maxBlock: Int,
         val bits: Int,
         val channels: Int,
+        val cookie: ByteArray = ByteArray(0),
     ) {
         val rawPcmBytes: Int get() = maxBlock * channels * (bits / 8)
         val fullEscapeBytes: Int get() = ((23 + maxBlock * channels * bits + 3 + 7) / 8)
@@ -82,7 +83,8 @@ object AlacIntegrity {
         val bits = b.get(off + 5).toInt() and 0xFF
         val channels = b.get(off + 9).toInt() and 0xFF
         if (maxBlock <= 0 || bits !in setOf(16, 20, 24, 32) || channels !in 1..2) return null
-        return InitInfo(packDateMs, software, timescale, maxBlock, bits, channels)
+        val cookieBytes = ByteArray(24) { idx -> b.get(off + idx) }
+        return InitInfo(packDateMs, software, timescale, maxBlock, bits, channels, cookieBytes)
     }
 
     internal fun parseMoofSamples(bytes: ByteArray): MoofSamples? {
@@ -155,7 +157,11 @@ object AlacIntegrity {
         return TailResult.CLEAN
     }
 
-    suspend fun checkCdnTrack(enhancedHlsUrl: String): AlacCheckReport = withContext(Dispatchers.IO) {
+    suspend fun checkCdnTrack(
+        enhancedHlsUrl: String,
+        trackId: String = "",
+        analyzePcm: Boolean = false,
+    ): AlacCheckReport = withContext(Dispatchers.IO) {
         runCatching {
             val master = fetchBytes(enhancedHlsUrl, null, null).toString(Charsets.UTF_8)
             val alac = HlsVariants.parse(master, enhancedHlsUrl)
@@ -211,6 +217,10 @@ object AlacIntegrity {
                 "AlacIntegrity",
                 "status=$status frames=$totalFrames escape=$escapeFrames missingEnd=$missingEnd dirtyPad=$dirtyPad bits=${init.bits} rate=${init.timescale} sw=${init.software}",
             )
+            val pcm = if (analyzePcm && trackId.isNotBlank() && init.cookie.size == 24 && media.segments.isNotEmpty()) {
+                analyzePrefetchSegment(trackId, initBytes, init, media.segments.first())
+            } else null
+
             AlacCheckReport(
                 status = status,
                 totalFrames = totalFrames,
@@ -222,12 +232,49 @@ object AlacIntegrity {
                 bits = init.bits,
                 sampleRate = init.timescale,
                 source = "cdn",
+                effectiveBits = pcm?.first,
+                bandwidthHz = pcm?.second,
+                upsampledSuspect = pcm?.third ?: false,
             )
         }.getOrElse {
             CadenceLog.e("AlacIntegrity", "check failed", it)
             AlacCheckReport(AlacCheckStatus.UNAVAILABLE)
         }
     }
+
+    private fun analyzePrefetchSegment(
+        trackId: String,
+        initBytes: ByteArray,
+        init: InitInfo,
+        seg0: app.cadence.backend.engine.stream.HlsSegment,
+    ): Triple<Int, Int, Boolean>? = runCatching {
+        val t0 = System.currentTimeMillis()
+        val rawSeg = fetchBytes(seg0.url, seg0.offset, seg0.length)
+        val kd = NativeWrapper.kd(trackId, "skd://itunes.apple.com/P000000000/s1/e1")
+        if (kd == 0L) return@runCatching null
+        val clearSeg = NativeDrm.clearSegment(kd, initBytes, rawSeg)
+        val moof = parseMoofSamples(clearSeg) ?: return@runCatching null
+        val offsets = IntArray(moof.sizes.size)
+        var rel = moof.dataOffset
+        for (i in moof.sizes.indices) {
+            offsets[i] = rel
+            rel += moof.sizes[i]
+        }
+        val res = NativeAlac.analyzeFrames(init.cookie, clearSeg, offsets, moof.sizes)
+            ?: return@runCatching null
+        if (res.size < 4) return@runCatching null
+        val elapsed = System.currentTimeMillis() - t0
+        val effBits = res[0]
+        val bwHz = res[1]
+        val upsampled = res[2] != 0
+        CadenceLog.i(
+            "AlacPcmAnalyzer",
+            "trackId=$trackId containerBits=${init.bits} effectiveBits=$effBits rate=${init.timescale} rolloffHz=$bwHz upsampled=$upsampled elapsedMs=$elapsed",
+        )
+        Triple(effBits, bwHz, upsampled)
+    }.onFailure {
+        CadenceLog.e("AlacPcmAnalyzer", "prefetch analyze failed trackId=$trackId", it)
+    }.getOrNull()
 
     private fun fetchBytes(url: String, offset: Long?, length: Long?): ByteArray {
         val conn = (URL(url).openConnection() as HttpURLConnection).apply {

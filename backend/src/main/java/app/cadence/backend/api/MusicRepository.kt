@@ -139,8 +139,8 @@ interface MusicRepository {
      */
     suspend fun refresh() {}
 
-    /** Inspects an ALAC track for Apple's escape-frame `END`-bit / trailing-padding defect. */
-    suspend fun checkAlacIntegrity(trackId: String): AlacCheckReport? = null
+    /** Inspects an ALAC track for Apple's escape-frame `END`-bit / trailing-padding defect and optional 15s PCM analysis. */
+    suspend fun checkAlacIntegrity(trackId: String, analyzePcm: Boolean = false): AlacCheckReport? = null
 }
 
 private val STATIC_REVISION = kotlinx.coroutines.flow.MutableStateFlow(0)

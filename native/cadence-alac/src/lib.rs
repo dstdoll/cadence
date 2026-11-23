@@ -1,5 +1,7 @@
 //! Pure-Rust ALAC packet decoder with zero-allocation PCM16 / PCM_FLOAT output.
 
+pub mod analysis;
+
 use alac::{Decoder, StreamInfo};
 use std::fmt;
 

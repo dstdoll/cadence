@@ -392,6 +392,68 @@ pub extern "system" fn Java_app_cadence_backend_engine_media_NativeAlac_destroy(
     }
 }
 
+#[no_mangle]
+pub extern "system" fn Java_app_cadence_backend_engine_media_NativeAlac_analyzeFrames(
+    env: JNIEnv,
+    _class: JClass,
+    cookie: JByteArray,
+    data: JByteArray,
+    offsets: jni::objects::JIntArray,
+    sizes: jni::objects::JIntArray,
+) -> jni::sys::jintArray {
+    let Ok(cookie_bytes) = env.convert_byte_array(&cookie) else {
+        return std::ptr::null_mut();
+    };
+    let Ok(data_bytes) = env.convert_byte_array(&data) else {
+        return std::ptr::null_mut();
+    };
+    let Ok(off_len) = env.get_array_length(&offsets) else {
+        return std::ptr::null_mut();
+    };
+    let Ok(sz_len) = env.get_array_length(&sizes) else {
+        return std::ptr::null_mut();
+    };
+    if off_len != sz_len || off_len <= 0 {
+        return std::ptr::null_mut();
+    }
+    let count = off_len as usize;
+    let mut off_vec = vec![0i32; count];
+    let mut sz_vec = vec![0i32; count];
+    if env.get_int_array_region(&offsets, 0, &mut off_vec).is_err()
+        || env.get_int_array_region(&sizes, 0, &mut sz_vec).is_err()
+    {
+        return std::ptr::null_mut();
+    }
+    let mut slices: Vec<&[u8]> = Vec::with_capacity(count);
+    for (&o, &s) in off_vec.iter().zip(sz_vec.iter()) {
+        if o < 0 || s <= 0 {
+            continue;
+        }
+        let start = o as usize;
+        let end = start.saturating_add(s as usize);
+        if end > data_bytes.len() {
+            return std::ptr::null_mut();
+        }
+        slices.push(&data_bytes[start..end]);
+    }
+    let Ok(res) = cadence_alac::analysis::analyze_frames(&cookie_bytes, &slices) else {
+        return std::ptr::null_mut();
+    };
+    let Ok(out) = env.new_int_array(4) else {
+        return std::ptr::null_mut();
+    };
+    let vals = [
+        res.effective_bits as i32,
+        res.bandwidth_hz as i32,
+        if res.upsampled_suspect { 1 } else { 0 },
+        res.frames_analyzed as i32,
+    ];
+    if env.set_int_array_region(&out, 0, &vals).is_err() {
+        return std::ptr::null_mut();
+    }
+    out.into_raw()
+}
+
 
 // --- NativeEac3 JNI bridge ---
 

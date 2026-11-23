@@ -18,4 +18,10 @@ internal object NativeAlac {
         floatOut: Boolean,
     ): Int
     external fun destroy(handle: Long)
+    external fun analyzeFrames(
+        cookie: ByteArray,
+        data: ByteArray,
+        offsets: IntArray,
+        sizes: IntArray,
+    ): IntArray?
 }

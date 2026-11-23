@@ -217,4 +217,7 @@ data class AlacCheckReport(
     val bits: Int = 0,
     val sampleRate: Int = 0,
     val source: String = "cdn",
+    val effectiveBits: Int? = null,
+    val bandwidthHz: Int? = null,
+    val upsampledSuspect: Boolean = false,
 )
