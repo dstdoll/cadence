@@ -304,6 +304,13 @@ class AmpEngine(private val cfg: AmpConfig) {
         return null
     }
 
+    /** Fetches Apple Music `audioAnalysis` (tempo, beats, bars, loudness, vocals) for AutoMix. */
+    suspend fun audioAnalysis(songId: String): JSONObject? {
+        val root = get("songs/$songId?extend=audioAnalysis") ?: return null
+        val attrs = root.optJSONArray("data")?.optJSONObject(0)?.optJSONObject("attributes") ?: return null
+        return attrs.optJSONObject("audioAnalysis")
+    }
+
     /** A catalog playlist with its songs (recommendation/editorial playlists). */
     suspend fun playlistTracks(playlistId: String): JSONObject? =
         get("playlists/$playlistId?include=tracks&extend=extendedAssetUrls")

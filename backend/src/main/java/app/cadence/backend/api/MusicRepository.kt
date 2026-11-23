@@ -135,6 +135,9 @@ interface MusicRepository {
     /** Raw TTML XML for a track's lyrics, when available (used for `.ttml` export). */
     suspend fun rawTtml(trackId: String): String? = null
 
+    /** Audio analysis JSON (`tempo`, `beats`, `bars`, `loudness`, `vocals`) for AutoMix transitions. */
+    suspend fun audioAnalysis(trackId: String): org.json.JSONObject? = null
+
     /**
      * Re-fetches the personalised home feed (recommendations, recently played, mixes). Home calls
      * this on pull-to-refresh. The *sections* are deterministic (identity/order stay put); their
