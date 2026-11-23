@@ -72,6 +72,9 @@ class AmpEngine(private val cfg: AmpConfig) {
 
         /** Subscriber-scoped ratings path for a song (relative to [ME_BASE]). */
         internal fun ratingsPath(trackId: String) = "ratings/songs/$trackId"
+        /** Authoritative storefront most recently resolved from `/v1/me/storefront`. */
+        @Volatile internal var latestStorefront: String? = null
+
         /** The PUT body that sets a rating: 1 = favourite (love), -1 = dislike. */
         internal fun ratingBody(value: Int) = """{"type":"rating","attributes":{"value":$value}}"""
     }
@@ -91,6 +94,7 @@ class AmpEngine(private val cfg: AmpConfig) {
         // A blank storefront clears the cached one so storefront() re-resolves it from /v1/me/storefront
         // with the new token (the account's real country), instead of keeping the old default.
         resolvedStorefront = storefront?.takeIf { it.isNotBlank() }
+        latestStorefront = resolvedStorefront
         // Cached catalogue rows carry asset URLs minted for the previous token.
         cache.clear()
         CadenceLog.i("amp", "account updated token=${if (mediaUserToken.isBlank()) "none" else "present"} storefront=${storefront ?: "-"}")
@@ -110,6 +114,7 @@ class AmpEngine(private val cfg: AmpConfig) {
         }.getOrNull()?.takeIf { it.isNotBlank() }
         val value = fromAccount ?: cfg.storefront
         resolvedStorefront = value
+        latestStorefront = value
         CadenceLog.i("amp", "storefront=" + value + (if (fromAccount != null) " (from account)" else " (config)"))
         return value
     }

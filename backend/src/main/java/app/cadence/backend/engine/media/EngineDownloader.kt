@@ -87,7 +87,8 @@ object EngineDownloader {
         val account = runCatching { AccountStore(context) }.getOrNull()
         val token = runCatching { account?.load()?.accessToken }.getOrNull()?.takeIf { it.isNotBlank() }
             ?: amp.mediaUserToken
-        val storefront = runCatching { account?.storefront() }.getOrNull()?.takeIf { it.isNotBlank() }
+        val storefront = AmpEngine.latestStorefront?.takeIf { it.isNotBlank() }
+            ?: runCatching { account?.storefront() }.getOrNull()?.takeIf { it.isNotBlank() }
             ?: amp.storefront
         return Session(
             devToken = amp.devToken,
@@ -109,7 +110,8 @@ object EngineDownloader {
             val amp = AmpConfig.load(context) ?: return null
             val account = AccountStore(context)
             val token = account.load()?.accessToken?.takeIf { it.isNotBlank() } ?: amp.mediaUserToken
-            val storefront = account.storefront().ifBlank { amp.storefront }
+            val storefront = AmpEngine.latestStorefront?.takeIf { it.isNotBlank() }
+                ?: account.storefront().ifBlank { amp.storefront }
             val engine = AmpEngine.shared(amp.copy(mediaUserToken = token, storefront = storefront))
             val attributes = engine.song(trackId)
                 ?.optJSONArray("data")?.optJSONObject(0)?.optJSONObject("attributes")

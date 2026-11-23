@@ -131,7 +131,7 @@ object Lyrics {
                 AppLog.log("Lyrics", "GET $path threw ${it.javaClass.simpleName}")
                 continue
             }
-            AppLog.log("Lyrics", "GET ${path.substringBefore('?')} -> $code ${body.take(100)}")
+            AppLog.log("Lyrics", "GET (${session.storefrontCode}) ${path.substringBefore('?')} -> $code ${body.take(100)}")
             if (code !in 200..299) continue
             val ttml = runCatching {
                 val root = org.json.JSONObject(body)
