@@ -21,6 +21,7 @@ native/*/target/
 # Developer tooling and notes stay on the machine they were made on
 tools/
 docs/
+graphify-out/
 
 # Signing keys and account data never live in the repository
 *.jks

@@ -10,7 +10,7 @@ Guide for AI coding agents working in **Cadence** (an Apple Music client for And
 | `backend/` | Apple Music API, catalog/search, downloads, HLS/DRM orchestration, JNI (`NativeWrapper`) | Owns `jniLibs/arm64-v8a/`. Keep `consumer-rules.pro` in sync with native JNI callbacks. |
 | `native/` | Rust crates (`cadence-native-rs`, `cadence-android-drm`, `cadence-alac`, `cadence-eac3`, `cadence-container`, `cadence-hooks`, and pure-Rust ports `apple-ss-sys`, `device-guid`, `fairplay-proto`, `store-config`) | Prebuilt `.so`s are committed in `backend/src/main/jniLibs/arm64-v8a/`; normal Gradle builds do not need Rust. |
 | `.github/workflows/` | `ci.yml` (JVM + `cadence-eac3` tests) and `release.yml` | `ci.yml` ignores `**/*.md` and `.gitignore`. |
-| `tools/`, `docs/` | Gitignored local developer scripts/notes | Never force-add untracked files here unless explicitly requested. |
+| `tools/`, `docs/`, `graphify-out/` | Gitignored local developer scripts, notes, and optional knowledge graph | Never force-add untracked files here unless explicitly requested. |
 
 ## 2. Build & Test Commands
 
