@@ -6,6 +6,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import app.cadence.R
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,6 +29,7 @@ import androidx.compose.material.icons.rounded.DownloadDone
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.FormatQuote
+import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -39,7 +41,10 @@ import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.ThumbDown
 import androidx.compose.material.icons.rounded.ThumbDownOffAlt
 import androidx.compose.material.icons.rounded.Verified
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
@@ -103,6 +108,7 @@ fun TrackActionsSheet(
     var shareLyrics by remember { mutableStateOf(false) }
     var sleep by remember { mutableStateOf(false) }
     var verifyAlac by remember { mutableStateOf(false) }
+    var showVariants by remember { mutableStateOf(false) }
     val hasLyrics by produceState(false, info.id) { value = c.repository.lyrics(info) !is Lyrics.None }
 
     val accountLibrary = c.repository.accountLibrary.trackIds
@@ -134,6 +140,7 @@ fun TrackActionsSheet(
         add(SheetAction(stringResource(R.string.track_copy_link), Icons.Rounded.Link) { act { copySongLink(context, info, c.repository.storefront) } })
         if (hasLyrics) add(SheetAction(stringResource(R.string.track_share_lyrics), Icons.Rounded.FormatQuote) { shareLyrics = true })
         add(SheetAction(stringResource(R.string.track_view_credits), Icons.Rounded.Info) { go { nav.credits(info.id) } })
+        add(SheetAction(stringResource(R.string.track_stream_variants), Icons.Rounded.GraphicEq) { showVariants = true })
         add(SheetAction(stringResource(R.string.track_verify_alac), Icons.Rounded.Verified) { verifyAlac = true })
         add(SheetAction(stringResource(R.string.track_create_station), Icons.Rounded.Radio) { act { c.player.startStation(info) } })
         add(SheetAction(if (pinned) stringResource(R.string.track_unpin) else stringResource(R.string.track_pin), if (pinned) Icons.Rounded.PushPin else Icons.Outlined.PushPin) {
@@ -190,7 +197,41 @@ fun TrackActionsSheet(
     if (pickPlaylist) AddToPlaylistDialog(listOf(info.id)) { pickPlaylist = false; onDismiss() }
     if (shareLyrics) ShareLyricsSheet(info) { shareLyrics = false; onDismiss() }
     if (sleep) SleepTimerDialog(onDismiss = { sleep = false; onDismiss() })
+    if (showVariants) StreamVariantsDialog(info) { showVariants = false; onDismiss() }
     if (verifyAlac) AlacCheckDialog(info.track.title, listOf(info)) { verifyAlac = false; onDismiss() }
+}
+
+@Composable
+private fun StreamVariantsDialog(info: TrackInfo, onDismiss: () -> Unit) {
+    val repo = LocalContainer.current.repository
+    var variants by remember(info.id) { mutableStateOf<List<app.cadence.backend.model.StreamVariantInfo>?>(null) }
+    LaunchedEffect(info.id) {
+        variants = repo.streamVariants(info.id)
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.track_stream_variants), maxLines = 1) },
+        text = {
+            val list = variants
+            when {
+                list == null -> Text(stringResource(R.string.stream_variants_loading))
+                list.isEmpty() -> Text(stringResource(R.string.stream_variants_empty))
+                else -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    list.forEach { v ->
+                        val fmt = buildString {
+                            append(v.kind)
+                            if (v.bitDepth > 0 && v.sampleRate > 0) append(" · ${v.bitDepth}-bit/${v.sampleRate / 1000.0}kHz")
+                            if (v.bitrateBps > 0) append(" · ${v.bitrateBps / 1000} kbps")
+                        }
+                        Text(fmt, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) }
+        },
+    )
 }
 
 /** The text a shared song carries: its title, artist and album, then the Apple Music link that Cadence (or anything else) can open. */

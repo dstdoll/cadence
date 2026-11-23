@@ -83,8 +83,10 @@ class DownloadRegistryStore(private val file: File, private val exists: (String)
 /** The app-wide registry, backed by `files/downloads_registry.json`. */
 object DownloadRegistry {
     @Volatile private var store: DownloadRegistryStore? = null
+    @Volatile internal var attachedContext: Context? = null
 
     private fun store(context: Context): DownloadRegistryStore = store ?: synchronized(this) {
+        attachedContext = context.applicationContext
         store ?: DownloadRegistryStore(File(context.applicationContext.filesDir, "downloads_registry.json"), exists = { exists(context.applicationContext, it) }).also { store = it }
     }
 
@@ -95,6 +97,7 @@ object DownloadRegistry {
 
     /** Loads [downloaded] in the background (a file check per record, so not on the main thread). */
     fun attach(context: Context, scope: kotlinx.coroutines.CoroutineScope) {
+        attachedContext = context.applicationContext
         scope.launch(kotlinx.coroutines.Dispatchers.IO) { runCatching { _downloaded.value = store(context).downloadedTrackIds() } }
     }
 

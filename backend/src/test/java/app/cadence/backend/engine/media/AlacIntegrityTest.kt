@@ -108,4 +108,14 @@ class AlacIntegrityTest {
         assertEquals(200, parsed!!.dataOffset)
         assertEquals(listOf(1000, 24580), parsed.sizes.toList())
     }
+
+    @Test
+    fun repairEscapeTail_patchesMissingEndAndDirtyPadding() {
+        val init = AlacIntegrity.InitInfo(null, "", 44100, 4096, 24, 2)
+        val broken = byteArrayOf(0, 0, 0x01, 0x4F.toByte())
+        assertEquals(TailResult.MISSING_END, AlacIntegrity.inspectEscapeTail(broken, init))
+        assertEquals(true, AlacIntegrity.repairEscapeTail(broken, init))
+        assertEquals(TailResult.CLEAN, AlacIntegrity.inspectEscapeTail(broken, init))
+        assertEquals(false, AlacIntegrity.repairEscapeTail(broken, init))
+    }
 }

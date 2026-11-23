@@ -193,6 +193,11 @@
     <string name="set_library_import_hint">Combinar añade elementos y listas a tu biblioteca actual; Reemplazar los sobrescribe.</string>
     <string name="set_library_import_merge">Combinar</string>
     <string name="set_library_import_replace">Reemplazar</string>
+    <string name="alac_check_repair">Reparar archivo</string>
+    <string name="alac_check_repaired">Archivo ALAC reparado</string>
+    <string name="track_stream_variants">Variantes de transmisión</string>
+    <string name="stream_variants_empty">Sin variantes disponibles</string>
+    <string name="stream_variants_loading">Cargando variantes…</string>
     <string name="alac_status_clean">Limpio</string>
     <string name="alac_status_missing_end">Falta marcador END</string>
     <string name="alac_status_dirty_pad">Relleno final sucio</string>

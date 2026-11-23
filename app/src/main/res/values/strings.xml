@@ -195,6 +195,11 @@
     <string name="set_library_import_hint">Merge adds items and playlists to your current library; Replace overwrites them.</string>
     <string name="set_library_import_merge">Merge</string>
     <string name="set_library_import_replace">Replace</string>
+    <string name="alac_check_repair">Repair file</string>
+    <string name="alac_check_repaired">ALAC file repaired</string>
+    <string name="track_stream_variants">Stream variants</string>
+    <string name="stream_variants_empty">No stream variants available</string>
+    <string name="stream_variants_loading">Loading variants…</string>
     <string name="alac_status_clean">Clean</string>
     <string name="alac_status_missing_end">Missing END marker</string>
     <string name="alac_status_dirty_pad">Dirty trailing padding</string>

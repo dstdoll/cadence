@@ -1,15 +1,21 @@
 package app.cadence.backend.engine.media
 
+import android.content.Context
+import android.net.Uri
 import app.cadence.backend.engine.CadenceLog
 import app.cadence.backend.engine.stream.HlsMediaParser
 import app.cadence.backend.model.AlacCheckReport
 import app.cadence.backend.model.AlacCheckStatus
+import app.cadence.backend.model.StreamVariantInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.io.IOException
+import java.io.RandomAccessFile
 import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.ByteBuffer
+import java.nio.channels.FileChannel
 
 /**
  * Inspects Apple ALAC streams for the escape-frame packing bug (`AppleMusicDecrypt#136`).
@@ -155,6 +161,214 @@ object AlacIntegrity {
             if (bitAt(bit) != 0) return TailResult.DIRTY_PADDING
         }
         return TailResult.CLEAN
+    }
+
+    /**
+     * Repairs the 3-bit `END` marker (`111`) and zeros trailing padding bits in [tail4Bytes].
+     * Returns `true` if any byte was modified.
+     */
+    internal fun repairEscapeTail(tail4Bytes: ByteArray, init: InitInfo): Boolean {
+        if (tail4Bytes.size < 4) return false
+        val packetLen = init.fullEscapeBytes
+        val tailStartByte = packetLen - 4
+        val endBit = 23 + init.maxBlock * init.channels * init.bits
+        val totalBits = packetLen * 8
+        var changed = false
+
+        fun setBit(absBit: Int, one: Boolean) {
+            val byteIdx = absBit / 8 - tailStartByte
+            val mask = 1 shl (7 - (absBit % 8))
+            val cur = tail4Bytes[byteIdx].toInt() and 0xFF
+            val next = if (one) (cur or mask) else (cur and mask.inv())
+            if (next != cur) {
+                tail4Bytes[byteIdx] = next.toByte()
+                changed = true
+            }
+        }
+
+        for (i in 0 until 3) setBit(endBit + i, true)
+        for (bit in (endBit + 3) until totalBits) setBit(bit, false)
+        return changed
+    }
+
+    suspend fun listStreamVariants(enhancedHlsUrl: String?, trackId: String): List<StreamVariantInfo> =
+        withContext(Dispatchers.IO) {
+            if (enhancedHlsUrl.isNullOrBlank()) return@withContext emptyList()
+            runCatching {
+                val master = fetchBytes(enhancedHlsUrl, null, null).toString(Charsets.UTF_8)
+                val parsed = HlsVariants.parse(master, enhancedHlsUrl)
+                val out = parsed.map { v ->
+                    val kind = when {
+                        v.alac -> "ALAC"
+                        v.atmos -> "Dolby Atmos"
+                        v.binaural -> "Binaural AAC"
+                        v.downmix -> "Downmix AAC"
+                        v.heAac -> "HE-AAC"
+                        else -> "AAC"
+                    }
+                    StreamVariantInfo(
+                        codec = v.codecs,
+                        kind = kind,
+                        bitrateBps = if (v.averageBandwidth > 0L) v.averageBandwidth else v.bandwidth,
+                        channels = v.group["CHANNELS"].orEmpty(),
+                        sampleRate = v.group["SAMPLE-RATE"]?.toIntOrNull() ?: 0,
+                        bitDepth = v.group["BIT-DEPTH"]?.toIntOrNull() ?: 0,
+                    )
+                }.sortedByDescending { it.bitrateBps }
+                CadenceLog.i("StreamVariants", "trackId=$trackId count=${out.size} best=${out.firstOrNull()?.kind ?: "none"}")
+                out
+            }.getOrDefault(emptyList())
+        }
+
+    suspend fun checkOrRepairLocalTrack(
+        trackId: String,
+        repair: Boolean,
+    ): AlacCheckReport? = withContext(Dispatchers.IO) {
+        val context = DownloadRegistry.attachedContext ?: return@withContext null
+        val record = DownloadRegistry.existing(context, trackId).firstOrNull() ?: return@withContext null
+        val uri = record.uri
+        runCatching {
+            if (uri.startsWith("content:") || uri.startsWith("file:")) {
+                val mode = if (repair) "rw" else "r"
+                context.contentResolver.openFileDescriptor(Uri.parse(uri), mode)?.use { pfd ->
+                    val rafChannel = if (repair) java.io.RandomAccessFile("/proc/self/fd/${pfd.fd}", "rw").channel
+                    else java.io.FileInputStream(pfd.fileDescriptor).channel
+                    rafChannel.use { ch -> checkOrRepairChannel(ch, uri, repair) }
+                }
+            } else {
+                RandomAccessFile(File(uri), if (repair) "rw" else "r").use { raf ->
+                    checkOrRepairChannel(raf.channel, uri, repair)
+                }
+            }
+        }.onFailure {
+            CadenceLog.e("AlacRepair", "local check/repair failed uri=$uri", it)
+        }.getOrNull()
+    }
+
+    internal fun checkOrRepairChannel(ch: FileChannel, label: String, repair: Boolean): AlacCheckReport? {
+        val fileSize = ch.size()
+        if (fileSize < 16L) return null
+        val header = ByteBuffer.allocate(8)
+        var pos = 0L
+        var moovBytes: ByteArray? = null
+        while (pos + 8 <= fileSize) {
+            header.clear()
+            if (ch.read(header, pos) < 8) break
+            header.flip()
+            val sz32 = header.int.toLong() and 0xFFFFFFFFL
+            val typeBytes = ByteArray(4).also { header.get(it) }
+            val type = String(typeBytes, Charsets.US_ASCII)
+            val boxSize = if (sz32 == 1L && pos + 16 <= fileSize) {
+                val ext = ByteBuffer.allocate(8)
+                ch.read(ext, pos + 8)
+                ext.flip()
+                ext.long
+            } else if (sz32 == 0L) fileSize - pos else sz32
+            if (boxSize < 8L || pos + boxSize > fileSize) break
+            if (type == "moov" && boxSize <= 32L * 1024 * 1024) {
+                val buf = ByteBuffer.allocate(boxSize.toInt())
+                ch.read(buf, pos)
+                moovBytes = buf.array()
+                break
+            }
+            pos += boxSize
+        }
+        val moov = moovBytes ?: return null
+        val init = parseInit(moov) ?: return AlacCheckReport(AlacCheckStatus.NOT_ALAC, source = "local")
+        val stbl = run {
+            val b = ByteBuffer.wrap(moov)
+            val moovBox = Mp4Integrity.children(b, 0, moov.size).firstOrNull { it.type == "moov" } ?: return null
+            Mp4Integrity.find(b, moovBox.start, moovBox.end, "trak", "mdia", "minf", "stbl") ?: return null
+        }
+        val b = ByteBuffer.wrap(moov)
+        val stsz = Mp4Integrity.find(b, stbl.start, stbl.end, "stsz") ?: return null
+        val sampleSizeFixed = b.getInt(stsz.start + 4)
+        val sampleCount = b.getInt(stsz.start + 8)
+        val stco = Mp4Integrity.find(b, stbl.start, stbl.end, "stco")
+        val co64 = if (stco == null) Mp4Integrity.find(b, stbl.start, stbl.end, "co64") else null
+        val stsc = Mp4Integrity.find(b, stbl.start, stbl.end, "stsc") ?: return null
+
+        val chunkOffsets: LongArray = when {
+            stco != null -> {
+                val n = b.getInt(stco.start + 4)
+                LongArray(n) { i -> b.getInt(stco.start + 8 + i * 4).toLong() and 0xFFFFFFFFL }
+            }
+            co64 != null -> {
+                val n = b.getInt(co64.start + 4)
+                LongArray(n) { i -> b.getLong(co64.start + 8 + i * 8) }
+            }
+            else -> return null
+        }
+        val stscEntries = b.getInt(stsc.start + 4)
+        val firstChunk = IntArray(stscEntries) { i -> b.getInt(stsc.start + 8 + i * 12) }
+        val samplesPerChunk = IntArray(stscEntries) { i -> b.getInt(stsc.start + 12 + i * 12) }
+
+        val expectedEsc = init.fullEscapeBytes
+        var escapeFrames = 0
+        var missingEnd = 0
+        var dirtyPad = 0
+        var patched = 0
+        var sampleIdx = 0
+        val tailBuf = ByteBuffer.allocate(4)
+
+        for (chunkIdx in chunkOffsets.indices) {
+            if (sampleIdx >= sampleCount) break
+            val chunkNum = chunkIdx + 1
+            var spc = 1
+            for (e in stscEntries - 1 downTo 0) {
+                if (chunkNum >= firstChunk[e]) { spc = samplesPerChunk[e]; break }
+            }
+            var offset = chunkOffsets[chunkIdx]
+            for (k in 0 until spc) {
+                if (sampleIdx >= sampleCount) break
+                val sz = if (sampleSizeFixed != 0) sampleSizeFixed else b.getInt(stsz.start + 12 + sampleIdx * 4)
+                if (sz == expectedEsc && sz >= 4) {
+                    escapeFrames++
+                    tailBuf.clear()
+                    val tailPos = offset + sz - 4
+                    if (ch.read(tailBuf, tailPos) == 4) {
+                        val tail = tailBuf.array().copyOf()
+                        when (inspectEscapeTail(tail, init)) {
+                            TailResult.CLEAN -> {}
+                            TailResult.MISSING_END -> {
+                                if (repair && repairEscapeTail(tail, init)) {
+                                    ch.write(ByteBuffer.wrap(tail), tailPos)
+                                    patched++
+                                } else missingEnd++
+                            }
+                            TailResult.DIRTY_PADDING -> {
+                                if (repair && repairEscapeTail(tail, init)) {
+                                    ch.write(ByteBuffer.wrap(tail), tailPos)
+                                    patched++
+                                } else dirtyPad++
+                            }
+                        }
+                    }
+                }
+                offset += sz
+                sampleIdx++
+            }
+        }
+        val status = when {
+            missingEnd > 0 -> AlacCheckStatus.MISSING_END
+            dirtyPad > 0 -> AlacCheckStatus.DIRTY_PADDING
+            else -> AlacCheckStatus.CLEAN
+        }
+        if (repair) {
+            CadenceLog.i("AlacRepair", "uri=$label patchedFrames=$patched afterStatus=$status")
+        }
+        return AlacCheckReport(
+            status = status,
+            totalFrames = sampleCount,
+            escapeFrames = escapeFrames,
+            missingEndFrames = missingEnd,
+            dirtyPaddingFrames = dirtyPad,
+            packDateMs = init.packDateMs,
+            software = init.software,
+            bits = init.bits,
+            sampleRate = init.timescale,
+            source = "local",
+        )
     }
 
     suspend fun checkCdnTrack(

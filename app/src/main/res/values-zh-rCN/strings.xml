@@ -191,6 +191,11 @@
     <string name="set_library_import_hint">合并会将曲目和歌单添加到当前资料库；替换会覆盖现有内容。</string>
     <string name="set_library_import_merge">合并</string>
     <string name="set_library_import_replace">替换</string>
+    <string name="alac_check_repair">修复文件</string>
+    <string name="alac_check_repaired">ALAC 文件已修复</string>
+    <string name="track_stream_variants">音频流规格</string>
+    <string name="stream_variants_empty">暂无可用音频流规格</string>
+    <string name="stream_variants_loading">正在加载规格…</string>
     <string name="alac_status_clean">正常</string>
     <string name="alac_status_missing_end">缺少 END 标记</string>
     <string name="alac_status_dirty_pad">尾部填充异常</string>

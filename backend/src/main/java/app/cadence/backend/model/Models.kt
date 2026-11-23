@@ -221,3 +221,13 @@ data class AlacCheckReport(
     val bandwidthHz: Int? = null,
     val upsampledSuspect: Boolean = false,
 )
+
+/** One audio stream variant parsed from Apple's `enhancedHls` master playlist. */
+data class StreamVariantInfo(
+    val codec: String,
+    val kind: String,
+    val bitrateBps: Long,
+    val channels: String = "",
+    val sampleRate: Int = 0,
+    val bitDepth: Int = 0,
+)

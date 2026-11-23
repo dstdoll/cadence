@@ -38,6 +38,7 @@ import app.cadence.R
 import app.cadence.backend.model.AlacCheckReport
 import app.cadence.backend.model.AlacCheckStatus
 import app.cadence.backend.model.TrackInfo
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -81,14 +82,16 @@ fun AlacCheckDialog(
     val container = LocalContainer.current
     val repo = container.repository
     val context = LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     val storefront = repo.storefront
     var analyzePcm by remember { mutableStateOf(false) }
     var doneCount by remember { mutableStateOf(0) }
     var reports by remember { mutableStateOf<List<Pair<TrackInfo, AlacCheckReport>>>(emptyList()) }
     var running by remember { mutableStateOf(true) }
     var checkedAtMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var repairNonce by remember { mutableStateOf(0) }
 
-    LaunchedEffect(tracks, analyzePcm) {
+    LaunchedEffect(tracks, analyzePcm, repairNonce) {
         running = true
         doneCount = 0
         reports = emptyList()
@@ -135,15 +138,36 @@ fun AlacCheckDialog(
         },
         dismissButton = {
             if (!running && reports.isNotEmpty()) {
-                TextButton(
-                    onClick = {
-                        val text = formatAlacReportText(title, storefront, reports, checkedAtMs)
-                        val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        cm.setPrimaryClip(ClipData.newPlainText("ALAC Check", text))
-                        Toast.makeText(context, context.getString(R.string.alac_check_copied), Toast.LENGTH_SHORT).show()
-                    },
-                ) {
-                    Text(stringResource(R.string.alac_check_copy_report))
+                val repairable = if (tracks.size == 1 && reports.size == 1) {
+                    val r = reports.first().second
+                    r.source == "local" && (r.status == AlacCheckStatus.MISSING_END || r.status == AlacCheckStatus.DIRTY_PADDING)
+                } else false
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (repairable) {
+                        TextButton(
+                            onClick = {
+                                running = true
+                                val trackId = tracks.first().id
+                                scope.launch {
+                                    repo.repairLocalAlac(trackId)
+                                    repairNonce++
+                                    Toast.makeText(context, context.getString(R.string.alac_check_repaired), Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                        ) {
+                            Text(stringResource(R.string.alac_check_repair))
+                        }
+                    }
+                    TextButton(
+                        onClick = {
+                            val text = formatAlacReportText(title, storefront, reports, checkedAtMs)
+                            val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            cm.setPrimaryClip(ClipData.newPlainText("ALAC Check", text))
+                            Toast.makeText(context, context.getString(R.string.alac_check_copied), Toast.LENGTH_SHORT).show()
+                        },
+                    ) {
+                        Text(stringResource(R.string.alac_check_copy_report))
+                    }
                 }
             }
         },

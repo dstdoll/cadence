@@ -311,12 +311,24 @@ class RealCatalog(
     }
 
     override suspend fun checkAlacIntegrity(trackId: String, analyzePcm: Boolean): AlacCheckReport? {
+        app.cadence.backend.engine.media.AlacIntegrity.checkOrRepairLocalTrack(trackId, repair = false)
+            ?.let { return it }
         val attrs = engine.song(trackId)?.optJSONArray("data")?.optJSONObject(0)?.optJSONObject("attributes")
             ?: return AlacCheckReport(AlacCheckStatus.UNAVAILABLE)
         val hls = attrs.optJSONObject("extendedAssetUrls")?.optString("enhancedHls")?.takeIf { it.isNotBlank() }
             ?: return AlacCheckReport(AlacCheckStatus.UNAVAILABLE)
         return app.cadence.backend.engine.media.AlacIntegrity.checkCdnTrack(hls, trackId, analyzePcm)
     }
+
+    override suspend fun repairLocalAlac(trackId: String): AlacCheckReport? =
+        app.cadence.backend.engine.media.AlacIntegrity.checkOrRepairLocalTrack(trackId, repair = true)
+
+    override suspend fun streamVariants(trackId: String): List<StreamVariantInfo> =
+        app.cadence.backend.engine.media.AlacIntegrity.listStreamVariants(
+            engine.song(trackId)?.optJSONArray("data")?.optJSONObject(0)
+                ?.optJSONObject("attributes")?.optJSONObject("extendedAssetUrls")?.optString("enhancedHls"),
+            trackId,
+        )
 
     // ---- disk cache ----
 

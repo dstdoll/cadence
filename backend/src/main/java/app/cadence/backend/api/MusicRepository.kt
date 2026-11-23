@@ -6,6 +6,7 @@ import app.cadence.backend.model.Album
 import app.cadence.backend.model.Artist
 import app.cadence.backend.model.Lyrics
 import app.cadence.backend.model.Playlist
+import app.cadence.backend.model.StreamVariantInfo
 import app.cadence.backend.model.TrackInfo
 
 /**
@@ -141,6 +142,12 @@ interface MusicRepository {
 
     /** Inspects an ALAC track for Apple's escape-frame `END`-bit / trailing-padding defect and optional 15s PCM analysis. */
     suspend fun checkAlacIntegrity(trackId: String, analyzePcm: Boolean = false): AlacCheckReport? = null
+
+    /** Repairs broken escape-frame `END` bits / padding in a downloaded `.m4a` if present; returns updated report. */
+    suspend fun repairLocalAlac(trackId: String): AlacCheckReport? = null
+
+    /** Lists all audio stream variants in a track's `enhancedHls` master playlist. */
+    suspend fun streamVariants(trackId: String): List<StreamVariantInfo> = emptyList()
 }
 
 private val STATIC_REVISION = kotlinx.coroutines.flow.MutableStateFlow(0)
