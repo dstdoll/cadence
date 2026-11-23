@@ -293,7 +293,7 @@ class RealCatalog(
 
     override suspend fun lyrics(track: TrackInfo): Lyrics {
         lyricsCache[track.id]?.let { return it }
-        val ttml = engine.lyrics(track.id)
+        val ttml = engine.lyrics(track.id) ?: app.cadence.backend.lyrics.AmllLyrics.fetchTtml(track.id)
         if (ttml.isNullOrBlank()) {
             CadenceLog.i("lyrics", "track=${track.id} none (no TTML)")
             return Lyrics.None

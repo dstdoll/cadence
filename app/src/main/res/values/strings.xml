@@ -204,6 +204,8 @@
     <string name="set_drop_ep_single_sub">Remove release-type suffixes from downloaded album names and folders.</string>
     <string name="set_check_alac_download">Verify ALAC integrity on download</string>
     <string name="set_check_alac_download_sub">Check downloaded ALAC files for escape-frame defects and log the result.</string>
+    <string name="set_amll_fallback">AMLL TTML DB fallback</string>
+    <string name="set_amll_fallback_sub">Look up synced lyrics from AMLL when Apple Music has none.</string>
     <string name="alac_status_clean">Clean</string>
     <string name="alac_status_missing_end">Missing END marker</string>
     <string name="alac_status_dirty_pad">Dirty trailing padding</string>

@@ -42,7 +42,10 @@ class AppContainer(context: Context) {
         // Feed the download engine the moment settings exist, then on every edit.
         DownloadEngine.configure(settings.state.value.toDownloadPreferences())
         scope.launch {
-            settings.state.collect { DownloadEngine.configure(it.toDownloadPreferences()) }
+            settings.state.collect {
+                DownloadEngine.configure(it.toDownloadPreferences())
+                app.cadence.backend.lyrics.AmllLyrics.enabled = it.amllLyricsFallback
+            }
         }
         updates.checkIfDue()
         // Every download (song, album, playlist) goes through this, which may ask which quality to use.

@@ -90,6 +90,7 @@ internal val SETTINGS_INDEX: List<SettingEntry> = listOf(
     SettingEntry(R.string.set_active_line, SettingsPage.Lyrics, "anchor scroll"),
     SettingEntry(R.string.set_word_highlight, SettingsPage.Lyrics, "karaoke sync"),
     SettingEntry(R.string.set_depth_blur, SettingsPage.Lyrics, "blur focus"),
+    SettingEntry(R.string.set_amll_fallback, SettingsPage.Lyrics, "amll ttml db lyrics fallback"),
 
     SettingEntry(R.string.set_files_folders, SettingsPage.Downloads, "location storage"),
     SettingEntry(R.string.set_naming_dates, SettingsPage.Downloads, "file names templates"),

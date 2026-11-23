@@ -370,6 +370,10 @@ internal fun LyricsPanel(onBack: () -> Unit) {
             SettingsGroup {
                 SwitchRow(stringResource(R.string.set_word_highlight), stringResource(R.string.set_word_highlight_sub), s.karaoke) { v -> set { it.copy(karaoke = v) } }
                 SwitchRow(stringResource(R.string.set_depth_blur), stringResource(R.string.set_depth_blur_sub), s.lyricsBlur) { v -> set { it.copy(lyricsBlur = v) } }
+                SwitchRow(stringResource(R.string.set_amll_fallback), stringResource(R.string.set_amll_fallback_sub), s.amllLyricsFallback) { v ->
+                    app.cadence.backend.lyrics.AmllLyrics.enabled = v
+                    set { it.copy(amllLyricsFallback = v) }
+                }
             }
         }
         item(key = "pad") { Spacer(Modifier.height(28.dp)) }

@@ -70,6 +70,7 @@ data class UserSettings(
     val lyricsBlur: Boolean = true,
     val karaoke: Boolean = true,
     val lyricsAnchor: Float = 0.3f,
+    val amllLyricsFallback: Boolean = false,
     // Playback
     val autoplay: Boolean = true,
     val skipSilence: Boolean = false,
