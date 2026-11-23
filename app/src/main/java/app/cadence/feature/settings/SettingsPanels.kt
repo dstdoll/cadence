@@ -107,6 +107,8 @@ internal fun AppearancePanel(onBack: () -> Unit) {
             }
         }
         item(key = "language") {
+            val ctx = LocalContext.current
+            var selectedLang by remember { mutableStateOf(currentLanguageOption(ctx)) }
             SettingsGroup {
                 Label(stringResource(R.string.settings_language))
                 val labels = mapOf(
@@ -115,7 +117,10 @@ internal fun AppearancePanel(onBack: () -> Unit) {
                     LanguageOption.Spanish to "Español",
                     LanguageOption.Chinese to "简体中文",
                 )
-                Connected(LanguageOption.entries, currentLanguageOption(), { labels.getValue(it) }) { applyLanguage(it) }
+                Connected(LanguageOption.entries, selectedLang, { labels.getValue(it) }) {
+                    selectedLang = it
+                    applyLanguage(ctx, it)
+                }
             }
         }
         item(key = "look") {
