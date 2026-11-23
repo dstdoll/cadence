@@ -1,13 +1,17 @@
 # Cadence
 
 An Apple Music client for Android with a Material 3 Expressive interface. Sign in with your Apple ID and
-browse, search, stream and download your music, with synced lyrics, a queue, a library and an audio
-processing chain (equalizer, tone, replay gain, dither). The interface is available in English and Spanish.
+browse, search, stream and download your music in lossless ALAC or Dolby Atmos, with synced lyrics (plus
+optional AMLL fallback), a queue, a local-first library with JSON backup, ALAC escape-frame integrity
+checking and repair, standalone cover/motion artwork saving, and an audio processing chain (equalizer,
+tone, replay gain, dither). The interface is available in English, Spanish, and Simplified Chinese.
 
 - **UI:** Kotlin and Jetpack Compose (`app/`).
 - **Data and engine:** catalogue, search, sign-in and downloads (`backend/`), on top of a native engine
   written in Rust (`native/`) that drives Apple's own libraries for sign-in and playback.
 - **Platform:** Android 10 or newer (API 29+), arm64 devices only.
+
+Prebuilt APKs are published under [Releases](https://github.com/dstdoll/cadence/releases).
 
 ## Build
 
@@ -15,7 +19,7 @@ Requirements: JDK 21 and the Android SDK (platform 37). Point `ANDROID_HOME` at 
 `local.properties` (`sdk.dir=...`).
 
 ```sh
-git clone <this repository> cadence
+git clone https://github.com/dstdoll/cadence.git cadence
 cd cadence
 ./gradlew :app:assembleDebug
 ```
@@ -32,7 +36,8 @@ sign in with your Apple ID and the verification code.
 | Task | Command |
 | --- | --- |
 | Release APK (minified) | `./gradlew :app:assembleRelease` |
-| Unit tests | `./gradlew testDebugUnitTest` |
+| Gradle unit tests | `./gradlew testDebugUnitTest` |
+| Rust crate tests | `(cd native/cadence-alac && cargo test)` |
 
 Release builds use the debug key unless a `signing.properties` file (`storeFile`, `storePassword`,
 `keyAlias`, `keyPassword`) exists at `~/.config/cadence/` or at the path in `CADENCE_SIGNING`.
@@ -49,7 +54,7 @@ run `native/build-android.sh`.
 | --- | --- |
 | `app/` | Screens, navigation, theme, playback service and the audio processing chain |
 | `backend/` | Apple Music catalogue, search, sign-in, downloads and the native bridge |
-| `native/` | Rust crates: Apple library bridge, DRM engine, auth and container handling |
+| `native/` | Rust crates: Apple library bridge, DRM engine, ALAC/EAC-3 decoders, auth and container handling |
 
 ## Special thanks
 
