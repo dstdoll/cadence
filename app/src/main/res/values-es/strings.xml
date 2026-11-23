@@ -165,6 +165,15 @@
     <string name="alac_check_pack_date">Fecha de empaquetado</string>
     <string name="alac_check_encoder">Codificador</string>
     <string name="alac_check_affected">Pistas afectadas</string>
+    <string name="alac_check_analyze_pcm">Analizar 15 s de audio (profundidad y ancho de banda)</string>
+    <string name="alac_check_copy_report">Copiar informe</string>
+    <string name="alac_check_copied">Informe copiado</string>
+    <string name="alac_check_id">ID de pista</string>
+    <string name="alac_check_region">Región</string>
+    <string name="alac_check_effective_bits">Profundidad real</string>
+    <string name="alac_check_bandwidth">Ancho de banda</string>
+    <string name="alac_check_upsampled">Posible reescalado</string>
+    <string name="alac_check_time">Verificado</string>
     <string name="alac_status_clean">Limpio</string>
     <string name="alac_status_missing_end">Falta marcador END</string>
     <string name="alac_status_dirty_pad">Relleno final sucio</string>

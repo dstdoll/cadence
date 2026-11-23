@@ -167,6 +167,15 @@
     <string name="alac_check_pack_date">Pack date</string>
     <string name="alac_check_encoder">Encoder</string>
     <string name="alac_check_affected">Affected tracks</string>
+    <string name="alac_check_analyze_pcm">Analyze 15s audio (bit depth &amp; bandwidth)</string>
+    <string name="alac_check_copy_report">Copy report</string>
+    <string name="alac_check_copied">Report copied</string>
+    <string name="alac_check_id">Track ID</string>
+    <string name="alac_check_region">Region</string>
+    <string name="alac_check_effective_bits">Effective depth</string>
+    <string name="alac_check_bandwidth">Bandwidth</string>
+    <string name="alac_check_upsampled">Upsampled suspect</string>
+    <string name="alac_check_time">Checked</string>
     <string name="alac_status_clean">Clean</string>
     <string name="alac_status_missing_end">Missing END marker</string>
     <string name="alac_status_dirty_pad">Dirty trailing padding</string>

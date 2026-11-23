@@ -1,5 +1,9 @@
 package app.cadence.core.design
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,16 +17,19 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -35,6 +42,32 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+internal fun formatAlacReportText(
+    title: String,
+    storefront: String,
+    reports: List<Pair<TrackInfo, AlacCheckReport>>,
+    checkedAtMs: Long,
+): String {
+    val fmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
+    return buildString {
+        appendLine("ALAC Check: $title")
+        appendLine("Storefront: ${storefront.ifBlank { "us" }} | Checked: ${fmt.format(Date(checkedAtMs))}")
+        for ((t, r) in reports) {
+            append("- ${t.track.title} [${t.id}]: ${r.status}")
+            if (r.totalFrames > 0) {
+                append(" | ${r.bits}b/${r.sampleRate}Hz | frames=${r.totalFrames} esc=${r.escapeFrames}")
+                if (r.missingEndFrames > 0) append(" missingEnd=${r.missingEndFrames}")
+                if (r.dirtyPaddingFrames > 0) append(" dirtyPad=${r.dirtyPaddingFrames}")
+                if (r.effectiveBits != null) append(" effBits=${r.effectiveBits}")
+                if (r.bandwidthHz != null) append(" bw=${r.bandwidthHz}Hz")
+                if (r.upsampledSuspect) append(" upsampled=true")
+                if (r.software.isNotBlank()) append(" sw=${r.software}")
+            }
+            appendLine()
+        }
+    }.trimEnd()
+}
+
 /**
  * Runs an on-demand ALAC escape-frame integrity check for [tracks] and displays a compact summary
  * without adding clutter to track rows.
@@ -45,21 +78,29 @@ fun AlacCheckDialog(
     tracks: List<TrackInfo>,
     onDismiss: () -> Unit,
 ) {
-    val repo = LocalContainer.current.repository
+    val container = LocalContainer.current
+    val repo = container.repository
+    val context = LocalContext.current
+    val storefront = repo.storefront
+    var analyzePcm by remember { mutableStateOf(false) }
     var doneCount by remember { mutableStateOf(0) }
     var reports by remember { mutableStateOf<List<Pair<TrackInfo, AlacCheckReport>>>(emptyList()) }
     var running by remember { mutableStateOf(true) }
+    var checkedAtMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
-    LaunchedEffect(tracks) {
+    LaunchedEffect(tracks, analyzePcm) {
         running = true
         doneCount = 0
+        reports = emptyList()
         val out = ArrayList<Pair<TrackInfo, AlacCheckReport>>(tracks.size)
         for (t in tracks) {
-            val report = repo.checkAlacIntegrity(t.id) ?: AlacCheckReport(AlacCheckStatus.UNAVAILABLE)
+            val report = repo.checkAlacIntegrity(t.id, analyzePcm = analyzePcm)
+                ?: AlacCheckReport(AlacCheckStatus.UNAVAILABLE)
             out += t to report
             doneCount++
             reports = out.toList()
         }
+        checkedAtMs = System.currentTimeMillis()
         running = false
     }
 
@@ -67,15 +108,43 @@ fun AlacCheckDialog(
         onDismissRequest = onDismiss,
         title = { Text(title, maxLines = 1) },
         text = {
-            if (running && reports.isEmpty()) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                    Text(stringResource(R.string.alac_check_running))
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        stringResource(R.string.alac_check_analyze_pcm),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f).padding(end = 8.dp),
+                    )
+                    Switch(checked = analyzePcm, onCheckedChange = { analyzePcm = it })
                 }
-            } else if (tracks.size == 1 && reports.size == 1) {
-                SingleTrackReport(reports.first().second)
-            } else {
-                MultiTrackReport(reports, running, doneCount, tracks.size)
+                if (running && reports.isEmpty()) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                        Text(stringResource(R.string.alac_check_running))
+                    }
+                } else if (tracks.size == 1 && reports.size == 1) {
+                    SingleTrackReport(reports.first().first, reports.first().second, storefront, checkedAtMs)
+                } else {
+                    MultiTrackReport(reports, running, doneCount, tracks.size, storefront)
+                }
+            }
+        },
+        dismissButton = {
+            if (!running && reports.isNotEmpty()) {
+                TextButton(
+                    onClick = {
+                        val text = formatAlacReportText(title, storefront, reports, checkedAtMs)
+                        val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        cm.setPrimaryClip(ClipData.newPlainText("ALAC Check", text))
+                        Toast.makeText(context, context.getString(R.string.alac_check_copied), Toast.LENGTH_SHORT).show()
+                    },
+                ) {
+                    Text(stringResource(R.string.alac_check_copy_report))
+                }
             }
         },
         confirmButton = {
@@ -85,9 +154,16 @@ fun AlacCheckDialog(
 }
 
 @Composable
-private fun SingleTrackReport(r: AlacCheckReport) {
+private fun SingleTrackReport(
+    track: TrackInfo,
+    r: AlacCheckReport,
+    storefront: String,
+    checkedAtMs: Long,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         StatusPill(r.status)
+        KeyValueRow(stringResource(R.string.alac_check_id), track.id)
+        KeyValueRow(stringResource(R.string.alac_check_region), storefront.uppercase(Locale.US))
         if (r.totalFrames > 0) {
             KeyValueRow(stringResource(R.string.alac_check_frames), "${r.totalFrames}")
             KeyValueRow(stringResource(R.string.alac_check_escape), "${r.escapeFrames}")
@@ -100,6 +176,15 @@ private fun SingleTrackReport(r: AlacCheckReport) {
             if (r.bits > 0 && r.sampleRate > 0) {
                 KeyValueRow(stringResource(R.string.quality_format), "${r.bits}-bit / ${r.sampleRate} Hz")
             }
+            r.effectiveBits?.let { eff ->
+                val effText = if (eff < r.bits) "$eff-bit (in ${r.bits}-bit)" else "$eff-bit"
+                KeyValueRow(stringResource(R.string.alac_check_effective_bits), effText)
+            }
+            r.bandwidthHz?.let { bw ->
+                val khz = String.format(Locale.US, "%.1f kHz", bw / 1000.0)
+                val bwText = if (r.upsampledSuspect) "$khz (${stringResource(R.string.alac_check_upsampled)})" else khz
+                KeyValueRow(stringResource(R.string.alac_check_bandwidth), bwText)
+            }
             r.packDateMs?.let { ms ->
                 val formatted = remember(ms) { SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(ms)) }
                 KeyValueRow(stringResource(R.string.alac_check_pack_date), formatted)
@@ -108,6 +193,8 @@ private fun SingleTrackReport(r: AlacCheckReport) {
                 KeyValueRow(stringResource(R.string.alac_check_encoder), r.software)
             }
         }
+        val checkedText = remember(checkedAtMs) { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date(checkedAtMs)) }
+        KeyValueRow(stringResource(R.string.alac_check_time), checkedText)
     }
 }
 
@@ -117,6 +204,7 @@ private fun MultiTrackReport(
     running: Boolean,
     done: Int,
     total: Int,
+    storefront: String,
 ) {
     val clean = reports.count { it.second.status == AlacCheckStatus.CLEAN }
     val affected = reports.count { it.second.status == AlacCheckStatus.MISSING_END || it.second.status == AlacCheckStatus.DIRTY_PADDING }
@@ -128,6 +216,7 @@ private fun MultiTrackReport(
                 Text("$done / $total", style = MaterialTheme.typography.bodyMedium)
             }
         }
+        KeyValueRow(stringResource(R.string.alac_check_region), storefront.uppercase(Locale.US))
         KeyValueRow(stringResource(R.string.alac_status_clean), "$clean")
         KeyValueRow(stringResource(R.string.alac_check_affected), "$affected")
         if (unavailable > 0) {

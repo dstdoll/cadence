@@ -163,6 +163,15 @@
     <string name="alac_check_pack_date">封装日期</string>
     <string name="alac_check_encoder">编码器</string>
     <string name="alac_check_affected">受影响曲目</string>
+    <string name="alac_check_analyze_pcm">分析前 15 秒音频（位深与带宽）</string>
+    <string name="alac_check_copy_report">复制报告</string>
+    <string name="alac_check_copied">已复制报告</string>
+    <string name="alac_check_id">曲目 ID</string>
+    <string name="alac_check_region">地区</string>
+    <string name="alac_check_effective_bits">实际位深</string>
+    <string name="alac_check_bandwidth">有效带宽</string>
+    <string name="alac_check_upsampled">疑似升频</string>
+    <string name="alac_check_time">检查时间</string>
     <string name="alac_status_clean">正常</string>
     <string name="alac_status_missing_end">缺少 END 标记</string>
     <string name="alac_status_dirty_pad">尾部填充异常</string>

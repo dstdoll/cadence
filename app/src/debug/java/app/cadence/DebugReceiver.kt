@@ -351,13 +351,15 @@ class DebugReceiver : BroadcastReceiver() {
             }
             return
         }
-        if (intent.action == "app.cadence.DEBUG_ALAC_CHECK") {
+        if (intent.action == "app.cadence.DEBUG_ALAC_CHECK" || intent.action == "app.cadence.DEBUG_ALAC_ANALYZE") {
             val trackId = intent.getStringExtra("trackId") ?: ""
+            val analyzePcm = intent.action == "app.cadence.DEBUG_ALAC_ANALYZE" ||
+                intent.getBooleanExtra("analyzePcm", false)
             val app = context.applicationContext
             GlobalScope.launch {
                 runCatching {
                     val repo = Backend.create(app).catalog
-                    val report = repo.checkAlacIntegrity(trackId)
+                    val report = repo.checkAlacIntegrity(trackId, analyzePcm = analyzePcm)
                     if (report == null) {
                         CadenceLog.i("alac_check", "trackId=$trackId report=null")
                     } else {
@@ -366,6 +368,7 @@ class DebugReceiver : BroadcastReceiver() {
                             "trackId=$trackId status=${report.status} frames=${report.totalFrames} " +
                                 "escape=${report.escapeFrames} missingEnd=${report.missingEndFrames} " +
                                 "dirtyPad=${report.dirtyPaddingFrames} bits=${report.bits} rate=${report.sampleRate} " +
+                                "effBits=${report.effectiveBits} bwHz=${report.bandwidthHz} upsampled=${report.upsampledSuspect} " +
                                 "sw=${report.software} source=${report.source}",
                         )
                     }
