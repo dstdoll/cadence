@@ -1,6 +1,13 @@
 package app.cadence.feature.settings
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import app.cadence.backend.engine.CadenceLog
+import app.cadence.state.library.restoreFromBackupJson
+import app.cadence.state.library.toBackupJson
 import androidx.compose.ui.res.stringResource
 import app.cadence.R
 import androidx.compose.foundation.layout.Column
@@ -371,10 +378,36 @@ internal fun LyricsPanel(onBack: () -> Unit) {
 
 @Composable
 internal fun LibraryPanel(onBack: () -> Unit) {
-    val store = LocalContainer.current.settings
+    val container = LocalContainer.current
+    val store = container.settings
+    val library = container.library
     val nav = LocalNavigator.current
+    val ctx = LocalContext.current
     val s by store.state.collectAsStateWithLifecycle()
+    val lib by library.state.collectAsStateWithLifecycle()
+    var pendingImportJson by remember { mutableStateOf<String?>(null) }
     fun set(f: (UserSettings) -> UserSettings) = store.update(f)
+
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        runCatching {
+            val payload = lib.toBackupJson()
+            ctx.contentResolver.openOutputStream(uri)?.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
+            CadenceLog.i("LibraryBackup", "action=export playlists=${lib.playlists.size} tracks=${lib.savedTracks.size} albums=${lib.savedAlbums.size} favorites=${lib.favorites.size}")
+            android.widget.Toast.makeText(ctx, ctx.getString(R.string.set_library_exported), android.widget.Toast.LENGTH_SHORT).show()
+        }.onFailure {
+            CadenceLog.e("LibraryBackup", "export failed", it)
+        }
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        runCatching {
+            ctx.contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
+        }.getOrNull()?.let { text ->
+            pendingImportJson = text
+        }
+    }
 
     SettingsPanel(stringResource(R.string.set_page_library), onBack) {
         item(key = "rules") {
@@ -389,7 +422,43 @@ internal fun LibraryPanel(onBack: () -> Unit) {
                 ChevronRow(stringResource(R.string.set_edit_categories), icon = Icons.Rounded.LibraryMusic) { nav.editLibrary() }
             }
         }
+        item(key = "backup") {
+            SettingsGroup {
+                ChevronRow(stringResource(R.string.set_library_export), icon = Icons.Rounded.Share) {
+                    exportLauncher.launch("cadence-library.json")
+                }
+                ChevronRow(stringResource(R.string.set_library_import), icon = Icons.Rounded.Download) {
+                    importLauncher.launch(arrayOf("application/json", "*/*"))
+                }
+            }
+        }
         item(key = "pad") { Spacer(Modifier.height(28.dp)) }
+    }
+
+    pendingImportJson?.let { raw ->
+        fun applyImport(merge: Boolean) {
+            val res = library.state.value.restoreFromBackupJson(raw, merge)
+            pendingImportJson = null
+            res.onSuccess { restored ->
+                library.update { restored }
+                CadenceLog.i("LibraryBackup", "action=import mode=${if (merge) "merge" else "replace"} playlists=${restored.playlists.size} tracks=${restored.savedTracks.size} albums=${restored.savedAlbums.size} favorites=${restored.favorites.size}")
+                android.widget.Toast.makeText(ctx, ctx.getString(R.string.set_library_imported), android.widget.Toast.LENGTH_SHORT).show()
+            }.onFailure {
+                CadenceLog.e("LibraryBackup", "import failed", it)
+                android.widget.Toast.makeText(ctx, ctx.getString(R.string.set_library_import_failed), android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+        AlertDialog(
+            onDismissRequest = { pendingImportJson = null },
+            title = { Text(stringResource(R.string.set_library_import_mode)) },
+            text = { Text(stringResource(R.string.set_library_import_hint)) },
+            confirmButton = {
+                TextButton(onClick = { applyImport(merge = true) }) { Text(stringResource(R.string.set_library_import_merge)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { applyImport(merge = false) }) { Text(stringResource(R.string.set_library_import_replace)) }
+            },
+        )
     }
 }
 

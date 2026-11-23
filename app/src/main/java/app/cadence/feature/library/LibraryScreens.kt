@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Album
@@ -396,8 +397,29 @@ fun LibrarySectionScreen(kind: LibraryKind) {
     var query by rememberSaveable(kind) { mutableStateOf("") }
     var sort by rememberSaveable { mutableStateOf(Sort.Title) }
     var reversed by rememberSaveable { mutableStateOf(false) }
+    val ctx = androidx.compose.ui.platform.LocalContext.current
 
-    ListScaffold(title = stringResource(kind.labelRes), showBack = true) {
+    ListScaffold(
+        title = stringResource(kind.labelRes),
+        showBack = true,
+        actions = {
+            if (kind == LibraryKind.Favorites) {
+                val favIds = remember(lib.favorites, lib.unfavorited, revision) {
+                    repo.tracks.filter { lib.isFavorite(it.id, repo.favoriteTrackIds) }.map { it.id }
+                }
+                if (favIds.isNotEmpty()) {
+                    val plTitle = stringResource(R.string.kind_favorites)
+                    val savedMsg = stringResource(R.string.library_saved_playlist)
+                    IconButton(onClick = {
+                        c.library.update { it.createPlaylist(plTitle, favIds, addSongsToLibrary = false).first }
+                        android.widget.Toast.makeText(ctx, savedMsg, android.widget.Toast.LENGTH_SHORT).show()
+                    }) {
+                        Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, stringResource(R.string.library_save_favorites_playlist))
+                    }
+                }
+            }
+        },
+    ) {
         @Suppress("UNUSED_EXPRESSION") revision
         val hasKeys = kind == LibraryKind.Songs || kind == LibraryKind.Albums || kind == LibraryKind.Favorites
         item(key = "search") {

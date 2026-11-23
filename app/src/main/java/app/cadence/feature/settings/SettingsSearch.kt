@@ -121,6 +121,8 @@ internal val SETTINGS_INDEX: List<SettingEntry> = listOf(
     SettingEntry(R.string.set_add_playlist_songs, SettingsPage.Library, "playlists"),
     SettingEntry(R.string.set_listening_history, SettingsPage.Library, "history recently played"),
     SettingEntry(R.string.set_edit_categories, SettingsPage.Library, "sections order tabs"),
+    SettingEntry(R.string.set_library_export, SettingsPage.Library, "backup json save"),
+    SettingEntry(R.string.set_library_import, SettingsPage.Library, "restore json load"),
 
     SettingEntry(R.string.set_about_cadence, SettingsPage.About, "version"),
     SettingEntry(R.string.set_update_channel, SettingsPage.About, "release dev beta channel"),

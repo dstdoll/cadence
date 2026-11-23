@@ -114,6 +114,12 @@ data class UserLibrary(
     fun editPlaylist(id: String, edit: (Playlist) -> Playlist) =
         copy(playlists = playlists.map { if (it.id == id) edit(it) else it })
 
+    fun duplicatePlaylist(source: Playlist, copyLabel: String = "Copy"): Pair<UserLibrary, Playlist> =
+        createPlaylist("${source.title} ($copyLabel)", source.trackIds, addSongsToLibrary = false)
+            .let { (lib, created) ->
+                lib.editPlaylist(created.id) { it.copy(description = source.description) } to created.copy(description = source.description)
+            }
+
     fun deletePlaylist(id: String) = copy(playlists = playlists.filterNot { it.id == id }, pinned = pinned - "p:$id")
 
     /** Older saves may lack newer sections; append any missing ones (hidden) so Edit can show them. */

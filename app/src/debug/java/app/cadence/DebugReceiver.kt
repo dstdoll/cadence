@@ -20,6 +20,8 @@ import kotlinx.coroutines.launch
 import app.cadence.backend.api.SearchScope
 import app.cadence.container
 import app.cadence.LogExport
+import app.cadence.state.library.restoreFromBackupJson
+import app.cadence.state.library.toBackupJson
 import kotlinx.coroutines.delay
 
 /**
@@ -348,6 +350,21 @@ class DebugReceiver : BroadcastReceiver() {
                     CadenceLog.i("login", "resume status=" + again.status + " kind=" + again.kind +
                             " msg=" + (again.message ?: "").take(160))
                 }
+            }
+            return
+        }
+        if (intent.action == "app.cadence.DEBUG_LIBRARY_ROUNDTRIP") {
+            val appCtx = context.applicationContext
+            GlobalScope.launch {
+                runCatching {
+                    val cur = appCtx.container.library.state.value
+                    val json = cur.toBackupJson()
+                    val restored = cur.restoreFromBackupJson(json, merge = true).getOrThrow()
+                    CadenceLog.i(
+                        "library_roundtrip",
+                        "ok=true bytes=${json.length} playlists=${restored.playlists.size} tracks=${restored.savedTracks.size}",
+                    )
+                }.onFailure { CadenceLog.e("library_roundtrip", "failed", it) }
             }
             return
         }

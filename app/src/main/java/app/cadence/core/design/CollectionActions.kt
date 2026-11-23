@@ -18,6 +18,7 @@ import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Edit
@@ -222,6 +223,12 @@ fun PlaylistActionSheet(playlist: Playlist, onDismiss: () -> Unit) {
         add(SheetAction(if (pinned) stringResource(R.string.detail_unpin_playlist) else stringResource(R.string.detail_pin_playlist), if (pinned) Icons.Rounded.PushPin else Icons.Outlined.PushPin) {
             act { c.library.update { it.togglePin("p:${playlist.id}") } }
         })
+        if (playlist.trackIds.isNotEmpty()) {
+            val copyLabel = stringResource(R.string.playlist_copy_suffix)
+            add(SheetAction(stringResource(R.string.playlist_duplicate), Icons.Rounded.ContentCopy) {
+                act { c.library.update { it.duplicatePlaylist(playlist, copyLabel).first } }
+            })
+        }
         if (playlist.userCreated) {
             add(SheetAction(stringResource(R.string.detail_rename_playlist), Icons.Rounded.Edit) { renaming = true })
             add(SheetAction(stringResource(R.string.cd_delete_playlist), Icons.Rounded.Delete) { deleting = true })
