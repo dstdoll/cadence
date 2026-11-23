@@ -310,6 +310,14 @@ class RealCatalog(
         return parsed
     }
 
+    override suspend fun checkAlacIntegrity(trackId: String): AlacCheckReport? {
+        val attrs = engine.song(trackId)?.optJSONArray("data")?.optJSONObject(0)?.optJSONObject("attributes")
+            ?: return AlacCheckReport(AlacCheckStatus.UNAVAILABLE)
+        val hls = attrs.optJSONObject("extendedAssetUrls")?.optString("enhancedHls")?.takeIf { it.isNotBlank() }
+            ?: return AlacCheckReport(AlacCheckStatus.UNAVAILABLE)
+        return app.cadence.backend.engine.media.AlacIntegrity.checkCdnTrack(hls)
+    }
+
     // ---- disk cache ----
 
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }

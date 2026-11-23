@@ -25,9 +25,9 @@ object Mp4Integrity {
         val seconds get() = if (timescale > 0) ticks.toDouble() / timescale else 0.0
     }
 
-    private class Box(val type: String, val start: Int, val end: Int)
+    internal class Box(val type: String, val start: Int, val end: Int)
 
-    private fun children(b: ByteBuffer, from: Int, to: Int): List<Box> {
+    internal fun children(b: ByteBuffer, from: Int, to: Int): List<Box> {
         val out = ArrayList<Box>()
         var at = from
         while (at + 8 <= to) {
@@ -43,7 +43,7 @@ object Mp4Integrity {
         return out
     }
 
-    private fun find(b: ByteBuffer, from: Int, to: Int, vararg path: String): Box? {
+    internal fun find(b: ByteBuffer, from: Int, to: Int, vararg path: String): Box? {
         var lo = from; var hi = to; var hit: Box? = null
         for (name in path) {
             hit = children(b, lo, hi).firstOrNull { it.type == name } ?: return null
@@ -53,7 +53,7 @@ object Mp4Integrity {
     }
 
     /** Reads top-level boxes of [file], loading only the ones in [wanted] (never `mdat`). */
-    private fun topLevel(file: File, wanted: Set<String>, visit: (type: String, body: ByteBuffer) -> Unit) {
+    internal fun topLevel(file: File, wanted: Set<String>, visit: (type: String, body: ByteBuffer) -> Unit) {
         RandomAccessFile(file, "r").use { raf ->
             val length = raf.length()
             var at = 0L

@@ -1,5 +1,6 @@
 package app.cadence.backend.api
 
+import app.cadence.backend.model.AlacCheckReport
 import app.cadence.backend.model.HomeShelf
 import app.cadence.backend.model.Album
 import app.cadence.backend.model.Artist
@@ -137,6 +138,9 @@ interface MusicRepository {
      * BACKEND: honour amp-api cache/ETag and the real mix endpoints.
      */
     suspend fun refresh() {}
+
+    /** Inspects an ALAC track for Apple's escape-frame `END`-bit / trailing-padding defect. */
+    suspend fun checkAlacIntegrity(trackId: String): AlacCheckReport? = null
 }
 
 private val STATIC_REVISION = kotlinx.coroutines.flow.MutableStateFlow(0)

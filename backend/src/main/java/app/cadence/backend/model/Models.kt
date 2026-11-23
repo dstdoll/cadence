@@ -202,3 +202,19 @@ sealed interface ShelfItem {
  * [hero] marks the shelf the service presents as the large, leading one.
  */
 data class HomeShelf(val id: String, val title: String, val hero: Boolean, val items: List<ShelfItem>)
+
+enum class AlacCheckStatus { CLEAN, MISSING_END, DIRTY_PADDING, NOT_ALAC, UNAVAILABLE }
+
+/** Result of inspecting an ALAC stream or file for Apple's escape-frame `END` bit / padding defect. */
+data class AlacCheckReport(
+    val status: AlacCheckStatus,
+    val totalFrames: Int = 0,
+    val escapeFrames: Int = 0,
+    val missingEndFrames: Int = 0,
+    val dirtyPaddingFrames: Int = 0,
+    val packDateMs: Long? = null,
+    val software: String = "",
+    val bits: Int = 0,
+    val sampleRate: Int = 0,
+    val source: String = "cdn",
+)
