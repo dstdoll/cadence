@@ -1071,9 +1071,9 @@ class RealCatalog(
     }
 
     private companion object {
-        const val MAX_LIBRARY_PLAYLIST_SONGS = 5000
-        /** Per kind; the account this was built against has about 800 songs and 500 albums. */
-        const val MAX_ACCOUNT_LIBRARY_ITEMS = 5000
+        const val MAX_LIBRARY_PLAYLIST_SONGS = 50_000
+        /** Per kind; safety ceiling against broken pagination. */
+        const val MAX_ACCOUNT_LIBRARY_ITEMS = 50_000
     }
 
     private val artistLoad = kotlinx.coroutines.sync.Mutex()
