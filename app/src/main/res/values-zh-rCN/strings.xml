@@ -196,6 +196,10 @@
     <string name="track_stream_variants">音频流规格</string>
     <string name="stream_variants_empty">暂无可用音频流规格</string>
     <string name="stream_variants_loading">正在加载规格…</string>
+    <string name="set_drop_ep_single">移除 “ - EP” / “ - Single” 后缀</string>
+    <string name="set_drop_ep_single_sub">从下载的专辑名称和文件夹中移除发行类型后缀。</string>
+    <string name="set_check_alac_download">下载时校验 ALAC 完整性</string>
+    <string name="set_check_alac_download_sub">检查已下载的 ALAC 文件是否存在 escape 帧缺陷并记录结果。</string>
     <string name="alac_status_clean">正常</string>
     <string name="alac_status_missing_end">缺少 END 标记</string>
     <string name="alac_status_dirty_pad">尾部填充异常</string>

@@ -81,8 +81,15 @@ data class DownloadPreferences(
      * [maxSampleRate] and [atmos] say", which is how every setting from before the quality picker reads.
      */
     val quality: QualityPolicy? = null,
+    val dropEpSingleSuffix: Boolean = false,
+    val checkAlacOnDownload: Boolean = false,
 ) {
-    /** The quality this job downloads; see [quality]. */
+    companion object {
+        private val EP_SINGLE_SUFFIX = Regex("""\s*-\s*(?:EP|Single)$""", RegexOption.IGNORE_CASE)
+
+        fun stripEpSingleSuffix(title: String): String =
+            EP_SINGLE_SUFFIX.replace(title, "").trimEnd()
+    }
     fun policy(): QualityPolicy = quality ?: QualityPolicy.fromLegacy(codec, bitDepth, maxSampleRate, atmos)
 
     /** These preferences for one download that asked for [chosen] (null keeps the default). */
@@ -299,6 +306,18 @@ object DownloadEngine {
     private suspend fun finishJob(pending: Pending, staged: EngineDownloader.Staged) {
         val order = orderOf(pending.item)
         runCatching { EngineDownloader.finish(pending.context, staged, report(pending.item, order)) }
+            .onSuccess {
+                if (preferences.checkAlacOnDownload) {
+                    app.cadence.backend.engine.media.AlacIntegrity
+                        .checkOrRepairLocalTrack(pending.item.trackId, repair = false)
+                        ?.let { r ->
+                            CadenceLog.i(
+                                "AlacDownloadCheck",
+                                "trackId=${pending.item.trackId} status=${r.status} frames=${r.totalFrames} escape=${r.escapeFrames} missingEnd=${r.missingEndFrames} dirtyPad=${r.dirtyPaddingFrames}",
+                            )
+                        }
+                }
+            }
             .onFailure { staged.discard(); failed(pending.item, order, it) }
     }
 

@@ -102,6 +102,8 @@ internal fun UserSettings.toDownloadPreferences() = DownloadPreferences(
     atmos = downloadAtmos,
     shareStreamCache = shareDownloadCache,
     quality = downloadPolicy(),
+    dropEpSingleSuffix = dropEpSingleSuffix,
+    checkAlacOnDownload = checkAlacOnDownload,
 )
 
 val LocalContainer = staticCompositionLocalOf<AppContainer> { error("No AppContainer") }

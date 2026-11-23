@@ -198,6 +198,10 @@
     <string name="track_stream_variants">Variantes de transmisión</string>
     <string name="stream_variants_empty">Sin variantes disponibles</string>
     <string name="stream_variants_loading">Cargando variantes…</string>
+    <string name="set_drop_ep_single">Quitar sufijo « - EP» / « - Single»</string>
+    <string name="set_drop_ep_single_sub">Elimina los sufijos de lanzamiento de los nombres y carpetas de álbumes descargados.</string>
+    <string name="set_check_alac_download">Verificar integridad ALAC al descargar</string>
+    <string name="set_check_alac_download_sub">Comprueba los archivos ALAC descargados en busca de defectos de trama escape.</string>
     <string name="alac_status_clean">Limpio</string>
     <string name="alac_status_missing_end">Falta marcador END</string>
     <string name="alac_status_dirty_pad">Relleno final sucio</string>

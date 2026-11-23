@@ -226,9 +226,10 @@ object EngineDownloader {
         sampleRate: Int = 0,
     ): JobSetup {
         val track = trackOf(item, hls)
+        val albumTitle = if (prefs.dropEpSingleSuffix) DownloadPreferences.stripEpSingleSuffix(item.albumTitle) else item.albumTitle
         val album = Album(
             id = item.trackId,
-            title = item.albumTitle,
+            title = albumTitle,
             artist = item.artist,
             artworkUrl = null,
             artworkTemplate = item.artworkTemplate,
@@ -239,7 +240,7 @@ object EngineDownloader {
         )
         val values = TemplateValues(
             artist = item.artist,
-            album = item.albumTitle,
+            album = albumTitle,
             albumArtist = item.artist,
             title = item.title,
             track = item.trackNumber,

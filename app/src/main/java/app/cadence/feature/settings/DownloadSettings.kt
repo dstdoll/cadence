@@ -473,6 +473,15 @@ internal fun DownloadAudioPanel(onBack: () -> Unit) {
                 Connected(listOf("off", "spatial", "atmos"), s.downloadAtmos, { atmosLabel(it) }) { v -> store.update { it.copy(downloadAtmos = v) } }
             }
         }
+        item(key = "alac_check") {
+            SettingsGroup {
+                SwitchRow(
+                    stringResource(R.string.set_check_alac_download),
+                    stringResource(R.string.set_check_alac_download_sub),
+                    s.checkAlacOnDownload,
+                ) { v -> store.update { it.copy(checkAlacOnDownload = v) } }
+            }
+        }
         item(key = "pad") { Spacer(Modifier.height(28.dp)) }
     }
 }
@@ -490,6 +499,11 @@ internal fun DownloadTagsPanel(onBack: () -> Unit) {
                     stringResource(R.string.set_write_tags_sub),
                     s.writeMetadata,
                 ) { v -> store.update { it.copy(writeMetadata = v) } }
+                SwitchRow(
+                    stringResource(R.string.set_drop_ep_single),
+                    stringResource(R.string.set_drop_ep_single_sub),
+                    s.dropEpSingleSuffix,
+                ) { v -> store.update { it.copy(dropEpSingleSuffix = v) } }
             }
         }
         item(key = "cover") {
