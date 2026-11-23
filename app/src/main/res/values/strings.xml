@@ -176,6 +176,12 @@
     <string name="alac_check_bandwidth">Bandwidth</string>
     <string name="alac_check_upsampled">Upsampled suspect</string>
     <string name="alac_check_time">Checked</string>
+    <string name="artwork_save_title">Save artwork</string>
+    <string name="artwork_save_cover">Save cover</string>
+    <string name="artwork_save_motion">Save motion video (MP4)</string>
+    <string name="artwork_saving">Saving artwork…</string>
+    <string name="artwork_saved">Artwork saved</string>
+    <string name="artwork_save_failed">Could not save artwork</string>
     <string name="alac_status_clean">Clean</string>
     <string name="alac_status_missing_end">Missing END marker</string>
     <string name="alac_status_dirty_pad">Dirty trailing padding</string>

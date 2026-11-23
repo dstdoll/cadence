@@ -21,6 +21,7 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -145,6 +146,7 @@ fun AlbumActionSheet(album: Album, artistName: String, onDismiss: () -> Unit) {
     val inLibrary = album.id in lib.savedAlbums || album.id in c.repository.accountLibrary.albumIds
     val pinned = "al:${album.id}" in lib.pinned
     var verifyAlac by remember { mutableStateOf(false) }
+    var saveArt by remember { mutableStateOf(false) }
 
     fun act(block: () -> Unit) { block(); onDismiss() }
     fun go(block: () -> Unit) { onDismiss(); block() }
@@ -175,6 +177,9 @@ fun AlbumActionSheet(album: Album, artistName: String, onDismiss: () -> Unit) {
             add(SheetAction(stringResource(R.string.cd_share_album), Icons.Rounded.Share) { act { shareLink(context, "${album.title} — $artistName", link) } })
             add(SheetAction(stringResource(R.string.track_copy_link), Icons.Rounded.Link) { act { copyLink(context, link) } })
         }
+        if (album.cover != null || album.motion != null) {
+            add(SheetAction(stringResource(R.string.artwork_save_title), Icons.Rounded.Image) { saveArt = true })
+        }
         if (tracks.isNotEmpty()) {
             add(SheetAction(stringResource(R.string.track_verify_alac), Icons.Rounded.Verified) { verifyAlac = true })
         }
@@ -187,6 +192,7 @@ fun AlbumActionSheet(album: Album, artistName: String, onDismiss: () -> Unit) {
         rows = rows,
         onDismiss = onDismiss,
     )
+    if (saveArt) SaveArtworkDialog(album.title, album.id, album.cover, album.motion) { saveArt = false; onDismiss() }
     if (verifyAlac) AlacCheckDialog(album.title, tracks) { verifyAlac = false; onDismiss() }
 }
 
@@ -201,6 +207,7 @@ fun PlaylistActionSheet(playlist: Playlist, onDismiss: () -> Unit) {
     var newName by rememberSaveable(playlist.id) { mutableStateOf(playlist.title) }
     var deleting by rememberSaveable { mutableStateOf(false) }
     var verifyAlac by remember { mutableStateOf(false) }
+    var saveArt by remember { mutableStateOf(false) }
 
     fun act(block: () -> Unit) { block(); onDismiss() }
 
@@ -222,6 +229,9 @@ fun PlaylistActionSheet(playlist: Playlist, onDismiss: () -> Unit) {
         AppleLinks.playlist(c.repository.storefront, playlist.id)?.let { link ->
             add(SheetAction(stringResource(R.string.action_share), Icons.Rounded.Share) { act { shareLink(context, playlist.title, link) } })
             add(SheetAction(stringResource(R.string.track_copy_link), Icons.Rounded.Link) { act { copyLink(context, link) } })
+        }
+        if (playlist.cover != null || playlist.motion != null) {
+            add(SheetAction(stringResource(R.string.artwork_save_title), Icons.Rounded.Image) { saveArt = true })
         }
         if (tracks.isNotEmpty()) {
             add(SheetAction(stringResource(R.string.track_verify_alac), Icons.Rounded.Verified) { verifyAlac = true })
@@ -266,6 +276,7 @@ fun PlaylistActionSheet(playlist: Playlist, onDismiss: () -> Unit) {
             dismissButton = { TextButton(onClick = { deleting = false }) { Text(stringResource(R.string.action_cancel)) } },
         )
     }
+    if (saveArt) SaveArtworkDialog(playlist.title, playlist.id, playlist.cover, playlist.motion) { saveArt = false; onDismiss() }
     if (verifyAlac) AlacCheckDialog(playlist.title, tracks) { verifyAlac = false; onDismiss() }
 }
 
@@ -276,6 +287,7 @@ fun ArtistActionSheet(artist: Artist, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val topTracks = remember(artist.id) { c.repository.tracks.filter { it.artist.id == artist.id } }
     val shape: Shape = MaterialShapes.Cookie9Sided.toShape()
+    var saveArt by remember { mutableStateOf(false) }
 
     fun act(block: () -> Unit) { block(); onDismiss() }
     fun go(block: () -> Unit) { onDismiss(); block() }
@@ -286,6 +298,9 @@ fun ArtistActionSheet(artist: Artist, onDismiss: () -> Unit) {
             add(SheetAction(stringResource(R.string.track_create_station), Icons.Rounded.Radio) { act { c.player.startArtistStation(artist.id, topTracks.first()) } })
         }
         add(SheetAction(stringResource(R.string.action_open_artist), Icons.Rounded.Person) { go { nav.artist(artist.id) } })
+        if (artist.cover != null) {
+            add(SheetAction(stringResource(R.string.artwork_save_title), Icons.Rounded.Image) { saveArt = true })
+        }
         AppleLinks.artist(c.repository.storefront, artist.id)?.let { link ->
             add(SheetAction(stringResource(R.string.action_share), Icons.Rounded.Share) { act { shareLink(context, artist.name, link) } })
             add(SheetAction(stringResource(R.string.track_copy_link), Icons.Rounded.Link) { act { copyLink(context, link) } })
@@ -299,4 +314,5 @@ fun ArtistActionSheet(artist: Artist, onDismiss: () -> Unit) {
         rows = rows,
         onDismiss = onDismiss,
     )
+    if (saveArt) SaveArtworkDialog(artist.name, artist.id, artist.cover, null) { saveArt = false; onDismiss() }
 }

@@ -172,6 +172,12 @@
     <string name="alac_check_bandwidth">有效带宽</string>
     <string name="alac_check_upsampled">疑似升频</string>
     <string name="alac_check_time">检查时间</string>
+    <string name="artwork_save_title">保存封面</string>
+    <string name="artwork_save_cover">保存静态封面</string>
+    <string name="artwork_save_motion">保存动态封面 (MP4)</string>
+    <string name="artwork_saving">正在保存封面…</string>
+    <string name="artwork_saved">已保存封面</string>
+    <string name="artwork_save_failed">无法保存封面</string>
     <string name="alac_status_clean">正常</string>
     <string name="alac_status_missing_end">缺少 END 标记</string>
     <string name="alac_status_dirty_pad">尾部填充异常</string>
