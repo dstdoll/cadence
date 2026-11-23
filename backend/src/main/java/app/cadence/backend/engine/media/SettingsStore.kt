@@ -12,9 +12,10 @@ data class AppSettings(
     val saveTreeUri: String?,
     val namingTemplate: String,
     val lyricsEmbed: Boolean = true,
+    val lyricsSaveFile: Boolean = false,
     /** "lyrics" (line timed) or "syllable-lyrics" (word timed). */
     val lyricsType: String = "lyrics",
-    /** "lrc" or "ttml". */
+    /** "lrc", "ttml", "srt", or "txt". */
     val lyricsFormat: String = "lrc",
     val artworkEmbed: Boolean = true,
     /** Preset "5000x5000"/"3000x3000"/"1400x1400"/"1000x1000"/"600x600", or "original", or "custom". */
@@ -35,7 +36,7 @@ data class AppSettings(
         val ARTWORK_PRESETS = listOf("original", "5000x5000", "3000x3000", "1400x1400", "1000x1000", "600x600", "custom")
         val ARTWORK_FORMATS = listOf("jpg", "png", "original")
         val LYRICS_TYPES = listOf("lyrics", "syllable-lyrics")
-        val LYRICS_FORMATS = listOf("lrc", "ttml")
+        val LYRICS_FORMATS = listOf("lrc", "ttml", "srt", "txt")
     }
 }
 

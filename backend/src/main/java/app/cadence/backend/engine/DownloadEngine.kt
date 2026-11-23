@@ -43,6 +43,7 @@ data class DownloadPreferences(
     val coverSize: String = "1400x1400",
     val coverFormat: String = "jpg",
     val embedLyrics: Boolean = true,
+    val saveLyricsFile: Boolean = false,
     val lyricsFormat: String = "lrc",
     /** Preferred ALAC bit depth when the master offers several. */
     val bitDepth: Int = 24,

@@ -92,6 +92,7 @@ internal fun UserSettings.toDownloadPreferences() = DownloadPreferences(
     coverSize = coverSize,
     coverFormat = coverFormat,
     embedLyrics = embedLyrics,
+    saveLyricsFile = saveLyricsFile,
     lyricsFormat = lyricsFormat,
     bitDepth = bitDepth,
     maxSampleRate = maxSampleRate,

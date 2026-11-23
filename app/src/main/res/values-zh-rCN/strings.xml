@@ -1,0 +1,737 @@
+<resources>
+    <!-- Settings · Appearance · Language -->
+    <string name="settings_language">语言</string>
+    <string name="language_system">跟随系统</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">主页</string>
+    <string name="nav_browse">浏览</string>
+    <string name="nav_radio">广播</string>
+    <string name="nav_library">资料库</string>
+    <string name="nav_search">搜索</string>
+
+    <!-- Common actions / content descriptions -->
+    <string name="cd_play">播放</string>
+    <string name="cd_pause">暂停</string>
+    <string name="cd_next">下一首</string>
+    <string name="cd_previous">上一首</string>
+    <string name="cd_downloads">下载</string>
+
+    <!-- Home -->
+    <string name="home_greeting_morning">早上好</string>
+    <string name="home_greeting_afternoon">下午好</string>
+    <string name="home_greeting_evening">晚上好</string>
+    <string name="ctx_recently_played">最近播放</string>
+    <string name="home_top_picks">为你精选</string>
+    <string name="home_made_for_you">为你推荐</string>
+
+    <!-- Now playing -->
+    <string name="player_playing_from">正在播放</string>
+    <string name="player_sleep_off">关闭</string>
+    <string name="player_sleep_end_of_song">本曲结束时</string>
+    <string name="player_sleep_countdown">%1$d:%2$02d 后暂停</string>
+    <plurals name="minutes">
+        <item quantity="other">%d 分钟</item>
+    </plurals>
+
+    <!-- Audio quality -->
+    <string name="quality_details">音质详情</string>
+    <string name="quality_codec_audio">%s 音频</string>
+    <string name="quality_format">格式</string>
+    <string name="quality_lossless">(Lossless)</string>
+    <string name="quality_bit_depth">位深</string>
+    <string name="quality_bits">%d-bit</string>
+    <string name="quality_sample_rate">采样率</string>
+    <string name="quality_channels">声道</string>
+    <string name="quality_bitrate">比特率</string>
+    <string name="quality_kbps">%d kbps</string>
+    <string name="quality_resample_note">Android 可能会重采样至输出设备的原生采样率。连接 USB DAC 时可支持更高采样率。</string>
+
+    <!-- Sign in -->
+    <string name="auth_welcome">欢迎使用 Cadence</string>
+    <string name="auth_subtitle">使用你的邮箱和密码登录，然后输入我们发送的 6 位验证码确认。</string>
+    <string name="auth_email">邮箱</string>
+    <string name="auth_password">密码</string>
+    <string name="auth_show_password">显示密码</string>
+    <string name="auth_hide_password">隐藏密码</string>
+    <string name="action_continue">继续</string>
+    <string name="auth_import_session">导入会话</string>
+    <string name="auth_different_email">使用其他邮箱</string>
+    <string name="auth_enter_code">输入验证码</string>
+    <string name="auth_code_sent">已向 %2$s 发送 %1$d 位验证码</string>
+    <string name="action_try_again">重试</string>
+    <string name="auth_resend">重新发送验证码</string>
+    <string name="auth_resend_in">0:%1$02d 后可重新发送</string>
+    <string name="auth_codes_expire">验证码 5 分钟后过期，且仅可使用一次。</string>
+    <plurals name="auth_wrong_code">
+        <item quantity="other">验证码不正确，还可尝试 %d 次。</item>
+    </plurals>
+
+    <!-- Common -->
+    <string name="action_clear">清除</string>
+    <string name="nav_settings">设置</string>
+    <string name="cd_more_options">更多选项</string>
+    <string name="filter_all">全部</string>
+    <string name="filter_reversed">倒序</string>
+
+    <!-- Library -->
+    <string name="library_new_playlist">新建播放列表</string>
+    <string name="library_edit_categories">编辑分类</string>
+    <string name="library_edit_title">编辑资料库</string>
+    <string name="library_edit_hint">选择要在资料库中显示的项目，拖动可调整顺序。</string>
+    <string name="library_empty_favorites">轻点任意歌曲上的红心即可收藏到这里。</string>
+    <string name="library_empty_default">在任意歌曲上使用“添加到资料库”。</string>
+    <string name="library_recently_added">最近添加</string>
+    <string name="library_empty_playlists">点击资料库中的 + 按钮创建播放列表。</string>
+    <string name="library_artist_in_library">在你的资料库中</string>
+    <string name="library_empty_artists">添加到资料库的歌曲所属艺人会显示在这里。</string>
+    <string name="library_empty_albums">可从任意专辑页面将专辑添加到资料库。</string>
+    <string name="sort_title">标题</string>
+    <string name="sort_artist">艺人</string>
+    <string name="sort_album">专辑</string>
+    <string name="sort_year">年份</string>
+    <string name="sort_duration">时长</string>
+
+    <!-- Search -->
+    <string name="search_scope_all">全部音乐</string>
+    <string name="search_scope_library">你的资料库</string>
+    <string name="search_placeholder">歌曲、艺人、专辑、歌词…</string>
+    <string name="cd_clear_search">清除搜索</string>
+    <string name="search_browse_categories">浏览分类</string>
+    <string name="search_empty_hint">搜索整个曲库或仅搜索你的资料库。也支持按歌词搜索：试试输入你记得的一句歌词。</string>
+    <string name="search_recent">最近搜索</string>
+    <string name="cd_use_suggestion">使用建议</string>
+    <string name="search_no_matches_yet">暂无匹配结果。按搜索键可同时查找歌词。</string>
+    <string name="search_nothing_matches">没有找到匹配项。请尝试减少关键词或切换搜索范围。</string>
+    <string name="search_top_results">最佳结果</string>
+    <string name="cd_back">返回</string>
+    <string name="search_type_songs">歌曲</string>
+    <string name="search_type_artists">艺人</string>
+    <string name="search_type_albums">专辑</string>
+    <string name="search_type_playlists">播放列表</string>
+    <string name="search_type_lyrics">歌词</string>
+    <string name="search_in">在%1$s中</string>
+
+    <!-- Browse -->
+    <string name="browse_subtitle">最新推荐</string>
+
+    <!-- Queue -->
+    <string name="queue_history">播放历史</string>
+    <string name="queue_up_next">接下来播放</string>
+    <string name="queue_empty_autoplay">队列为空。自动播放会继续播放相似音乐。</string>
+    <string name="queue_empty_default">队列为空。在任意歌曲上使用“插播”。</string>
+    <string name="queue_reorder_hint">长按歌曲可拖动排序</string>
+
+    <!-- Lyrics -->
+    <string name="lyrics_none">暂无歌词。\n静静享受音乐吧。</string>
+    <string name="lyrics_unsynced">纯文本歌词</string>
+
+    <!-- Player controls / toolbar -->
+    <string name="cd_collapse">收起</string>
+    <string name="cd_shuffle">随机播放</string>
+    <string name="player_lyrics">歌词</string>
+    <string name="player_output_device">输出设备</string>
+    <string name="player_sleep_timer">睡眠定时</string>
+    <string name="player_queue">播放队列</string>
+    <string name="home_albums_you_might_like">猜你喜欢的专辑</string>
+
+    <!-- Common actions -->
+    <string name="action_cancel">取消</string>
+    <string name="action_create">创建</string>
+    <string name="action_copy">复制</string>
+
+    <!-- Track action sheet -->
+    <string name="track_add_to_library">添加到资料库</string>
+    <string name="track_remove_from_library">从资料库中移除</string>
+    <string name="track_add_to_playlist">添加到播放列表…</string>
+    <string name="track_download">下载</string>
+    <string name="track_downloaded">已下载</string>
+    <string name="track_downloading">正在下载…</string>
+    <string name="track_play_next">插播</string>
+    <string name="track_play_last">添加到队尾</string>
+    <string name="track_share_song">分享歌曲</string>
+    <string name="track_share_lyrics">分享歌词…</string>
+    <string name="track_view_credits">查看制作人员</string>
+    <string name="track_create_station">创建电台</string>
+    <string name="track_pin">置顶歌曲</string>
+    <string name="track_unpin">取消置顶</string>
+    <string name="track_favorite">喜欢</string>
+    <string name="track_undo_favorite">取消喜欢</string>
+    <string name="track_sleep_timer">睡眠定时…</string>
+    <string name="sleep_1_hour">1 小时</string>
+
+    <!-- Components / dialogs -->
+    <string name="cd_download_song">下载歌曲</string>
+    <string name="cd_favorited">已喜欢</string>
+    <string name="components_add_to_playlist">添加到播放列表</string>
+    <string name="components_playlist_fallback">播放列表</string>
+
+    <!-- Share lyrics -->
+    <string name="share_no_lines">未选择歌词</string>
+    <string name="share_max_lines">已达到卡片可容纳的最多行数</string>
+    <string name="share_tap_lines">轻点歌词行以添加到卡片</string>
+    <string name="share_card">分享卡片</string>
+    <plurals name="lines_selected">
+        <item quantity="other">已选 %d 行</item>
+    </plurals>
+
+    <!-- Counts -->
+    <plurals name="songs">
+        <item quantity="other">%d 首歌曲</item>
+    </plurals>
+    <plurals name="albums">
+        <item quantity="other">%d 张专辑</item>
+    </plurals>
+    <plurals name="artists">
+        <item quantity="other">%d 位艺人</item>
+    </plurals>
+    <plurals name="genres">
+        <item quantity="other">%d 种流派</item>
+    </plurals>
+    <plurals name="playlists">
+        <item quantity="other">%d 个播放列表</item>
+    </plurals>
+    <plurals name="hours">
+        <item quantity="other">%d 小时</item>
+    </plurals>
+
+    <!-- Album / Artist / Playlist detail -->
+    <string name="detail_subtitle_album">专辑</string>
+    <string name="detail_subtitle_artist">艺人</string>
+    <string name="detail_your_playlist">你的播放列表</string>
+    <string name="detail_curated">精选</string>
+    <string name="detail_remove_album">从资料库中移除专辑</string>
+    <string name="detail_add_album">将专辑添加到资料库</string>
+    <string name="detail_no_tracks">此专辑暂无可用曲目</string>
+    <string name="cd_download_album">下载专辑</string>
+    <string name="detail_unpin_album">取消置顶专辑</string>
+    <string name="detail_pin_album">置顶专辑</string>
+    <string name="detail_other_versions">其他版本</string>
+    <string name="detail_you_might_like">你可能还喜欢</string>
+    <string name="detail_no_biography">暂无艺人简介。</string>
+    <string name="cd_follow">关注</string>
+    <string name="cd_following">已关注</string>
+    <string name="cd_play_station">播放 %1$s 电台</string>
+    <string name="cd_download_playlist">下载播放列表</string>
+    <string name="detail_unpin_playlist">取消置顶播放列表</string>
+    <string name="detail_pin_playlist">置顶播放列表</string>
+    <string name="cd_add_songs">添加歌曲</string>
+    <string name="cd_rename">重命名</string>
+    <string name="cd_delete_playlist">删除播放列表</string>
+    <string name="detail_add_some_songs">添加一些歌曲</string>
+    <string name="detail_remove_from_playlist">从播放列表中移除</string>
+    <string name="detail_rename_playlist">重命名播放列表</string>
+
+    <!-- Credits / more info -->
+    <string name="credits_title">制作人员</string>
+    <string name="credits_none">此歌曲暂无制作人员信息。</string>
+    <string name="moreinfo_audio_quality">音质</string>
+
+    <!-- Downloads window -->
+    <string name="downloads_empty_sub">可从任意专辑或歌曲开始下载</string>
+    <string name="downloads_none">暂无下载</string>
+    <string name="downloads_none_sub">曲目将逐首下载并显示在这里，供离线播放。</string>
+    <string name="downloads_decrypting">正在解密</string>
+    <string name="downloads_retry_pending">等待重试</string>
+
+    <!-- Radio -->
+    <string name="radio_card_title">Cadence 电台</string>
+    <string name="radio_subtitle">不间断音乐，为你精选</string>
+    <string name="radio_stations_by_genre">按流派浏览电台</string>
+    <string name="radio_station">电台</string>
+
+    <!-- Profile -->
+    <string name="profile_title">个人资料</string>
+    <string name="profile_history_empty">你播放过的歌曲会显示在这里。</string>
+    <string name="profile_clear_history">清除历史记录</string>
+    <string name="profile_subscription">订阅</string>
+    <string name="profile_notifications">通知</string>
+    <string name="profile_notifications_sub">新音乐、节目与动态</string>
+
+    <!-- More common actions + detail extras -->
+    <string name="action_less">收起</string>
+    <string name="action_more">更多</string>
+    <string name="action_save">保存</string>
+    <string name="action_delete">删除</string>
+    <string name="detail_single_ep">单曲 · EP</string>
+    <string name="detail_singles_eps">单曲与 EP</string>
+    <string name="detail_delete_hint">歌曲仍会保留在你的资料库中。</string>
+    <string name="detail_delete_confirm">删除“%1$s”？</string>
+
+    <!-- Detail, profile, credits, downloads, radio -->
+    <string name="detail_reorder_hint">长按歌曲可拖动排序</string>
+    <string name="detail_move_up">上移</string>
+    <string name="detail_move_down">下移</string>
+    <string name="detail_more_by">%1$s 的更多作品</string>
+    <string name="detail_latest_release">最新发布</string>
+    <string name="detail_top_songs">热门歌曲</string>
+    <string name="detail_albums">专辑</string>
+    <string name="detail_featured_playlists">精选播放列表</string>
+    <string name="detail_similar_artists">相似艺人</string>
+    <string name="detail_about">关于</string>
+    <string name="profile_you">你</string>
+    <string name="profile_stat_playlists">播放列表</string>
+    <string name="profile_stat_minutes">分钟</string>
+    <string name="profile_replay">你的年度回忆 · 热门艺人</string>
+    <string name="profile_history">收听历史</string>
+    <string name="ctx_history">历史记录</string>
+    <string name="profile_account">账号</string>
+    <string name="profile_subscription_plan">Apple Music · 个人版</string>
+    <string name="credits_performers">表演者</string>
+    <string name="credits_writing">词曲创作</string>
+    <string name="credits_production">制作与工程</string>
+    <string name="downloads_now_queue">正在下载 · 队列中还有 %1$d 首</string>
+    <string name="downloads_in_progress">正在下载 · 下载后自动解密</string>
+    <string name="downloads_queued_starting">队列中 %1$d 首 · 即将开始</string>
+    <string name="downloads_done_failed">%1$d 首完成 · %2$d 首失败</string>
+    <string name="downloads_queued">排队中</string>
+    <string name="cd_downloaded">已下载</string>
+    <string name="radio_yours">你的电台</string>
+    <string name="radio_discovery">探索电台</string>
+    <string name="radio_mine">我的电台</string>
+    <string name="radio_artist_stations">艺人电台</string>
+    <plurals name="downloads_ready_offline">
+        <item quantity="other">%d 首曲目已可离线播放</item>
+    </plurals>
+
+    <!-- Settings -->
+    <string name="set_sign_out">退出登录</string>
+    <string name="set_export_session">导出会话</string>
+    <string name="set_import_session">导入会话</string>
+    <string name="set_color_source">取色来源</string>
+    <string name="set_seed_color">主题色</string>
+    <string name="set_theme">主题</string>
+    <string name="set_contrast">对比度</string>
+    <string name="set_pure_black">纯黑模式</string>
+    <string name="set_grayscale_artwork">黑白封面</string>
+    <string name="set_motion_covers">动态封面</string>
+    <string name="set_show_quality">显示音质标签</string>
+    <string name="set_reduce_motion">减弱动态效果</string>
+    <string name="set_seek_bar">进度条样式</string>
+    <string name="set_autoplay">自动播放</string>
+    <string name="set_skip_silence">跳过静音</string>
+    <string name="set_resume">恢复上次播放进度</string>
+    <string name="set_haptics">触感反馈</string>
+    <string name="set_equalizer">均衡器</string>
+    <string name="set_tone_controls">音调控制</string>
+    <string name="set_auto_headroom">自动余量</string>
+    <string name="set_replay_gain">ReplayGain</string>
+    <string name="set_balance_width">声道平衡与声场宽度</string>
+    <string name="set_streaming_quality">流媒体音质</string>
+    <string name="set_hires_output">Hi-Res 输出</string>
+    <string name="set_bit_perfect">Bit-perfect USB（Android 14+）</string>
+    <string name="set_dolby_atmos">Dolby Atmos</string>
+    <string name="set_dither">抖动（Dither）</string>
+    <string name="set_preload_next">预加载下一首</string>
+    <string name="set_keep_previous">保留上一首缓存</string>
+    <string name="set_songs_ahead">提前缓冲曲目数</string>
+    <string name="set_songs_behind">向后保留曲目数</string>
+    <string name="set_fill_mobile">允许使用移动数据缓存</string>
+    <string name="set_streaming_cache">流媒体缓存</string>
+    <string name="set_clear_cache">清除流媒体缓存</string>
+    <string name="set_text_size">字体大小</string>
+    <string name="set_alignment">对齐方式</string>
+    <string name="set_active_line">当前行位置</string>
+    <string name="set_word_highlight">逐字高亮</string>
+    <string name="set_depth_blur">景深模糊</string>
+    <string name="set_files_folders">文件与文件夹</string>
+    <string name="set_naming_dates">命名与日期</string>
+    <string name="set_audio_quality">音频质量</string>
+    <string name="set_tags_artwork">标签与封面</string>
+    <string name="set_default_location">默认位置</string>
+    <string name="set_albums">专辑</string>
+    <string name="set_playlists">播放列表</string>
+    <string name="set_singles">单曲</string>
+    <string name="set_album_folder">专辑文件夹</string>
+    <string name="set_track_file">曲目文件名</string>
+    <string name="set_playlist_folder">播放列表文件夹</string>
+    <string name="set_playlist_track_file">播放列表曲目文件名</string>
+    <string name="set_album_date_tag">专辑日期标签</string>
+    <string name="set_reuse_cache">复用播放缓存</string>
+    <string name="set_download_as_you_go">边播边下</string>
+    <string name="set_write_tags">写入元数据标签</string>
+    <string name="set_embed_cover">嵌入封面</string>
+    <string name="set_cover_size">封面尺寸</string>
+    <string name="set_cover_format">封面格式</string>
+    <string name="set_embed_lyrics">嵌入歌词</string>
+    <string name="set_save_lyrics_file">单独保存歌词文件</string>
+    <string name="set_save_lyrics_file_sub">在歌曲旁保存同名的 .lrc、.ttml、.srt 或 .txt 文件</string>
+    <string name="set_lyrics_format">歌词格式</string>
+    <string name="set_add_favorites">将喜欢添加到资料库</string>
+    <string name="set_add_playlist_songs">将播放列表歌曲添加到资料库</string>
+    <string name="set_listening_history">使用收听历史</string>
+    <string name="set_edit_categories">编辑资料库分类</string>
+    <string name="set_about_cadence">关于 Cadence</string>
+    <string name="set_diagnostics">诊断</string>
+    <string name="set_export_logs">导出日志</string>
+    <string name="set_share_logs">分享日志</string>
+    <string name="set_licenses">开源许可</string>
+    <string name="set_session">会话</string>
+    <string name="set_page_root">设置</string>
+    <string name="set_page_appearance">外观</string>
+    <string name="set_page_playback">播放</string>
+    <string name="set_page_sound">音质</string>
+    <string name="set_page_streaming">流媒体与缓存</string>
+    <string name="set_page_lyrics">歌词</string>
+    <string name="set_page_downloads">下载</string>
+    <string name="set_page_download_files">下载 · 文件与文件夹</string>
+    <string name="set_page_download_naming">下载 · 命名与日期</string>
+    <string name="set_page_download_audio">下载 · 音频质量</string>
+    <string name="set_page_download_tags">下载 · 标签与封面</string>
+    <string name="set_page_library">资料库</string>
+    <string name="set_page_about">关于 Cadence</string>
+    <string name="set_no_match">没有与“%1$s”匹配的设置。</string>
+    <string name="set_preferences">偏好设置</string>
+    <string name="set_theme_system">跟随系统</string>
+    <string name="set_theme_light">浅色</string>
+    <string name="set_theme_dark">深色</string>
+    <string name="set_on">开</string>
+    <string name="set_off">关</string>
+    <string name="set_sum_playback">自动播放 %1$s · 均衡器 %2$s</string>
+    <string name="set_sum_sound">%1$s · Hi-Res %2$s · Bit-perfect %3$s</string>
+    <string name="set_sum_streaming">下一首 %1$s · 缓存 %2$s</string>
+    <string name="set_sum_lyrics">%1$s · %2$d%% · 逐字 %3$s</string>
+    <string name="set_align_centered">居中</string>
+    <string name="set_align_left">左对齐</string>
+    <string name="set_sum_about">版本 %1$s · 诊断 · 许可</string>
+    <string name="set_source_wallpaper">壁纸</string>
+    <string name="set_source_album">专辑</string>
+    <string name="set_source_custom">自定义</string>
+    <string name="set_source_mono">黑白</string>
+    <string name="set_custom_folder">自定义文件夹</string>
+    <string name="set_color_purple">紫色</string>
+    <string name="set_color_red">红色</string>
+    <string name="set_color_amber">琥珀色</string>
+    <string name="set_color_green">绿色</string>
+    <string name="set_color_teal">青色</string>
+    <string name="set_color_blue">蓝色</string>
+    <string name="set_color_magenta">洋红色</string>
+    <string name="set_color_gray">灰色</string>
+    <string name="set_session_desc">通过会话文件将当前账号迁移到其他安装版本。任何拥有该文件的人都可以使用此账号。</string>
+    <string name="set_export">导出</string>
+    <string name="set_import">导入</string>
+    <string name="set_export_title">导出会话？</string>
+    <string name="set_export_warning">该文件可在任何安装版本上登录你的 Apple Music 账号。请仅分享给你信任的人。</string>
+    <string name="set_session_saved">会话已保存（%1$d 个文件）。请妥善保管。</string>
+    <string name="set_export_failed">导出失败：%1$s</string>
+    <string name="set_import_failed">导入失败：%1$s</string>
+    <string name="set_sign_out_title">退出登录？</string>
+    <string name="set_sign_out_desc">你的资料库和设置仍会保留在此设备上。重新登录时需要新的验证码。</string>
+    <string name="set_source_hint_wallpaper">从壁纸提取 Material You 配色。</string>
+    <string name="set_source_hint_album">整个应用将随当前播放专辑的封面重新着色。</string>
+    <string name="set_source_hint_mono">纯黑白配色，封面也将转为灰度。</string>
+    <string name="set_contrast_standard">标准</string>
+    <string name="set_contrast_medium">中等</string>
+    <string name="set_contrast_high">高</string>
+    <string name="set_contrast_hint">对比度适用于自定义和专辑配色；壁纸配色已自带对比度。</string>
+    <string name="set_pure_black_sub">在深色主题下使用纯黑背景（适合 OLED 屏幕）。</string>
+    <string name="set_motion_covers_sub">让专辑封面动起来：有循环视频时播放视频，否则使用动态封面。</string>
+    <string name="set_show_quality_sub">在播放器和专辑页面显示 Lossless 与 Hi-Res 徽章。</string>
+    <string name="set_reduce_motion_sub">更平稳的过渡动画，关闭模糊与漂移背景。</string>
+    <string name="set_wave_material">Material</string>
+    <string name="set_wave_bars">柱状</string>
+    <string name="set_wave_mirror">镜像</string>
+    <string name="set_wave_line">线条</string>
+    <string name="set_wave_neon">霓虹</string>
+    <string name="set_wave_hint_material">Material 风格波浪进度条。</string>
+    <string name="set_wave_hint_bars">随播放实时绘制的真实音频波形。</string>
+    <string name="set_wave_hint_mirror">以中心线为轴上下镜像的波形。</string>
+    <string name="set_wave_hint_line">实心轮廓形式的波形。</string>
+    <string name="set_wave_hint_neon">随音量和低音律动的发光波形。</string>
+    <string name="set_autoplay_sub">播放队列结束后继续播放相似音乐。</string>
+    <string name="set_skip_silence_sub_hires">开启时会停用 Hi-Res 输出。</string>
+    <string name="set_state_on">开启</string>
+    <string name="set_state_off">关闭</string>
+    <string name="set_streaming_quality_hint">AAC 仅消耗约五分之一的流量且起播更快。从下一首歌曲开始生效。</string>
+    <string name="set_atmos_hint_atmos">包含 Dolby Atmos 混音的歌曲将播放该混音（E-AC-3，约 768 kbps），由设备自带的 Dolby 解码器解码。其他歌曲保持上方音质。从下一首开始生效。</string>
+    <string name="set_atmos_hint_spatial">包含 Dolby Atmos 混音的歌曲将播放其耳机双耳渲染版（AAC 256 kbps），任何耳机均可体验空间音频。其他歌曲保持上方音质。从下一首开始生效。</string>
+    <string name="set_atmos_hint_off">始终以上方选择的音质播放，即使歌曲包含 Dolby Atmos 混音。</string>
+    <string name="set_hires_sub_skip">开启“跳过静音”时停用：静音裁剪需要 16-bit 处理。</string>
+    <string name="set_info_about">关于 %1$s 的更多信息</string>
+    <string name="set_hires_sub">解码为 32-bit 浮点，避免 24-bit 音频被降采样至 16-bit。下次开始播放时生效。</string>
+    <string name="set_bit_perfect_sub">仅适用于 USB DAC：每首歌曲均按原始采样率和位深输出，不经过系统重采样。连接 USB DAC 时由 DAC 控制音量，均衡器及其他音效将关闭。仅限立体声：Dolby Atmos 仍按常规方式通过系统播放并保留音效。从下一首开始生效。</string>
+    <string name="set_dither_off_sub">关闭 · 用于 16-bit 输出</string>
+    <string name="set_preload_hint">提前下载并解密下一首歌曲的比例，使切歌无缝衔接。</string>
+    <string name="set_keep_previous_hint">让“上一首”立即开始播放，无需重新加载。</string>
+    <string name="set_window_hint">围绕当前播放歌曲提前下载并解密整首队列曲目，前后切歌均可秒开。</string>
+    <string name="set_fill_mobile_sub">关闭时仅在 Wi-Fi 下预缓存队列；上方的下一首预加载始终有效。</string>
+    <string name="set_cache_hint">此设备上保留的最大已解密音频缓存；前后预缓存的歌曲不会超过此上限。正在播放的歌曲始终完整下载。</string>
+    <string name="set_lossless">Lossless</string>
+    <string name="set_atmos_spatial">Spatial</string>
+    <string name="set_off_short">关闭</string>
+    <string name="set_whole">整首</string>
+    <string name="set_cache_in_use">已使用 %1$d MB</string>
+    <string name="set_measuring">正在计算…</string>
+    <string name="set_align_start">靠左</string>
+    <string name="set_align_center">居中</string>
+    <string name="set_from_top">距顶部 %1$d%%</string>
+    <string name="set_word_highlight_sub">当有时间轴数据时，随演唱逐字扫过高亮。</string>
+    <string name="set_depth_blur_sub">柔和虚化远离当前演唱行的歌词。</string>
+    <string name="set_listening_history_sub">记录你的播放内容，用于播放历史与最近播放。</string>
+    <string name="set_logs_failed">无法导出日志</string>
+    <string name="set_logs_saved">已保存至 %1$s</string>
+    <string name="set_about_desc">一款采用 Material 3 Expressive 设计、内置进程内 Lossless 下载器的播放器。</string>
+    <string name="set_about_version">版本 %1$s</string>
+    <string name="set_diag_sub">引擎日志：%1$s</string>
+    <string name="set_export_logs_sub">将引擎日志保存至 %1$s</string>
+    <string name="set_search_placeholder">搜索设置</string>
+    <plurals name="set_sum_library">
+        <item quantity="other">已开启 %d 项自动操作 · 分类</item>
+    </plurals>
+    <plurals name="set_custom_folders">
+        <item quantity="other">%d 个自定义文件夹</item>
+    </plurals>
+
+    <!-- Settings enums -->
+    <string name="set_date_full">完整日期</string>
+    <string name="set_date_year">仅年份</string>
+    <string name="set_none">无</string>
+    <string name="set_dither_rect">矩形（RPDF）</string>
+    <string name="set_dither_tri">三角（TPDF）</string>
+    <string name="set_dither_shaped">噪声整形</string>
+
+    <!-- Download settings -->
+    <string name="set_dl_as_you_go_sub">每个分片在到达时即时获取、解密并封装（与播放路径相同），无需先下载整首再解密。</string>
+    <string name="set_reuse_cache_sub">直接从播放已解密的缓存中保存，刚听过的歌曲几乎可瞬间完成下载。关闭则使用独立的下载缓存。</string>
+    <string name="set_dl_templates_hint">文件夹和文件名模板支持 {artist}、{album}、{year}、{track:02d} 和 {title} 等占位符。指定自定义文件夹时文件会保留在其中；否则将保存至 Music/Cadence。</string>
+    <string name="set_dl_default_hint">除非特定类型单独覆盖，否则专辑、播放列表和单曲均保存至此。</string>
+    <string name="set_same_as_default">与默认相同</string>
+    <string name="set_dl_folder_hint">通过系统选择器选择文件夹。所选文件夹名称固定；子文件夹仍由命名模板生成。</string>
+    <string name="set_choose">选择</string>
+    <string name="set_change">更改</string>
+    <string name="set_use_default">使用默认</string>
+    <string name="set_internal_storage">内部存储</string>
+    <string name="set_selected_folder">已选文件夹</string>
+    <string name="set_dl_preview_hint">预览使用示例：“Daft Punk — Random Access Memories”，第 7 曲“Touch”，2013-05-17。</string>
+    <string name="set_edit">编辑</string>
+    <string name="set_tokens_hint">占位符将在下载时替换。</string>
+    <string name="set_folder_template">文件夹模板</string>
+    <string name="set_file_template">文件名模板</string>
+    <string name="set_presets">预设</string>
+    <string name="set_tokens">占位符</string>
+    <string name="set_preview">预览</string>
+    <string name="set_reset_default">恢复默认</string>
+    <string name="set_dl_atmos_hint_atmos">包含 Dolby Atmos 混音的歌曲将保存为该混音（E-AC-3，约 768 kbps，封装于 .m4a）。需要支持 Dolby 解码的播放器；其他歌曲保持上方格式。</string>
+    <string name="set_dl_atmos_hint_spatial">包含 Dolby Atmos 混音的歌曲将保存为其耳机双耳渲染版（AAC 256 kbps），任何耳机与播放器均可体验空间音频。其他歌曲保持上方格式。</string>
+    <string name="set_dl_atmos_hint_off">始终以上方选择的格式保存，即使歌曲包含 Dolby Atmos 混音。</string>
+    <string name="set_write_tags_sub">将标题、艺人、专辑、音轨号、碟号、日期和流派写入文件。</string>
+    <string name="set_digest_tags">标签</string>
+    <string name="set_digest_cover">封面 %1$s</string>
+    <string name="set_digest_lyrics">歌词 %1$s</string>
+    <string name="set_digest_lyrics_file">歌词文件 %1$s</string>
+    <string name="set_digest_lyrics_both">歌词 %1$s + 文件</string>
+    <string name="set_digest_none">无元数据</string>
+    <string name="set_preset_playlist">播放列表</string>
+    <string name="set_preset_playlist_album">播放列表 / 专辑</string>
+    <string name="set_preset_artist_album">艺人 / 专辑</string>
+    <string name="set_preset_year">… (年份)</string>
+    <string name="set_preset_year_quality">… (年份) [音质]</string>
+    <string name="set_preset_codec">… [编码]</string>
+    <string name="set_preset_num_artist_title">## 艺人 - 标题</string>
+    <string name="set_preset_artist_title">艺人 - 标题</string>
+    <string name="set_preset_num_title">## 标题</string>
+    <string name="set_preset_num_title_quality">## 标题 [音质]</string>
+    <string name="set_preset_disc_track_title">碟号-音轨 标题</string>
+    <plurals name="set_digest_overrides">
+        <item quantity="other">%1$s · %2$d 项覆盖</item>
+    </plurals>
+
+    <!-- Audio settings and quality tiers -->
+    <string name="set_rg_sub">均衡不同歌曲间的响度差异，应用于所有输出。</string>
+    <string name="set_rg_reference">参考基准</string>
+    <string name="set_rg_per_track">按曲目</string>
+    <string name="set_rg_per_album">按专辑</string>
+    <string name="set_preamp">前级增益</string>
+    <string name="set_preamp_sub">应用于所有模式</string>
+    <string name="set_preamp_missing">缺少信息时的前级增益</string>
+    <string name="set_preamp_missing_sub">在歌曲完成响度测量前生效</string>
+    <string name="set_prevent_clipping">防止削波</string>
+    <string name="set_prevent_clipping_sub">限幅器可防止任何增益（ReplayGain、均衡器、音调）导致削波，同时避免硬削波失真。</string>
+    <string name="set_rg_note">Apple 的音频流不包含响度元数据，因此 Cadence 会在每首歌首次完整播放时按 EBU R128 测量响度，之后将其统一调整至 -18 LUFS。在测量完成前将应用“缺少信息”前级增益。专辑模式会使用该专辑已测量的歌曲。</string>
+    <string name="set_balance_sub">声道平衡与立体声宽度，应用于所有输出（包括 Hi-Res）。仅限立体声。</string>
+    <string name="set_stereo_field">立体声场</string>
+    <string name="set_reset">重置</string>
+    <string name="set_balance">声道平衡</string>
+    <string name="set_width">声场宽度</string>
+    <string name="set_balance_note">宽度采用 Mid/Side 处理：0 为单声道，1 为原始立体声，2 为加宽。平衡会保持偏向一侧的满电平并降低另一侧电平。</string>
+    <string name="set_centre">居中</string>
+    <string name="set_pct_left">偏左 %1$d%%</string>
+    <string name="set_pct_right">偏右 %1$d%%</string>
+    <string name="set_mono">单声道</string>
+    <string name="set_normal_stereo">标准立体声</string>
+    <string name="set_tone_sub">低音与高音搁架滤波器，应用于所有输出（包括 Hi-Res）。</string>
+    <string name="set_shelves">搁架</string>
+    <string name="set_bass">低音</string>
+    <string name="set_bass_sub">100 Hz 以下</string>
+    <string name="set_treble">高音</string>
+    <string name="set_treble_sub">10 kHz 以上</string>
+    <string name="set_tone_note">增益单位为 dB（±%1$s）。音调搁架在均衡器之前运行。</string>
+    <string name="set_eq_sub">10 段均衡器，应用于所有输出（包括 Hi-Res）。</string>
+    <string name="set_auto_headroom_sub">按曲线的最大提升量降低整体电平，避免增益引起削波。限幅器仍会兜底处理剩余峰值。</string>
+    <string name="set_autoeq">耳机校正</string>
+    <string name="set_autoeq_info">加载 AutoEQ 配置文件：从 autoeq.app 或 AutoEq 仓库获取对应耳机型号的 ParametricEQ.txt。它会在手动频段之前运行，使各频段仍可自由微调。开启自动余量时，电平会按配置文件的最大提升量降低；关闭时则应用文件中的前级增益。</string>
+    <string name="set_autoeq_none">无</string>
+    <string name="set_autoeq_load">加载文件</string>
+    <string name="set_autoeq_change">更改</string>
+    <string name="set_autoeq_remove">移除校正</string>
+    <plurals name="set_autoeq_summary">
+        <item quantity="other">%1$s · %2$d 个滤波器</item>
+    </plurals>
+    <string name="set_autoeq_err_nofilters">未找到滤波器。请加载来自 AutoEQ 的 ParametricEQ.txt 文件。</string>
+    <string name="set_autoeq_err_unsupported">不支持的滤波器：%1$s</string>
+    <string name="set_autoeq_err_range">有滤波器超出范围：%1$s</string>
+    <string name="set_autoeq_err_toomany">滤波器过多（%1$s；最多 32 个）。</string>
+    <string name="set_autoeq_err_read">无法读取该文件。</string>
+    <string name="set_bands">频段</string>
+    <string name="set_eq_note">增益单位为 dB（±%1$s）。如果提升后出现失真，请降低前级增益以留出余量。</string>
+    <string name="set_dither_sub">平滑的 16-bit 量化处理。仅在 16-bit 输出时生效。</string>
+    <string name="set_dither_note">三角分布（TPDF）是稳妥的默认选项：它将噪声的电平和响度与音乐信号去相关。噪声整形则将这部分噪声推向人耳最不敏感的高频段。</string>
+    <string name="set_dither_desc_rect">单步均匀噪声，用于误差去相关。</string>
+    <string name="set_dither_desc_tri">两步三角噪声，通用标准选择。</string>
+    <string name="set_dither_desc_shaped">三角噪声配合向高频段推移的噪声整形。</string>
+    <string name="quality_tier_hires">Hi-Res Lossless</string>
+    <string name="quality_tier_lossless">Lossless</string>
+    <string name="quality_tier_spatial">Dolby Atmos</string>
+    <string name="quality_tier_standard">标准</string>
+    <string name="quality_desc_hires">与母带逐比特一致，采样率高于 CD 与常规流媒体。</string>
+    <string name="quality_desc_lossless">与原始录音逐比特一致，无任何有损压缩。</string>
+    <string name="quality_desc_spatial">空间音频混音（Dolby Atmos / E-AC-3），经下混或双耳渲染以适配立体声耳机。</string>
+    <string name="quality_desc_lossy">经过压缩以节省空间，丢弃少量人耳通常难以察觉的细节。</string>
+
+    <!-- Remaining screens -->
+    <string name="cd_options_for">%1$s 的选项</string>
+    <string name="cd_play_named">播放 %1$s</string>
+    <string name="cd_downloading_named">正在下载 %1$s</string>
+    <string name="cd_remove">移除</string>
+    <string name="cd_reorder">调整顺序</string>
+    <string name="cd_reorder_named">调整 %1$s 的顺序</string>
+    <string name="cd_repeat">循环</string>
+    <string name="cd_favorite">喜欢</string>
+    <string name="cd_unfavorite">取消喜欢</string>
+    <string name="browse_new_releases">最新发行</string>
+    <string name="browse_artists_to_know">值得关注的艺人</string>
+    <string name="more_artists">艺人</string>
+    <string name="more_songs">歌曲</string>
+    <string name="detail_add">添加</string>
+    <string name="detail_add_n">添加 %1$d 首</string>
+    <string name="library_pinned">已置顶</string>
+    <string name="queue_shuffle">随机</string>
+    <string name="queue_repeat">循环</string>
+    <string name="queue_repeat_one">单曲循环</string>
+    <string name="queue_autoplay">自动播放</string>
+    <string name="track_suggest_less">减少此类推荐</string>
+    <string name="track_undo_suggest_less">撤销减少推荐</string>
+    <string name="ctx_browse">浏览</string>
+    <string name="ctx_pinned">已置顶</string>
+    <string name="ctx_search">搜索</string>
+    <string name="search_hit_artist">艺人</string>
+    <string name="search_hit_artist_genre">艺人 · %1$s</string>
+    <string name="search_hit_album">专辑 · %1$s</string>
+    <string name="search_hit_song">歌曲 · %1$s</string>
+    <string name="search_hit_playlist">播放列表 · %1$s</string>
+    <string name="search_hit_yours">你的</string>
+    <string name="search_hit_lyrics">歌词 · %1$s · %2$s</string>
+    <string name="kind_playlists">播放列表</string>
+    <string name="kind_artists">艺人</string>
+    <string name="kind_albums">专辑</string>
+    <string name="kind_songs">歌曲</string>
+    <string name="kind_favorites">喜欢</string>
+    <string name="kind_made_for_you">为你推荐</string>
+    <string name="kind_genres">流派</string>
+
+    <!-- Settings · account token -->
+    <string name="set_token_title">账号令牌</string>
+    <string name="set_token_active">已生效：主页和资料库已根据你的账号进行个性化。</string>
+    <string name="set_token_missing">暂不可用：主页当前显示通用推荐而非你的个人推荐。请重试或手动添加令牌。</string>
+    <string name="set_token_retry">重试</string>
+    <string name="set_token_trying">正在尝试…</string>
+    <string name="set_token_add">手动添加</string>
+    <string name="set_token_dialog_title">添加账号令牌</string>
+    <string name="set_token_dialog_desc">如果无法自动获取，请粘贴你 Apple Music 账号的 media-user-token。它会加密保存在此设备上。</string>
+    <string name="set_token_field">Media user token</string>
+    <string name="set_token_obtained">账号令牌已添加，正在加载你的个性化推荐。</string>
+    <string name="set_token_failed">未能获取账号令牌。请稍后重试或手动添加。</string>
+    <string name="set_token_rejected">该令牌未被接受，请检查是否已完整复制。</string>
+    <string name="set_token_network">无法连接到 Apple。请检查网络连接后重试。</string>
+
+    <!-- Updates -->
+    <string name="set_updates_section">更新</string>
+    <string name="set_update_channel">更新频道</string>
+    <string name="set_update_channel_release">Release</string>
+    <string name="set_update_channel_dev">Dev</string>
+    <string name="set_update_auto">自动检查更新</string>
+    <string name="set_update_auto_desc">启动时检查新版本</string>
+    <string name="set_update_check">检查更新</string>
+    <string name="set_update_checking">正在检查…</string>
+    <string name="set_update_up_to_date">当前已是最新版本（%1$s）</string>
+    <string name="set_update_error">无法检查更新</string>
+    <string name="set_update_current">当前版本：%1$s</string>
+    <string name="update_title">发现新版本</string>
+    <string name="update_switch_title">切换到 Release</string>
+    <string name="update_downloading">正在下载… %1$d%%（%2$s / %3$s）</string>
+    <string name="update_downloading_unknown">正在下载… %1$s</string>
+    <string name="update_ready">准备就绪，可以安装</string>
+    <string name="update_no_notes">未提供更新说明。</string>
+    <string name="update_downgrade_warn">如果 Android 阻止降级安装，切换到较旧的 Release 版本前需要先卸载 Dev 版本。</string>
+    <string name="update_permission_warn">请在系统设置中允许 Cadence 安装应用，然后点击安装。</string>
+    <string name="update_action_update">更新</string>
+    <string name="update_action_install">安装</string>
+    <string name="update_action_later">稍后</string>
+    <string name="update_action_cancel">取消</string>
+    <string name="update_action_skip">跳过此版本</string>
+    <string name="update_action_browser">打开发布页面</string>
+
+    <!-- Native engine errors -->
+    <string name="native_notice_key_rejected">无法解锁曲目：Apple 密钥服务拒绝了请求，已跳过。</string>
+    <string name="native_notice_lease_or_asset">某首曲目无法开始播放，已跳过。</string>
+    <string name="native_notice_decrypt">某首曲目无法解密，已跳过。</string>
+    <string name="native_notice_sign_in">登录时 Apple 库内部发生错误，请重试。</string>
+    <string name="native_notice_token_mint">无法刷新你的 Apple Music 会话，请尝试重新登录。</string>
+    <string name="native_notice_library_unavailable">播放引擎无法在此设备上运行，登录与播放不可用。日志中有详细原因。</string>
+    <string name="native_notice_engine_init">播放引擎启动时发生错误。若无法播放，请重启应用。</string>
+    <string name="native_notice_out_of_memory">播放引擎内存不足。如果播放卡顿，请关闭其他应用。</string>
+    <string name="native_notice_previous_crash">Cadence 上次意外退出，详情已保存到日志中。</string>
+    <string name="native_notice_unknown">播放引擎发生错误并已处理，详情见日志。</string>
+    <string name="set_dl_quality_mode">下载时</string>
+    <string name="set_dl_quality_mode_hint">每次询问使用哪种音质，或始终使用默认音质。</string>
+    <string name="set_dl_quality_ask">每次询问</string>
+    <string name="set_dl_quality_default">使用默认</string>
+    <string name="set_dl_default_quality">默认音质</string>
+    <string name="set_dl_default_quality_hint">如果歌曲不提供该音质，将自动选用次佳音质。</string>
+    <string name="quality_best">最高可用</string>
+    <string name="quality_best_hint">该歌曲可用的最高 Lossless 规格，最高支持 24-bit / 192 kHz。</string>
+    <string name="quality_hires_fmt">Hi-Res Lossless · %1$d-bit / %2$s</string>
+    <string name="quality_lossless_fmt">Lossless · %1$d-bit / %2$s</string>
+    <string name="quality_aac_fmt">AAC · %1$d kbps</string>
+    <string name="quality_he_fmt">省流量 · HE-AAC %1$d kbps</string>
+    <string name="dq_title">下载音质</string>
+    <plurals name="dq_songs"><item quantity="other">%d 首歌曲</item></plurals>
+    <string name="dq_checking">正在检查可用音质…</string>
+    <string name="dq_unchecked_all">无法检查可用音质，将使用你的默认音质。</string>
+    <plurals name="dq_unchecked_some"><item quantity="other">有 %d 首歌曲无法检查，将使用你的默认音质。</item></plurals>
+    <string name="dq_coverage">%1$d / %2$d 首歌曲支持此音质；其余歌曲将选用次佳音质。</string>
+    <string name="dq_size">≈ %s</string>
+    <string name="dq_atmos">Dolby Atmos · E-AC-3 %d kbps</string>
+    <string name="dq_atmos_hint">需要兼容的播放器。</string>
+    <string name="dq_spatial">Spatial audio · 双耳 AAC</string>
+    <string name="dq_spatial_hint">Dolby Atmos 混音的耳机版本。</string>
+    <string name="dq_make_default">设为我的默认音质</string>
+    <string name="dq_download">下载</string>
+    <string name="dq_download_again">重新下载</string>
+    <string name="dq_cancel">取消</string>
+    <string name="dq_already_one">已下载为 %1$s · %2$s。再次下载会保存第二份文件。</string>
+    <string name="dq_already_unknown">此前已下载（未记录音质）。再次下载会保存第二份文件。</string>
+    <plurals name="dq_already_many"><item quantity="other">%1$d / %2$d 首歌曲已下载。再次下载会为每首保存第二份文件。</item></plurals>
+    <string name="dq_change_in_settings">可在 设置 → 下载 → 音频质量 中更改。</string>
+    <string name="dq_quality_unknown">未知音质</string>
+    <string name="dq_field_label">音质</string>
+    <string name="dq_highest_top">%2$d / %3$d 首歌曲最高支持 %1$s</string>
+    <string name="quality_album_hires">%1$d / %2$d 首歌曲支持 Hi-Res Lossless · 最高 %3$s</string>
+    <plurals name="quality_album_unchecked"><item quantity="other">%d 首歌曲无法检查</item></plurals>
+    <string name="track_copy_link">复制链接</string>
+    <string name="link_copied">链接已复制</string>
+    <string name="cd_share_album">分享专辑</string>
+    <string name="link_not_found">在 Apple Music 上未找到该内容</string>
+    <string name="link_unsupported">Cadence 暂不支持打开此类链接</string>
+    <string name="radio_for_you">为你推荐的电台</string>
+</resources>

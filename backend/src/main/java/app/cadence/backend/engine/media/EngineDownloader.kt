@@ -158,6 +158,8 @@ object EngineDownloader {
         internal val m4pCtx: Long = 0L,
         /** The rendition this download is (`alac:24:96000`, `aac:128`, `atmos:768`, `spatial`), "" when unknown. */
         internal val quality: String = "",
+        /** Formatted lyrics for sidecar file export when `settings.lyricsSaveFile` is enabled. */
+        internal val sidecarLyrics: String? = null,
     ) {
         /** Removes the staged package; for a staged track that will not be finished. */
         fun discard() {
@@ -254,6 +256,7 @@ object EngineDownloader {
             saveTreeUri = prefs.treeFor(item.kind),
             namingTemplate = namingTemplate,
             lyricsEmbed = prefs.writeMetadata && prefs.embedLyrics,
+            lyricsSaveFile = prefs.saveLyricsFile,
             lyricsFormat = prefs.lyricsFormat,
             artworkEmbed = prefs.writeMetadata && prefs.embedCover,
             artworkSize = prefs.coverSize,
@@ -351,7 +354,8 @@ object EngineDownloader {
                 runCatching { android.net.Uri.parse(saved).path?.let { java.io.File(it).delete() } }
                 throw t
             }
-            Staged(item, track, album, settings, prefs.albumDate, saved, metadata, kds, relativeDir, folder, fileName, quality = plan.spec)
+            val sidecar = resolveSidecarLyrics(context, settings, track, metadata.first)
+            Staged(item, track, album, settings, prefs.albumDate, saved, metadata, kds, relativeDir, folder, fileName, quality = plan.spec, sidecarLyrics = sidecar)
         }
     }
 
@@ -434,13 +438,32 @@ object EngineDownloader {
                 clearPackage.delete()
                 throw t
             }
+            val metadata = tags.await()
+            val sidecar = resolveSidecarLyrics(context, setup.settings, setup.track, metadata.first)
             Staged(
                 item, setup.track, setup.album, setup.settings, prefs.albumDate,
-                saved = "", tags = tags.await(), kds = LongArray(0),
+                saved = "", tags = metadata, kds = LongArray(0),
                 setup.relativeDir, setup.folder, setup.fileName, clearPackage = clearPackage,
-                quality = resolved.plan?.spec.orEmpty(),
+                quality = resolved.plan?.spec.orEmpty(), sidecarLyrics = sidecar,
             )
         }
+    }
+
+    private fun resolveSidecarLyrics(
+        context: Context,
+        settings: AppSettings,
+        track: Track,
+        metaJson: String,
+    ): String? {
+        if (!settings.lyricsSaveFile) return null
+        val embedded = runCatching { org.json.JSONObject(metaJson).optString("lyrics") }.getOrNull()
+        if (!embedded.isNullOrBlank()) return embedded
+        val sess = session(context) ?: return null
+        return runCatching {
+            Lyrics.fetch(sess, track.id, track.hasLyrics)?.let { ttml ->
+                Lyrics.format(ttml, settings.lyricsFormat).takeIf { it.isNotBlank() }
+            }
+        }.getOrNull()
     }
 
     /** The local half: fetches the keys, decrypts, tags and publishes the staged track. */
@@ -453,6 +476,17 @@ object EngineDownloader {
             staged.clearPackage != null -> finishStreaming(context, staged, staged.clearPackage, onState)
             staged.m4pFile != null -> finishM4p(context, staged, staged.m4pFile, onState)
             else -> finishTwoPhase(context, staged, onState)
+        }
+        if (staged.settings.lyricsSaveFile && !staged.sidecarLyrics.isNullOrBlank()) {
+            TrackPublisher.publishSidecar(
+                context = context,
+                content = staged.sidecarLyrics,
+                baseName = staged.fileName,
+                ext = staged.settings.lyricsFormat,
+                relativeDir = staged.relativeDir,
+                folder = staged.folder,
+                treeUri = staged.settings.saveTreeUri,
+            )
         }
         // Remember what quality this file is, so the next download of the song can say "already downloaded as ...".
         runCatching {

@@ -187,7 +187,39 @@ object Lyrics {
         append("\n</div></body></tt>")
     }
 
-    private fun fmt(sec: Double) = "%.3f".format(sec)
+    /** SubRip (.srt) timed lyrics with `HH:MM:SS,mmm --> HH:MM:SS,mmm` cues. */
+    fun toSrt(lines: List<LyricLine>): String = buildString {
+        lines.forEachIndexed { index, line ->
+            val end = lines.getOrNull(index + 1)?.beginSec ?: (line.beginSec + 4.0)
+            if (index > 0) append("\n\n")
+            append(index + 1).append('\n')
+            append(srtTime(line.beginSec)).append(" --> ").append(srtTime(end)).append('\n')
+            append(line.text)
+        }
+    }
+
+    /** Unsynced plain text lyrics (one line per cue, timestamps stripped). */
+    fun toPlainText(lines: List<LyricLine>): String = lines.joinToString("\n") { it.text }
+
+    /** Formats raw Apple [ttml] into the requested [format] (`"lrc"`, `"ttml"`, `"srt"`, or `"txt"`). */
+    fun format(ttml: String, format: String): String = when (format.lowercase()) {
+        "ttml" -> ttml
+        "srt" -> toSrt(parseLines(ttml))
+        "txt" -> toPlainText(parseLines(ttml))
+        else -> toLrc(parseLines(ttml))
+    }
+
+    private fun srtTime(sec: Double): String {
+        val totalMs = (sec.coerceAtLeast(0.0) * 1000.0).toLong()
+        val ms = totalMs % 1000
+        val totalSec = totalMs / 1000
+        val s = totalSec % 60
+        val m = (totalSec / 60) % 60
+        val h = totalSec / 3600
+        return "%02d:%02d:%02d,%03d".format(java.util.Locale.US, h, m, s, ms)
+    }
+
+    private fun fmt(sec: Double) = "%.3f".format(java.util.Locale.US, sec)
 
     private fun collect(node: Node, out: StringBuilder) {
         var child = node.firstChild

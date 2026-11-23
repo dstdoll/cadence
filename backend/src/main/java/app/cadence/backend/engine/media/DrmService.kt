@@ -79,7 +79,7 @@ object DrmService {
         val lyrics = if (settings.lyricsEmbed && session != null && track != null) {
             runCatching {
                 Lyrics.fetch(session, track.id, track.hasLyrics)?.let { ttml ->
-                    if (settings.lyricsFormat == "ttml") ttml else Lyrics.toLrc(Lyrics.parseLines(ttml))
+                    Lyrics.format(ttml, settings.lyricsFormat).takeIf { it.isNotBlank() }
                 }
             }.getOrNull()
         } else {

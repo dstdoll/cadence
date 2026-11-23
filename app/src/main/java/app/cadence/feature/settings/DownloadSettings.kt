@@ -134,7 +134,13 @@ private fun tagsDigest(s: UserSettings): String {
     val parts = ArrayList<String>()
     if (s.writeMetadata) parts += stringResource(R.string.set_digest_tags)
     if (s.embedCover) parts += stringResource(R.string.set_digest_cover, s.coverSize.take(4))
-    if (s.embedLyrics) parts += stringResource(R.string.set_digest_lyrics, s.lyricsFormat.uppercase())
+    if (s.embedLyrics && s.saveLyricsFile) {
+        parts += stringResource(R.string.set_digest_lyrics_both, s.lyricsFormat.uppercase())
+    } else if (s.embedLyrics) {
+        parts += stringResource(R.string.set_digest_lyrics, s.lyricsFormat.uppercase())
+    } else if (s.saveLyricsFile) {
+        parts += stringResource(R.string.set_digest_lyrics_file, s.lyricsFormat.uppercase())
+    }
     return if (parts.isEmpty()) stringResource(R.string.set_digest_none) else parts.joinToString(" · ")
 }
 
@@ -510,10 +516,13 @@ internal fun DownloadTagsPanel(onBack: () -> Unit) {
                 SwitchRow(stringResource(R.string.set_embed_lyrics), null, s.embedLyrics) { v ->
                     store.update { it.copy(embedLyrics = v) }
                 }
-                if (s.embedLyrics) {
+                SwitchRow(stringResource(R.string.set_save_lyrics_file), stringResource(R.string.set_save_lyrics_file_sub), s.saveLyricsFile) { v ->
+                    store.update { it.copy(saveLyricsFile = v) }
+                }
+                if (s.embedLyrics || s.saveLyricsFile) {
                     Spacer(Modifier.height(8.dp))
                     Label(stringResource(R.string.set_lyrics_format))
-                    Connected(listOf("lrc", "ttml"), s.lyricsFormat, { it.uppercase() }) { v ->
+                    Connected(listOf("lrc", "ttml", "srt", "txt"), s.lyricsFormat, { it.uppercase() }) { v ->
                         store.update { it.copy(lyricsFormat = v) }
                     }
                 }

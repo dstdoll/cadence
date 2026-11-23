@@ -48,6 +48,103 @@ internal object TrackPublisher {
     }
 
     /**
+     * Writes a text sidecar file (e.g. `.lrc`, `.ttml`, `.srt`, `.txt`) beside the published track
+     * using the same destination order as [publish]: SAF tree, public `MediaStore.Files`, then
+     * app-private fallback. Returns the written URI/path, or null on failure (non-fatal).
+     */
+    fun publishSidecar(
+        context: Context,
+        content: String,
+        baseName: String,
+        ext: String,
+        relativeDir: String,
+        folder: String,
+        treeUri: String?,
+    ): String? {
+        if (content.isBlank()) return null
+        val fileName = "${baseName.removeSuffix(".m4a")}.${ext.lowercase()}"
+        val mime = when (ext.lowercase()) {
+            "ttml" -> "application/ttml+xml"
+            else -> "text/plain"
+        }
+        val bytes = content.toByteArray(Charsets.UTF_8)
+        if (treeUri != null) {
+            publishSidecarToTree(context, treeUri, folder, fileName, mime, bytes)?.let {
+                AppLog.log("DRM", "sidecar tree uri=$it")
+                return it
+            }
+        }
+        publishSidecarToMediaStore(context, fileName, mime, relativeDir, bytes)?.let {
+            AppLog.log("DRM", "sidecar public uri=$it")
+            return it
+        }
+        return runCatching {
+            val dir = File(
+                context.getExternalFilesDir(android.os.Environment.DIRECTORY_MUSIC) ?: context.filesDir,
+                "Cadence",
+            ).apply { mkdirs() }
+            val target = File(dir, fileName)
+            target.writeBytes(bytes)
+            AppLog.log("DRM", "sidecar app-private out=${target.absolutePath}")
+            Uri.fromFile(target).toString()
+        }.getOrNull()
+    }
+
+    private fun publishSidecarToTree(
+        context: Context,
+        treeUri: String,
+        folder: String,
+        name: String,
+        mime: String,
+        bytes: ByteArray,
+    ): String? = runCatching {
+        var dir = DocumentFile.fromTreeUri(context, Uri.parse(treeUri)) ?: return null
+        for (part in folder.split('/').filter { it.isNotBlank() }) {
+            dir = dir.findFile(part) ?: dir.createDirectory(part) ?: return null
+        }
+        dir.findFile(name)?.delete()
+        val doc = dir.createFile(mime, name) ?: return null
+        context.contentResolver.openOutputStream(doc.uri, "wt")?.use { it.write(bytes) } ?: return null
+        doc.uri.toString()
+    }.getOrElse {
+        AppLog.error("DRM", "sidecar tree failed", it)
+        null
+    }
+
+    private fun publishSidecarToMediaStore(
+        context: Context,
+        name: String,
+        mime: String,
+        relativeDir: String,
+        bytes: ByteArray,
+    ): String? {
+        if (Build.VERSION.SDK_INT < 29) return null
+        val resolver = context.contentResolver
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+            put(MediaStore.MediaColumns.MIME_TYPE, mime)
+            put(MediaStore.MediaColumns.RELATIVE_PATH, relativeDir)
+            put(MediaStore.MediaColumns.IS_PENDING, 1)
+        }
+        val collection = MediaStore.Files.getContentUri("external")
+        val uri = runCatching { resolver.insert(collection, values) }.getOrNull() ?: return null
+        return try {
+            resolver.openOutputStream(uri, "wt")?.use { it.write(bytes) }
+                ?: throw java.io.IOException("MediaStore gave no sidecar stream")
+            resolver.update(
+                uri,
+                ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) },
+                null, null,
+            )
+            uri.toString()
+        } catch (t: Throwable) {
+            AppLog.error("DRM", "sidecar publish threw", t)
+            runCatching { resolver.delete(uri, null, null) }
+            null
+        }
+    }
+
+    /**
      * Publishes into the public Music collection. Insert, stream, finalise, then
      * verify the row and its size: a pending row that is never finalised is
      * reclaimed by MediaProvider, which previously left an empty

@@ -364,6 +364,8 @@
     <string name="set_cover_size">Tamaño de la carátula</string>
     <string name="set_cover_format">Formato de la carátula</string>
     <string name="set_embed_lyrics">Incrustar letras</string>
+    <string name="set_save_lyrics_file">Guardar archivo de letras separado</string>
+    <string name="set_save_lyrics_file_sub">Guarda un archivo .lrc, .ttml, .srt o .txt junto a la canción</string>
     <string name="set_lyrics_format">Formato de las letras</string>
     <string name="set_add_favorites">Añadir favoritos a la biblioteca</string>
     <string name="set_add_playlist_songs">Añadir canciones de listas a la biblioteca</string>
@@ -528,6 +530,8 @@
     <string name="set_digest_tags">Etiquetas</string>
     <string name="set_digest_cover">Carátula %1$s</string>
     <string name="set_digest_lyrics">Letras %1$s</string>
+    <string name="set_digest_lyrics_file">Archivo de letras %1$s</string>
+    <string name="set_digest_lyrics_both">Letras %1$s + archivo</string>
     <string name="set_digest_none">Sin metadatos</string>
     <string name="set_preset_playlist">Lista</string>
     <string name="set_preset_playlist_album">Lista / Álbum</string>

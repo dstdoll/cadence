@@ -69,8 +69,8 @@ android {
         jniLibs { useLegacyPackaging = compressLibs }
     }
     androidResources {
-        // The UI ships English + Spanish; keep only those locales from androidx too.
-        localeFilters += setOf("en", "es")
+        // The UI ships English, Spanish, and Simplified Chinese; keep only those locales from androidx too.
+        localeFilters += setOf("en", "es", "zh-rCN")
         noCompress += listOf("m4a", "mp3", "flac", "wav", "mp4")
     }
 }

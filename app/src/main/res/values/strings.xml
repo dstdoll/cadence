@@ -366,6 +366,8 @@
     <string name="set_cover_size">Cover size</string>
     <string name="set_cover_format">Cover format</string>
     <string name="set_embed_lyrics">Embed lyrics</string>
+    <string name="set_save_lyrics_file">Save separate lyrics file</string>
+    <string name="set_save_lyrics_file_sub">Write a matching .lrc, .ttml, .srt, or .txt file next to the song</string>
     <string name="set_lyrics_format">Lyrics format</string>
     <string name="set_add_favorites">Add favorites to library</string>
     <string name="set_add_playlist_songs">Add playlist songs to library</string>
@@ -530,6 +532,8 @@
     <string name="set_digest_tags">Tags</string>
     <string name="set_digest_cover">Cover %1$s</string>
     <string name="set_digest_lyrics">Lyrics %1$s</string>
+    <string name="set_digest_lyrics_file">Lyrics file %1$s</string>
+    <string name="set_digest_lyrics_both">Lyrics %1$s + file</string>
     <string name="set_digest_none">No metadata</string>
     <string name="set_preset_playlist">Playlist</string>
     <string name="set_preset_playlist_album">Playlist / Album</string>

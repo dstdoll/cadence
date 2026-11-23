@@ -12,6 +12,7 @@ enum class LanguageOption(val tag: String) {
     System(""),
     English("en"),
     Spanish("es"),
+    Chinese("zh-CN"),
 }
 
 /** The language currently applied to the app (reads AppCompat's stored locale list). */
@@ -21,6 +22,7 @@ fun currentLanguageOption(): LanguageOption {
     return when (lang) {
         "es" -> LanguageOption.Spanish
         "en" -> LanguageOption.English
+        "zh" -> LanguageOption.Chinese
         else -> LanguageOption.System
     }
 }

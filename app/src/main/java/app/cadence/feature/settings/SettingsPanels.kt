@@ -106,6 +106,7 @@ internal fun AppearancePanel(onBack: () -> Unit) {
                     LanguageOption.System to stringResource(R.string.language_system),
                     LanguageOption.English to "English",
                     LanguageOption.Spanish to "Español",
+                    LanguageOption.Chinese to "简体中文",
                 )
                 Connected(LanguageOption.entries, currentLanguageOption(), { labels.getValue(it) }) { applyLanguage(it) }
             }

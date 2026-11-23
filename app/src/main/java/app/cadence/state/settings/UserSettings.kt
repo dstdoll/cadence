@@ -59,6 +59,7 @@ data class UserSettings(
     val coverSize: String = "1400x1400",
     val coverFormat: String = "jpg",
     val embedLyrics: Boolean = true,
+    val saveLyricsFile: Boolean = false,
     val lyricsFormat: String = "lrc",
 
     // Lyrics

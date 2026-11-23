@@ -113,8 +113,9 @@ internal val SETTINGS_INDEX: List<SettingEntry> = listOf(
     SettingEntry(R.string.set_embed_cover, SettingsPage.DownloadTags, "artwork image"),
     SettingEntry(R.string.set_cover_size, SettingsPage.DownloadTags, "artwork resolution"),
     SettingEntry(R.string.set_cover_format, SettingsPage.DownloadTags, "artwork jpeg png"),
-    SettingEntry(R.string.set_embed_lyrics, SettingsPage.DownloadTags, "lyrics file"),
-    SettingEntry(R.string.set_lyrics_format, SettingsPage.DownloadTags, "lrc synced"),
+    SettingEntry(R.string.set_embed_lyrics, SettingsPage.DownloadTags, "lyrics embedded m4a"),
+    SettingEntry(R.string.set_save_lyrics_file, SettingsPage.DownloadTags, "lyrics sidecar separate file lrc srt txt ttml"),
+    SettingEntry(R.string.set_lyrics_format, SettingsPage.DownloadTags, "lrc ttml srt txt synced"),
 
     SettingEntry(R.string.set_add_favorites, SettingsPage.Library, "favourites hearts"),
     SettingEntry(R.string.set_add_playlist_songs, SettingsPage.Library, "playlists"),
