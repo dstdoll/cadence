@@ -47,10 +47,18 @@ class MainActivity : ComponentActivity() {
         val container = container
         setContent {
             val settings by container.settings.state.collectAsStateWithLifecycle()
-            // Only the album id matters at the root; a full PlayerState here would recompose the whole tree on every player event.
-            val seedFlow = remember { container.player.state.map { it.current?.album?.colors }.distinctUntilChanged() }
-            val colors by seedFlow.collectAsStateWithLifecycle(null)
-            val seed = remember(colors) { colors?.let(ArtworkRenderer::seed) }
+            val albumArtFlow = remember {
+                container.player.state.map { it.current?.album?.let { a -> a.cover to a.colors } }.distinctUntilChanged()
+            }
+            val albumArt by albumArtFlow.collectAsStateWithLifecycle(null)
+            val coverPalette = app.cadence.core.design.rememberCoverPalette(albumArt?.first)
+            val seed = remember(albumArt, coverPalette) {
+                if (coverPalette != null && coverPalette != app.cadence.core.design.CoverPalette.NEUTRAL) {
+                    androidx.compose.ui.graphics.Color(0xFF000000.toInt() or coverPalette.accent)
+                } else {
+                    albumArt?.second?.let(ArtworkRenderer::seed)
+                }
+            }
             CompositionLocalProvider(LocalContainer provides container) {
                 CadenceTheme(settings, seed) {
                     // Signed out (first launch or after Sign Out) -> sign-in flow; signed in -> the app.

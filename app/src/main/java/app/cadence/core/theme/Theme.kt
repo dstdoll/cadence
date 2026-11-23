@@ -108,10 +108,10 @@ fun CadenceTheme(settings: UserSettings, artworkSeed: Color?, content: @Composab
         when (ApiCompat.effectiveColorSource(settings.colorSource)) {
             ColorSource.Wallpaper ->
                 // effectiveColorSource already maps this to Artwork before Android 12; the explicit check keeps the API call guarded.
-                (if (!ApiCompat.supportsWallpaperColors()) seeded(artworkSeed ?: Color(settings.customSeed), PaletteStyle.Vibrant)
+                (if (!ApiCompat.supportsWallpaperColors()) seeded(artworkSeed ?: Color(settings.customSeed), PaletteStyle.Content)
                 else if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context))
                     .let { if (dark && settings.pureBlack) it.pureBlack() else it }
-            ColorSource.Artwork -> seeded(artworkSeed ?: Color(settings.customSeed), PaletteStyle.Vibrant)
+            ColorSource.Artwork -> seeded(artworkSeed ?: Color(settings.customSeed), PaletteStyle.Content)
             ColorSource.Custom -> seeded(Color(settings.customSeed), PaletteStyle.TonalSpot)
             ColorSource.Monochrome -> seeded(Color.Gray, PaletteStyle.Monochrome).grayscaleErrors()
                 .let { if (dark && settings.pureBlack) it.pureBlack() else it }
