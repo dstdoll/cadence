@@ -16,6 +16,13 @@ enum class LibrarySection(val title: String, @StringRes val labelRes: Int) {
 @Serializable
 data class SectionPref(val section: LibrarySection, val visible: Boolean)
 
+@Serializable
+data class PlaylistFolder(
+    val id: String,
+    val name: String,
+    val parentId: String? = null,
+)
+
 /**
  * Everything the user owns locally. "Library" is what they've chosen to keep (a subset of the
  * catalog), which is what makes the All music / Your library search scopes meaningful.
@@ -32,6 +39,8 @@ data class UserLibrary(
     /** Artist ids the user follows (from the artist page Follow button). Local-only for now. */
     val followedArtists: Set<String> = emptySet(),
     val playlists: List<Playlist> = emptyList(),
+    val folders: List<PlaylistFolder> = emptyList(),
+    val playlistFolders: Map<String, String> = emptyMap(),
     val recentTracks: List<String> = emptyList(),
     val recentSearches: List<String> = emptyList(),
     val sections: List<SectionPref> = DEFAULT_SECTIONS,
@@ -120,7 +129,34 @@ data class UserLibrary(
                 lib.editPlaylist(created.id) { it.copy(description = source.description) } to created.copy(description = source.description)
             }
 
-    fun deletePlaylist(id: String) = copy(playlists = playlists.filterNot { it.id == id }, pinned = pinned - "p:$id")
+    fun deletePlaylist(id: String) = copy(
+        playlists = playlists.filterNot { it.id == id },
+        pinned = pinned - "p:$id",
+        playlistFolders = playlistFolders - id,
+    )
+
+    fun createFolder(name: String, parentId: String? = null): Pair<UserLibrary, PlaylistFolder> {
+        val validParent = parentId?.takeIf { p -> folders.any { it.id == p } }
+        val f = PlaylistFolder(id = "f" + System.currentTimeMillis(), name = name.trim().ifBlank { "Folder" }, parentId = validParent)
+        return copy(folders = folders + f) to f
+    }
+
+    fun movePlaylistToFolder(playlistId: String, folderId: String?): UserLibrary {
+        val next = if (folderId != null && folders.any { it.id == folderId }) {
+            playlistFolders + (playlistId to folderId)
+        } else {
+            playlistFolders - playlistId
+        }
+        return copy(playlistFolders = next)
+    }
+
+    fun deleteFolder(folderId: String): UserLibrary {
+        val remaining = folders.filterNot { it.id == folderId }.map {
+            if (it.parentId == folderId) it.copy(parentId = null) else it
+        }
+        val cleanedMap = playlistFolders.filterValues { it != folderId }
+        return copy(folders = remaining, playlistFolders = cleanedMap)
+    }
 
     /** Older saves may lack newer sections; append any missing ones (hidden) so Edit can show them. */
     fun normalizedSections(): List<SectionPref> {

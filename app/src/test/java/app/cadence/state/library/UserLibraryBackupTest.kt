@@ -45,4 +45,19 @@ class UserLibraryBackupTest {
         assertTrue(dup.userCreated)
         assertEquals(1, updated.playlists.size)
     }
+
+    @Test
+    fun playlistFolders_createMoveDeleteAndBackupRoundTrip() {
+        val (withFolder, folder) = UserLibrary().createFolder("Ambient")
+        val moved = withFolder.movePlaylistToFolder("p1", folder.id)
+        assertEquals(folder.id, moved.playlistFolders["p1"])
+
+        val restored = UserLibrary().restoreFromBackupJson(moved.toBackupJson(), merge = false).getOrThrow()
+        assertEquals(1, restored.folders.size)
+        assertEquals(folder.id, restored.playlistFolders["p1"])
+
+        val deleted = restored.deleteFolder(folder.id)
+        assertTrue(deleted.folders.isEmpty())
+        assertTrue(deleted.playlistFolders.isEmpty())
+    }
 }

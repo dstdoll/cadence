@@ -14,6 +14,8 @@ data class LibraryBackupDoc(
     val pinned: List<String> = emptyList(),
     val followedArtists: Set<String> = emptySet(),
     val playlists: List<Playlist> = emptyList(),
+    val folders: List<PlaylistFolder> = emptyList(),
+    val playlistFolders: Map<String, String> = emptyMap(),
     val unfavorited: Set<String> = emptySet(),
     val hiddenFromLibrary: Set<String> = emptySet(),
 )
@@ -37,6 +39,8 @@ fun UserLibrary.toBackupJson(): String = backupJson.encodeToString(
         pinned = pinned,
         followedArtists = followedArtists,
         playlists = playlists,
+        folders = folders,
+        playlistFolders = playlistFolders,
         unfavorited = unfavorited,
         hiddenFromLibrary = hiddenFromLibrary,
     ),
@@ -64,10 +68,20 @@ fun UserLibrary.restoreFromBackupJson(raw: String, merge: Boolean): Result<UserL
         )
     }
 
+    val cleanFolders = doc.folders.mapNotNull { f ->
+        if (!f.id.isSafeId() || f.name.isBlank()) null
+        else f.copy(name = f.name.trim().take(80), parentId = f.parentId?.takeIf { it != f.id && it.isSafeId() })
+    }
+    val folderIdSet = cleanFolders.mapTo(HashSet()) { it.id }
+    val cleanPlaylistFolders = doc.playlistFolders.filter { (k, v) -> k.isSafeId() && v in folderIdSet }
+
     if (merge) {
         val mergedById = LinkedHashMap<String, Playlist>()
         playlists.forEach { mergedById[it.id] = it }
         cleanPlaylists.forEach { mergedById[it.id] = it }
+        val mergedFolders = LinkedHashMap<String, PlaylistFolder>()
+        folders.forEach { mergedFolders[it.id] = it }
+        cleanFolders.forEach { mergedFolders[it.id] = it }
         copy(
             savedTracks = savedTracks + cleanTracks,
             savedAlbums = savedAlbums + cleanAlbums,
@@ -75,6 +89,8 @@ fun UserLibrary.restoreFromBackupJson(raw: String, merge: Boolean): Result<UserL
             pinned = (pinned + cleanPinned).distinct(),
             followedArtists = followedArtists + cleanArtists,
             playlists = mergedById.values.toList(),
+            folders = mergedFolders.values.toList(),
+            playlistFolders = playlistFolders + cleanPlaylistFolders,
             unfavorited = unfavorited + cleanUnfav,
             hiddenFromLibrary = hiddenFromLibrary + cleanHidden,
         )
@@ -86,6 +102,8 @@ fun UserLibrary.restoreFromBackupJson(raw: String, merge: Boolean): Result<UserL
             pinned = cleanPinned,
             followedArtists = cleanArtists,
             playlists = cleanPlaylists,
+            folders = cleanFolders,
+            playlistFolders = cleanPlaylistFolders,
             unfavorited = cleanUnfav,
             hiddenFromLibrary = cleanHidden,
         )

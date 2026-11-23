@@ -58,6 +58,8 @@ data class PlayerState(
     val autoplayFrom: Int = -1,
     /** Encoding of the stream actually selected by the player, merged over library info. */
     val format: AudioFormatInfo? = null,
+    /** Live radio track/show title parsed from in-stream ID3/`emsg` metadata, or null. */
+    val liveNowPlaying: String? = null,
 ) {
     val current: TrackInfo? get() = queue.getOrNull(index)
 }
@@ -85,9 +87,20 @@ class PlayerController(
             c.addListener(object : Player.Listener {
                 override fun onEvents(player: Player, events: Player.Events) = sync()
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                    _state.value = _state.value.copy(liveNowPlaying = null)
                     if (settings.state.value.listeningHistory) mediaItem?.mediaId?.let { id -> library.update { it.played(id) } }
                     topUpAutoplay()
                     persist()
+                }
+                override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
+                    val liveTitle = mediaMetadata.title?.toString()?.trim()?.replace("\u0000", "")?.takeIf { it.isNotBlank() }
+                    val current = _state.value.current
+                    if (liveTitle != null && current != null && liveTitle != current.track.title) {
+                        val artist = mediaMetadata.artist?.toString()?.trim()?.replace("\u0000", "").orEmpty()
+                        val display = if (artist.isNotBlank()) "$liveTitle — $artist" else liveTitle
+                        app.cadence.backend.engine.CadenceLog.i("RadioMeta", "title=$liveTitle artist=$artist")
+                        _state.value = _state.value.copy(liveNowPlaying = display)
+                    }
                 }
                 override fun onIsPlayingChanged(isPlaying: Boolean) { if (!isPlaying) persist() }
             })

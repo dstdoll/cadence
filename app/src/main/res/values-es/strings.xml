@@ -216,6 +216,10 @@
     <string name="set_lyrics_pulse_sub">Pulsa suavemente las letras con los graves de la música.</string>
     <string name="lyrics_export_ttml">Exportar TTML</string>
     <string name="lyrics_exported_ttml">TTML exportado</string>
+    <string name="playlist_new_folder">Nueva carpeta</string>
+    <string name="playlist_move_to_folder">Mover a carpeta</string>
+    <string name="playlist_folder_root">Ninguna (nivel superior)</string>
+    <string name="playlist_folder_name">Nombre de carpeta</string>
     <string name="alac_status_clean">Limpio</string>
     <string name="alac_status_missing_end">Falta marcador END</string>
     <string name="alac_status_dirty_pad">Relleno final sucio</string>

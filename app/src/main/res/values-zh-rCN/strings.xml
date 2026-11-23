@@ -214,6 +214,10 @@
     <string name="set_lyrics_pulse_sub">随低频鼓点轻微律动歌词视图。</string>
     <string name="lyrics_export_ttml">导出 TTML</string>
     <string name="lyrics_exported_ttml">已导出 TTML</string>
+    <string name="playlist_new_folder">新建文件夹</string>
+    <string name="playlist_move_to_folder">移动到文件夹</string>
+    <string name="playlist_folder_root">无（顶层）</string>
+    <string name="playlist_folder_name">文件夹名称</string>
     <string name="alac_status_clean">正常</string>
     <string name="alac_status_missing_end">缺少 END 标记</string>
     <string name="alac_status_dirty_pad">尾部填充异常</string>

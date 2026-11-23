@@ -397,6 +397,7 @@ fun LibrarySectionScreen(kind: LibraryKind) {
     var query by rememberSaveable(kind) { mutableStateOf("") }
     var sort by rememberSaveable { mutableStateOf(Sort.Title) }
     var reversed by rememberSaveable { mutableStateOf(false) }
+    var selectedFolderId by rememberSaveable(kind) { mutableStateOf<String?>(null) }
     val ctx = androidx.compose.ui.platform.LocalContext.current
 
     ListScaffold(
@@ -469,8 +470,28 @@ fun LibrarySectionScreen(kind: LibraryKind) {
         }
         when (kind) {
             LibraryKind.Playlists, LibraryKind.MadeForYou -> {
+                if (kind == LibraryKind.Playlists && lib.folders.isNotEmpty()) {
+                    item(key = "folders") {
+                        Row(
+                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            FilterChip(selected = selectedFolderId == null, onClick = { selectedFolderId = null }, label = { Text(stringResource(R.string.kind_playlists)) })
+                            lib.folders.forEach { f ->
+                                FilterChip(
+                                    selected = selectedFolderId == f.id,
+                                    onClick = { selectedFolderId = if (selectedFolderId == f.id) null else f.id },
+                                    label = { Text(f.name) },
+                                )
+                            }
+                        }
+                    }
+                }
                 // Playlists: the ones made here, then the account's own, then editorial ones.
-                val base = if (kind == LibraryKind.Playlists) lib.playlists + repo.libraryPlaylists + repo.playlists else repo.playlists
+                val rawBase = if (kind == LibraryKind.Playlists) lib.playlists + repo.libraryPlaylists + repo.playlists else repo.playlists
+                val base = if (kind == LibraryKind.Playlists && selectedFolderId != null) {
+                    rawBase.filter { lib.playlistFolders[it.id] == selectedFolderId }
+                } else rawBase
                 val filtered = filterPlaylists(base, query)
                 val all = if (reversed) filtered.sortedWith(compareByDescending(ci) { it.title }) else filtered.sortedWith(compareBy(ci) { it.title })
                 if (base.isEmpty()) item(key = "empty") { Empty(stringResource(R.string.library_empty_playlists)) }

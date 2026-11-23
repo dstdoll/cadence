@@ -22,6 +22,7 @@ import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Person
@@ -209,6 +210,7 @@ fun PlaylistActionSheet(playlist: Playlist, onDismiss: () -> Unit) {
     var deleting by rememberSaveable { mutableStateOf(false) }
     var verifyAlac by remember { mutableStateOf(false) }
     var saveArt by remember { mutableStateOf(false) }
+    var pickFolder by remember { mutableStateOf(false) }
 
     fun act(block: () -> Unit) { block(); onDismiss() }
 
@@ -229,6 +231,7 @@ fun PlaylistActionSheet(playlist: Playlist, onDismiss: () -> Unit) {
                 act { c.library.update { it.duplicatePlaylist(playlist, copyLabel).first } }
             })
         }
+        add(SheetAction(stringResource(R.string.playlist_move_to_folder), Icons.Rounded.Folder) { pickFolder = true })
         if (playlist.userCreated) {
             add(SheetAction(stringResource(R.string.detail_rename_playlist), Icons.Rounded.Edit) { renaming = true })
             add(SheetAction(stringResource(R.string.cd_delete_playlist), Icons.Rounded.Delete) { deleting = true })
@@ -285,6 +288,56 @@ fun PlaylistActionSheet(playlist: Playlist, onDismiss: () -> Unit) {
     }
     if (saveArt) SaveArtworkDialog(playlist.title, playlist.id, playlist.cover, playlist.motion) { saveArt = false; onDismiss() }
     if (verifyAlac) AlacCheckDialog(playlist.title, tracks) { verifyAlac = false; onDismiss() }
+    if (pickFolder) {
+        var newFolderName by rememberSaveable { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { pickFolder = false },
+            title = { Text(stringResource(R.string.playlist_move_to_folder)) },
+            text = {
+                Column {
+                    ListItem(
+                        headlineContent = { Text(stringResource(R.string.playlist_folder_root)) },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        modifier = Modifier.clickable {
+                            c.library.update { it.movePlaylistToFolder(playlist.id, null) }
+                            pickFolder = false
+                            onDismiss()
+                        },
+                    )
+                    lib.folders.forEach { folder ->
+                        ListItem(
+                            headlineContent = { Text(folder.name) },
+                            leadingContent = { Icon(Icons.Rounded.Folder, null) },
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            modifier = Modifier.clickable {
+                                c.library.update { it.movePlaylistToFolder(playlist.id, folder.id) }
+                                pickFolder = false
+                                onDismiss()
+                            },
+                        )
+                    }
+                    OutlinedTextField(
+                        value = newFolderName,
+                        onValueChange = { newFolderName = it },
+                        placeholder = { Text(stringResource(R.string.playlist_folder_name)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = newFolderName.isNotBlank(), onClick = {
+                    c.library.update { l ->
+                        val (withFolder, f) = l.createFolder(newFolderName)
+                        withFolder.movePlaylistToFolder(playlist.id, f.id)
+                    }
+                    pickFolder = false
+                    onDismiss()
+                }) { Text(stringResource(R.string.playlist_new_folder)) }
+            },
+            dismissButton = { TextButton(onClick = { pickFolder = false }) { Text(stringResource(R.string.action_cancel)) } },
+        )
+    }
 }
 
 @Composable

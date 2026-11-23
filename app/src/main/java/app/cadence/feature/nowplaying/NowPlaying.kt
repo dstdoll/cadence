@@ -253,11 +253,12 @@ private fun TitleRow(info: TrackInfo) {
     val c = LocalContainer.current
     val nav = LocalNavigator.current
     val lib by c.library.state.collectAsStateWithLifecycle()
+    val playerState by c.player.state.collectAsStateWithLifecycle()
     val fav = lib.isFavorite(info.id, c.repository.favoriteTrackIds)
     Row(Modifier.fillMaxWidth().padding(start = PlayerGutter, end = PlayerGutter - IconInset, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             val text = rememberPlayerTextColors()
-            Text(info.track.title, style = MaterialTheme.typography.headlineSmall, color = text.title, maxLines = 1, modifier = Modifier.basicMarquee())
+            Text(playerState.liveNowPlaying ?: info.track.title, style = MaterialTheme.typography.headlineSmall, color = text.title, maxLines = 1, modifier = Modifier.basicMarquee())
             Text(
                 info.artist.name, style = MaterialTheme.typography.titleMedium, color = text.artist,
                 maxLines = 1, modifier = Modifier.clickable { nav.artist(info.artist.id) },
