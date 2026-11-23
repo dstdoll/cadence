@@ -31,6 +31,7 @@ import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,6 +49,9 @@ import app.cadence.core.design.rememberReorderState
 import app.cadence.core.design.reorderHandle
 import app.cadence.core.design.reorderItem
 import app.cadence.core.design.reorderOnLongPress
+import app.cadence.feature.nowplaying.playerBackdrops
+import app.cadence.feature.nowplaying.playerTextColors
+import app.cadence.feature.nowplaying.readableOn
 
 private val ROW_HEIGHT = 72.dp
 
@@ -78,8 +82,16 @@ fun QueueView(modifier: Modifier = Modifier) {
     reorder.sync(state.upNext)
     val canReorder = !state.shuffle
     val commit: (Int, Int) -> Unit = { from, to -> val base = state.index + 1; p.moveInQueue(base + from, base + to) }
+    val cs = MaterialTheme.colorScheme
+    val text = remember(cs.onSurface, cs.onSurfaceVariant, cs.surfaceContainerLowest, cs.primaryContainer, cs.tertiaryContainer, cs.secondaryContainer) {
+        playerTextColors(cs)
+    }
+    val primary = remember(cs.primary, cs.surfaceContainerLowest, cs.primaryContainer, cs.tertiaryContainer, cs.secondaryContainer) {
+        readableOn(cs.primary, playerBackdrops(cs.surfaceContainerLowest, listOf(cs.primaryContainer, cs.tertiaryContainer, cs.secondaryContainer)))
+    }
 
-    LazyColumn(modifier.fillMaxSize()) {
+    MaterialTheme(colorScheme = cs.copy(onSurface = text.title, onSurfaceVariant = text.artist, primary = primary)) {
+        LazyColumn(modifier.fillMaxSize()) {
         item(key = "toggles") {
             // Three equal toggles, the queue's main controls.
             Row(
@@ -173,5 +185,6 @@ fun QueueView(modifier: Modifier = Modifier) {
             }
         }
         item(key = "pad") { Box(Modifier.height(24.dp)) }
+        }
     }
 }

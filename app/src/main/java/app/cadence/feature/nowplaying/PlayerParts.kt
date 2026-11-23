@@ -238,7 +238,8 @@ fun SeekBar(
     var width by remember { mutableFloatStateOf(1f) }
     val dur = durationMs.coerceAtLeast(1)
     val fraction = { if (dragging) dragFraction else (clock.value.toFloat() / dur).coerceIn(0f, 1f) }
-    val amplitude by animateFloatAsState(if (isPlaying && !dragging && !LocalReduceMotion.current) 1f else 0f, tween(450), label = "amp")
+    val waveActive = isPlaying && !dragging && !LocalReduceMotion.current
+    val amplitude by animateFloatAsState(if (waveActive) 1f else 0f, tween(450), label = "amp")
     val thickness by animateFloatAsState(if (dragging) 1.6f else 1f, spring(0.6f), label = "thick")
     val haptic = rememberHaptic()
 
@@ -266,6 +267,7 @@ fun SeekBar(
             if (waveStyle == app.cadence.state.settings.WaveStyle.Material) LinearWavyProgressIndicator(
                 progress = fraction,
                 amplitude = { amplitude },
+                waveSpeed = if (waveActive) 10.dp else 0.dp,
                 color = MaterialTheme.colorScheme.primary,
                 trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f),
                 modifier = Modifier.fillMaxWidth().graphicsLayer { scaleY = thickness },
