@@ -351,6 +351,28 @@ class DebugReceiver : BroadcastReceiver() {
             }
             return
         }
+        if (intent.action == "app.cadence.DEBUG_ALAC_CHECK") {
+            val trackId = intent.getStringExtra("trackId") ?: ""
+            val app = context.applicationContext
+            GlobalScope.launch {
+                runCatching {
+                    val repo = Backend.create(app).catalog
+                    val report = repo.checkAlacIntegrity(trackId)
+                    if (report == null) {
+                        CadenceLog.i("alac_check", "trackId=$trackId report=null")
+                    } else {
+                        CadenceLog.i(
+                            "alac_check",
+                            "trackId=$trackId status=${report.status} frames=${report.totalFrames} " +
+                                "escape=${report.escapeFrames} missingEnd=${report.missingEndFrames} " +
+                                "dirtyPad=${report.dirtyPaddingFrames} bits=${report.bits} rate=${report.sampleRate} " +
+                                "sw=${report.software} source=${report.source}",
+                        )
+                    }
+                }.onFailure { CadenceLog.e("alac_check", "failed trackId=$trackId", it) }
+            }
+            return
+        }
         if (intent.action == "app.cadence.DEBUG_AUTH") {
             // Proves the JNI bridge resolves and reaches Apple, without real credentials.
             GlobalScope.launch {

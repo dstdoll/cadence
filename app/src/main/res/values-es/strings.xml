@@ -88,6 +88,8 @@
     <string name="library_artist_in_library">En tu biblioteca</string>
     <string name="library_empty_artists">Los artistas de las canciones que añadas a tu biblioteca aparecerán aquí.</string>
     <string name="library_empty_albums">Añade álbumes a tu biblioteca desde cualquier página de álbum.</string>
+    <string name="library_search_hint">Filtrar esta sección…</string>
+    <string name="library_search_no_match">Sin resultados para “%1$s”.</string>
     <string name="sort_title">Título</string>
     <string name="sort_artist">Artista</string>
     <string name="sort_album">Álbum</string>

@@ -90,6 +90,8 @@
     <string name="library_artist_in_library">In your library</string>
     <string name="library_empty_artists">Artists of songs you add to your library show up here.</string>
     <string name="library_empty_albums">Add albums to your library from any album page.</string>
+    <string name="library_search_hint">Filter this section…</string>
+    <string name="library_search_no_match">No matches for “%1$s”.</string>
     <string name="sort_title">Title</string>
     <string name="sort_artist">Artist</string>
     <string name="sort_album">Album</string>

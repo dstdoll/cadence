@@ -86,6 +86,8 @@
     <string name="library_artist_in_library">在你的资料库中</string>
     <string name="library_empty_artists">添加到资料库的歌曲所属艺人会显示在这里。</string>
     <string name="library_empty_albums">可从任意专辑页面将专辑添加到资料库。</string>
+    <string name="library_search_hint">筛选此分类…</string>
+    <string name="library_search_no_match">未找到与“%1$s”匹配的内容。</string>
     <string name="sort_title">标题</string>
     <string name="sort_artist">艺人</string>
     <string name="sort_album">专辑</string>

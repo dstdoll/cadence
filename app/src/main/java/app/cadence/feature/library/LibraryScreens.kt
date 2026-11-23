@@ -11,6 +11,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.horizontalScroll
@@ -28,6 +29,7 @@ import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Category
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Favorite
@@ -36,6 +38,7 @@ import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
@@ -47,6 +50,7 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.ui.draw.alpha
 import androidx.compose.material3.toShape
@@ -85,6 +89,8 @@ import app.cadence.backend.api.MusicRepository
 import app.cadence.state.library.LibrarySection
 import app.cadence.state.library.UserLibrary
 import app.cadence.backend.model.Album
+import app.cadence.backend.model.Artist
+import app.cadence.backend.model.Playlist
 import app.cadence.backend.model.TrackInfo
 
 private fun LibrarySection.icon(): ImageVector = when (this) {
@@ -346,6 +352,40 @@ internal fun albumComparator(sort: Sort, artistName: (String) -> String): Compar
     else -> compareBy<Album, String>(ci) { it.title }.thenBy(ci) { artistName(it.artistId) }
 }
 
+internal fun filterPlaylists(items: List<Playlist>, query: String): List<Playlist> {
+    val q = query.trim()
+    if (q.isEmpty()) return items
+    return items.filter { it.title.contains(q, ignoreCase = true) || it.description.contains(q, ignoreCase = true) }
+}
+
+internal fun filterArtists(items: List<Artist>, query: String): List<Artist> {
+    val q = query.trim()
+    if (q.isEmpty()) return items
+    return items.filter { it.name.contains(q, ignoreCase = true) }
+}
+
+internal fun filterAlbums(items: List<Album>, artistName: (String) -> String, query: String): List<Album> {
+    val q = query.trim()
+    if (q.isEmpty()) return items
+    return items.filter { it.title.contains(q, ignoreCase = true) || artistName(it.artistId).contains(q, ignoreCase = true) }
+}
+
+internal fun filterTracks(items: List<TrackInfo>, query: String): List<TrackInfo> {
+    val q = query.trim()
+    if (q.isEmpty()) return items
+    return items.filter {
+        it.track.title.contains(q, ignoreCase = true) ||
+            it.artist.name.contains(q, ignoreCase = true) ||
+            it.album.title.contains(q, ignoreCase = true)
+    }
+}
+
+internal fun filterGenres(items: List<String>, query: String): List<String> {
+    val q = query.trim()
+    if (q.isEmpty()) return items
+    return items.filter { it.contains(q, ignoreCase = true) }
+}
+
 @Composable
 fun LibrarySectionScreen(kind: LibraryKind) {
     val c = LocalContainer.current
@@ -353,12 +393,29 @@ fun LibrarySectionScreen(kind: LibraryKind) {
     val nav = LocalNavigator.current
     val lib by c.library.state.collectAsStateWithLifecycle()
     val revision by repo.revision.collectAsStateWithLifecycle()
+    var query by rememberSaveable(kind) { mutableStateOf("") }
     var sort by rememberSaveable { mutableStateOf(Sort.Title) }
     var reversed by rememberSaveable { mutableStateOf(false) }
 
     ListScaffold(title = stringResource(kind.labelRes), showBack = true) {
         @Suppress("UNUSED_EXPRESSION") revision
         val hasKeys = kind == LibraryKind.Songs || kind == LibraryKind.Albums || kind == LibraryKind.Favorites
+        item(key = "search") {
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                placeholder = { Text(stringResource(R.string.library_search_hint)) },
+                leadingIcon = { Icon(Icons.Rounded.Search, null) },
+                trailingIcon = {
+                    if (query.isNotEmpty()) {
+                        IconButton(onClick = { query = "" }) { Icon(Icons.Rounded.Close, stringResource(R.string.cd_clear_search)) }
+                    }
+                },
+                singleLine = true,
+                shape = RoundedCornerShape(50),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
+            )
+        }
         item(key = "sort") {
             Row(
                 Modifier.padding(start = 20.dp, end = 20.dp),
@@ -392,8 +449,10 @@ fun LibrarySectionScreen(kind: LibraryKind) {
             LibraryKind.Playlists, LibraryKind.MadeForYou -> {
                 // Playlists: the ones made here, then the account's own, then editorial ones.
                 val base = if (kind == LibraryKind.Playlists) lib.playlists + repo.libraryPlaylists + repo.playlists else repo.playlists
-                val all = if (reversed) base.sortedWith(compareByDescending(ci) { it.title }) else base.sortedWith(compareBy(ci) { it.title })
-                if (all.isEmpty()) item(key = "empty") { Empty(stringResource(R.string.library_empty_playlists)) }
+                val filtered = filterPlaylists(base, query)
+                val all = if (reversed) filtered.sortedWith(compareByDescending(ci) { it.title }) else filtered.sortedWith(compareBy(ci) { it.title })
+                if (base.isEmpty()) item(key = "empty") { Empty(stringResource(R.string.library_empty_playlists)) }
+                else if (all.isEmpty()) item(key = "no-match") { Empty(stringResource(R.string.library_search_no_match, query.trim())) }
                 items(all, key = { it.id }) { p ->
                     val haptic = LocalHapticFeedback.current
                     var sheet by remember { mutableStateOf(false) }
@@ -412,12 +471,14 @@ fun LibrarySectionScreen(kind: LibraryKind) {
             }
             LibraryKind.Artists -> {
                 val ids = libraryArtistIds(repo, lib)
-                val artists = repo.artists.filter { it.id in ids }
+                val base = repo.artists.filter { it.id in ids }
+                val artists = filterArtists(base, query)
                     .sortedWith(if (reversed) compareByDescending(ci) { it.name } else compareBy(ci) { it.name })
                 // Counted once per change, not once per row.
                 val songCounts = songsPerArtistName(libraryTracks(repo, lib))
                 val albumCounts = libraryAlbums(repo, lib).groupingBy { it.artistId }.eachCount()
-                if (artists.isEmpty()) item(key = "empty") { Empty(stringResource(R.string.library_empty_artists)) }
+                if (base.isEmpty()) item(key = "empty") { Empty(stringResource(R.string.library_empty_artists)) }
+                else if (artists.isEmpty()) item(key = "no-match") { Empty(stringResource(R.string.library_search_no_match, query.trim())) }
                 items(artists, key = { it.id }) { a ->
                     val haptic = LocalHapticFeedback.current
                     var sheet by remember { mutableStateOf(false) }
@@ -441,8 +502,10 @@ fun LibrarySectionScreen(kind: LibraryKind) {
             LibraryKind.Albums -> {
                 val base = libraryAlbums(repo, lib)
                 val albumCmp = albumComparator(sort) { repo.artist(it)?.name ?: "" }
-                val albums = base.sortedWith(if (reversed) albumCmp.reversed() else albumCmp)
-                if (albums.isEmpty()) item(key = "empty") { Empty(stringResource(R.string.library_empty_albums)) }
+                val albums = filterAlbums(base, { repo.artist(it)?.name.orEmpty() }, query)
+                    .sortedWith(if (reversed) albumCmp.reversed() else albumCmp)
+                if (base.isEmpty()) item(key = "empty") { Empty(stringResource(R.string.library_empty_albums)) }
+                else if (albums.isEmpty()) item(key = "no-match") { Empty(stringResource(R.string.library_search_no_match, query.trim())) }
                 items(albums, key = { it.id }) { a ->
                     val haptic = LocalHapticFeedback.current
                     var sheet by remember { mutableStateOf(false) }
@@ -461,8 +524,10 @@ fun LibrarySectionScreen(kind: LibraryKind) {
                 }
             }
             LibraryKind.Genres -> {
-                val genres = repo.albums.map { it.genre }.distinct()
+                val base = repo.albums.map { it.genre }.distinct()
+                val genres = filterGenres(base, query)
                     .sortedWith(if (reversed) compareByDescending(ci) { it } else compareBy(ci) { it })
+                if (base.isNotEmpty() && genres.isEmpty()) item(key = "no-match") { Empty(stringResource(R.string.library_search_no_match, query.trim())) }
                 items(genres, key = { it }) { g ->
                     ListItem(
                         content = { Text(g) },
@@ -477,9 +542,11 @@ fun LibrarySectionScreen(kind: LibraryKind) {
             LibraryKind.Songs, LibraryKind.Favorites -> {
                 val base = if (kind == LibraryKind.Favorites) repo.tracks.filter { lib.isFavorite(it.id, repo.favoriteTrackIds) } else libraryTracks(repo, lib)
                 val trackCmp = trackComparator(sort)
-                val songs = base.sortedWith(if (reversed) trackCmp.reversed() else trackCmp)
-                if (songs.isEmpty()) item(key = "empty") {
+                val songs = filterTracks(base, query).sortedWith(if (reversed) trackCmp.reversed() else trackCmp)
+                if (base.isEmpty()) item(key = "empty") {
                     Empty(if (kind == LibraryKind.Favorites) stringResource(R.string.library_empty_favorites) else stringResource(R.string.library_empty_default))
+                } else if (songs.isEmpty()) item(key = "no-match") {
+                    Empty(stringResource(R.string.library_search_no_match, query.trim()))
                 }
                 items(songs, key = { it.id }) { t -> TrackRow(t, onClick = { c.player.play(songs, songs.indexOf(t), contextTitle = kind.title) }) }
             }
