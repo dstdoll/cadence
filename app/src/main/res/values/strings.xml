@@ -202,8 +202,8 @@
     <string name="stream_variants_loading">Loading variants…</string>
     <string name="set_drop_ep_single">Strip “ - EP” / “ - Single” suffix</string>
     <string name="set_drop_ep_single_sub">Remove release-type suffixes from downloaded album names and folders.</string>
-    <string name="set_check_alac_download">Verify ALAC integrity on download</string>
-    <string name="set_check_alac_download_sub">Check downloaded ALAC files for escape-frame defects and log the result.</string>
+    <string name="set_check_alac_download">Verify &amp; repair ALAC on download</string>
+    <string name="set_check_alac_download_sub">Check downloaded ALAC files for escape-frame defects and repair them automatically.</string>
     <string name="set_amll_fallback">AMLL TTML DB fallback</string>
     <string name="set_amll_fallback_sub">Look up synced lyrics from AMLL when Apple Music has none.</string>
     <string name="alac_status_clean">Clean</string>

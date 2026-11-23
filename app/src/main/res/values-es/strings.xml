@@ -200,8 +200,8 @@
     <string name="stream_variants_loading">Cargando variantes…</string>
     <string name="set_drop_ep_single">Quitar sufijo « - EP» / « - Single»</string>
     <string name="set_drop_ep_single_sub">Elimina los sufijos de lanzamiento de los nombres y carpetas de álbumes descargados.</string>
-    <string name="set_check_alac_download">Verificar integridad ALAC al descargar</string>
-    <string name="set_check_alac_download_sub">Comprueba los archivos ALAC descargados en busca de defectos de trama escape.</string>
+    <string name="set_check_alac_download">Verificar y reparar ALAC al descargar</string>
+    <string name="set_check_alac_download_sub">Comprueba los archivos ALAC descargados y repara automáticamente defectos de trama escape.</string>
     <string name="set_amll_fallback">Respaldo de AMLL TTML DB</string>
     <string name="set_amll_fallback_sub">Busca letras sincronizadas en AMLL cuando Apple Music no tenga.</string>
     <string name="alac_status_clean">Limpio</string>

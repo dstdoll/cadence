@@ -82,7 +82,7 @@ data class DownloadPreferences(
      */
     val quality: QualityPolicy? = null,
     val dropEpSingleSuffix: Boolean = false,
-    val checkAlacOnDownload: Boolean = false,
+    val checkAlacOnDownload: Boolean = true,
 ) {
     companion object {
         private val EP_SINGLE_SUFFIX = Regex("""\s*-\s*(?:EP|Single)$""", RegexOption.IGNORE_CASE)
@@ -309,7 +309,7 @@ object DownloadEngine {
             .onSuccess {
                 if (preferences.checkAlacOnDownload) {
                     app.cadence.backend.engine.media.AlacIntegrity
-                        .checkOrRepairLocalTrack(pending.item.trackId, repair = false)
+                        .checkOrRepairLocalTrack(pending.item.trackId, repair = true)
                         ?.let { r ->
                             CadenceLog.i(
                                 "AlacDownloadCheck",

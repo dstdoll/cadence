@@ -62,7 +62,7 @@ data class UserSettings(
     val saveLyricsFile: Boolean = false,
     val lyricsFormat: String = "lrc",
     val dropEpSingleSuffix: Boolean = false,
-    val checkAlacOnDownload: Boolean = false,
+    val checkAlacOnDownload: Boolean = true,
 
     // Lyrics
     val lyricsScale: Float = 1f,
