@@ -252,7 +252,7 @@ private fun SettingsRoot(onOpen: (SettingsPage) -> Unit) {
             SettingsNavCard(
                 icon = Icons.Rounded.Info,
                 title = stringResource(R.string.set_page_about),
-                summary = stringResource(R.string.set_sum_about, "0.1"),
+                summary = stringResource(R.string.set_sum_about, LocalContainer.current.updates.currentVersionName),
             ) { onOpen(SettingsPage.About) }
         }
         item(key = "pad") { Spacer(Modifier.height(32.dp)) }
