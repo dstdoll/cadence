@@ -242,7 +242,7 @@ class FavoritesDb(context: Context) :
                     s.bindString(6, info.album.id)
                     s.bindString(7, info.artist.id)
                     s.bindLong(8, info.track.durationMs)
-                    s.bindString(9, info.album.cover)
+                    s.bindString(9, info.album.cover.orEmpty())
                     s.executeInsert()
                 }
             }

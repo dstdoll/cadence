@@ -639,23 +639,29 @@ class RealCatalog(
         accountPlaylists = fresh
         CadenceLog.i("library", "account playlists=${fresh.size} favourites=${favorites != null}")
         if (favorites != null) {
-            val favTracks = preparePlaylist(favorites)
-            if (favoritesStore != null) {
-                val mergedIds = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    runCatching {
-                        favoritesStore.reconcileRemote(favTracks)
-                        favoritesStore.loadAll().first
-                    }.getOrNull()
-                }
-                synchronized(favLock) {
-                    libraryLoaded = true
-                    if (mergedIds != null) favoriteIds = mergedIds
+            val favIds = playlistLoad.withLock { libraryPlaylistSongs(favorites) }
+            if (favIds != null) {
+                accountPlaylists = accountPlaylists.map { if (it.id == favorites) it.copy(trackIds = favIds) else it }
+                val favTracks = favIds.mapNotNull(::track)
+                if (favoritesStore != null) {
+                    val mergedIds = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        runCatching {
+                            favoritesStore.reconcileRemote(favTracks)
+                            favoritesStore.loadAll().first
+                        }.getOrNull()
+                    }
+                    synchronized(favLock) {
+                        libraryLoaded = true
+                        if (mergedIds != null) favoriteIds = mergedIds
+                    }
+                } else {
+                    synchronized(favLock) {
+                        libraryLoaded = true
+                        favoriteIds = favTracks.map { it.id }.toSet()
+                    }
                 }
             } else {
-                synchronized(favLock) {
-                    libraryLoaded = true
-                    favoriteIds = favTracks.map { it.id }.toSet()
-                }
+                CadenceLog.i("library", "favourite playlist fetch failed; keeping cached favourites=${favoriteIds.size}")
             }
         }
         CadenceLog.i("library", "favourite songs=${favoriteIds.size}")
@@ -742,18 +748,38 @@ class RealCatalog(
     /** Songs of a library playlist, through their catalogue counterparts (what can be played). */
     private suspend fun libraryPlaylistSongs(playlistId: String): List<String>? {
         val ids = ArrayList<String>()
+        val unresolvedCatalogIds = ArrayList<String>()
+        val rawId = playlistId.removePrefix("lp:")
         var offset = 0
         while (offset < MAX_LIBRARY_PLAYLIST_SONGS) {
-            val page = engine.libraryPlaylistTracks(playlistId.removePrefix("lp:"), offset)
-                ?: return if (offset == 0) null else ids
+            var page = engine.libraryPlaylistTracks(rawId, offset)
+            if (page == null) {
+                kotlinx.coroutines.delay(500)
+                page = engine.libraryPlaylistTracks(rawId, offset)
+            }
+            if (page == null) return null
             val data = page.optJSONArray("data") ?: break
             for (i in 0 until data.length()) {
-                val catalog = data.optJSONObject(i)?.optJSONObject("relationships")?.optJSONObject("catalog")
-                    ?.optJSONArray("data")?.optJSONObject(0) ?: continue // uploaded/unmatched songs have none
-                (songHit(catalog, 0) as? SearchHit.SongHit)?.let { ids += it.track.id }
+                val item = data.optJSONObject(i) ?: continue
+                val catalog = item.optJSONObject("relationships")?.optJSONObject("catalog")
+                    ?.optJSONArray("data")?.optJSONObject(0)
+                if (catalog != null) {
+                    (songHit(catalog, 0) as? SearchHit.SongHit)?.let { ids += it.track.id }
+                } else {
+                    val catId = item.optJSONObject("attributes")?.optJSONObject("playParams")?.optString("catalogId")
+                        ?.takeIf { it.isNotBlank() }
+                    if (catId != null) {
+                        unresolvedCatalogIds += catId
+                        ids += catId
+                    }
+                }
             }
             if (data.length() == 0 || !page.has("next")) break
             offset += data.length()
+        }
+        for (chunk in unresolvedCatalogIds.filter { track(it) == null }.distinct().chunked(100)) {
+            val data = engine.songsByIds(chunk)?.optJSONArray("data") ?: continue
+            for (i in 0 until data.length()) data.optJSONObject(i)?.let { songHit(it, 0) }
         }
         return ids
     }
@@ -1045,7 +1071,7 @@ class RealCatalog(
     }
 
     private companion object {
-        const val MAX_LIBRARY_PLAYLIST_SONGS = 500
+        const val MAX_LIBRARY_PLAYLIST_SONGS = 5000
         /** Per kind; the account this was built against has about 800 songs and 500 albums. */
         const val MAX_ACCOUNT_LIBRARY_ITEMS = 5000
     }
