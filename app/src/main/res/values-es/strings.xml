@@ -393,6 +393,13 @@
     <string name="set_reduce_motion">Reducir movimiento</string>
     <string name="set_seek_bar">Barra de progreso</string>
     <string name="set_autoplay">Reproducción automática</string>
+    <string name="set_transition_mode">Transiciones entre canciones</string>
+    <string name="set_transition_gapless">Sin pausas</string>
+    <string name="set_transition_crossfade">Fundido cruzado</string>
+    <string name="set_transition_automix">AutoMix</string>
+    <string name="set_transition_sub">Mezcla las canciones suavemente o sincroniza los ritmos automáticamente (omitido en DAC USB bit-perfect).</string>
+    <string name="set_crossfade_duration">Duración del fundido</string>
+    <string name="set_crossfade_seconds">%1$d s</string>
     <string name="set_skip_silence">Saltar silencios</string>
     <string name="set_resume">Continuar donde lo dejaste</string>
     <string name="set_haptics">Vibración</string>

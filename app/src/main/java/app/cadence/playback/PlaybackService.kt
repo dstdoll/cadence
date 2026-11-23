@@ -8,6 +8,7 @@ import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DecoderReuseEvaluation
@@ -16,6 +17,10 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import app.cadence.backend.engine.CadenceLog
+import app.cadence.backend.engine.media.AutoMixPlanner
+import app.cadence.backend.engine.media.TransitionKind
+import app.cadence.backend.engine.media.TransitionPlan
+import app.cadence.state.settings.TransitionMode
 import app.cadence.toDownloadPreferences
 import app.cadence.backend.engine.stream.StreamCache
 import app.cadence.backend.engine.stream.StreamConfig
@@ -28,9 +33,14 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 
 /** Hosts the ExoPlayer + MediaSession; Media3 provides the notification, lock screen and headset controls. */
 class PlaybackService : MediaSessionService() {
@@ -123,37 +133,50 @@ class PlaybackService : MediaSessionService() {
                 return baseMediaSourceFactory.createMediaSource(effective)
             }
         }
-        val player = ExoPlayer.Builder(this, renderers)
-            .setMediaSourceFactory(mediaSourceFactory)
-            .setAudioAttributes(
-                AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(),
-                /* handleAudioFocus = */ true,
-            )
-            .setHandleAudioBecomingNoisy(true)
-            // Streaming keeps downloading with the screen off, so the network is held awake too.
-            .setWakeMode(C.WAKE_MODE_NETWORK)
-            .build()
+        fun buildDeckPlayer(handleAudioFocus: Boolean): ExoPlayer =
+            ExoPlayer.Builder(this, renderers)
+                .setMediaSourceFactory(mediaSourceFactory)
+                .setAudioAttributes(
+                    AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(),
+                    handleAudioFocus,
+                )
+                .setHandleAudioBecomingNoisy(handleAudioFocus)
+                // Streaming keeps downloading with the screen off, so the network is held awake too.
+                .setWakeMode(C.WAKE_MODE_NETWORK)
+                .build()
+
+        val initialPlayer = buildDeckPlayer(handleAudioFocus = true)
+        activePlayer = initialPlayer
+        secondaryPlayer = buildDeckPlayer(handleAudioFocus = false)
         CadenceLog.i("player", "alac=native float=${useFloatOutput(container.settings.state.value)}")
-        player.addAnalyticsListener(PlaybackLog(applicationContext))
-        followQueue(player, streams)
+        initialPlayer.addAnalyticsListener(PlaybackLog(applicationContext))
+        secondaryPlayer?.addAnalyticsListener(PlaybackLog(applicationContext))
+        val refreshQueueWindow = attachQueueFollower(streams)
+        attachDeckQueueListeners(initialPlayer, refreshQueueWindow)
+        secondaryPlayer?.let { attachDeckQueueListeners(it, refreshQueueWindow) }
         // The waveform is credited to the position that is audible, whether or not a screen shows it.
         scope.launch {
             while (true) {
-                kotlinx.coroutines.delay(50)
-                val duration = player.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: 0L
+                delay(50)
+                val p = activePlayer ?: continue
+                val duration = p.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: 0L
                 container.wave.tick(
                     nowUs = System.nanoTime() / 1000,
-                    key = player.currentMediaItem?.mediaId,
-                    positionUs = player.currentPosition * 1000,
+                    key = p.currentMediaItem?.mediaId,
+                    positionUs = p.currentPosition * 1000,
                     lengthUs = duration * 1000,
-                    speed = player.playbackParameters.speed,
-                    playing = player.isPlaying,
+                    speed = p.playbackParameters.speed,
+                    playing = p.isPlaying,
                 )
             }
         }
+        startAutoMixLoop(refreshQueueWindow)
 
         scope.launch {
-            container.settings.state.map { it.skipSilence }.distinctUntilChanged().collect { player.skipSilenceEnabled = it }
+            container.settings.state.map { it.skipSilence }.distinctUntilChanged().collect { enabled ->
+                activePlayer?.skipSilenceEnabled = enabled
+                secondaryPlayer?.skipSilenceEnabled = enabled
+            }
         }
         watchUsbOutput()
 
@@ -168,11 +191,250 @@ class PlaybackService : MediaSessionService() {
             androidx.media3.session.DefaultMediaNotificationProvider.Builder(this).build()
                 .apply { setSmallIcon(app.cadence.R.drawable.ic_notification) },
         )
-        session = MediaSession.Builder(this, player)
+        session = MediaSession.Builder(this, initialPlayer)
             .setSessionActivity(open)
             .setCallback(ControllerPolicy(packageName))
             .setBitmapLoader(coverLoader!!)
             .build()
+    }
+
+    @Volatile private var activePlayer: ExoPlayer? = null
+    @Volatile private var secondaryPlayer: ExoPlayer? = null
+
+    private data class PlanCacheKey(
+        val outId: String,
+        val inId: String,
+        val mode: TransitionMode,
+        val crossfadeSec: Int,
+    )
+
+    /**
+     * Coordinates dual-deck Crossfade and AutoMix transitions on [activePlayer] and [secondaryPlayer].
+     * Bypassed when bit-perfect USB DAC output is active or TransitionMode is Gapless.
+     */
+    private fun startAutoMixLoop(onDeckSwapped: () -> Unit) {
+        var cachedKey: PlanCacheKey? = null
+        var cachedPlan: TransitionPlan? = null
+        var fetchingKey: PlanCacheKey? = null
+        var preCuedForKey: PlanCacheKey? = null
+        var overlapping = false
+        var overlapOutIndex = C.INDEX_UNSET
+        var overlapInIndex = C.INDEX_UNSET
+        var overlapStartWallMs = 0L
+        var overlapPausedAtMs = 0L
+        var overlapPlan: TransitionPlan? = null
+
+        fun resetSecondary(primary: ExoPlayer?) {
+            val sec = secondaryPlayer
+            if (sec != null) {
+                sec.pause()
+                sec.clearMediaItems()
+                sec.volume = 1f
+                sec.playbackParameters = PlaybackParameters.DEFAULT
+            }
+            primary?.volume = 1f
+            overlapping = false
+            overlapOutIndex = C.INDEX_UNSET
+            overlapInIndex = C.INDEX_UNSET
+            overlapPausedAtMs = 0L
+            overlapPlan = null
+            preCuedForKey = null
+        }
+
+        scope.launch {
+            while (true) {
+                delay(20)
+                val primary = activePlayer ?: continue
+                val secondary = secondaryPlayer ?: continue
+                val settings = container.settings.state.value
+                val bypassed = settings.transitionMode == TransitionMode.Gapless ||
+                    dspBypassed(settings.bitPerfectUsb, usbOutput) ||
+                    primary.repeatMode == Player.REPEAT_MODE_ONE ||
+                    primary.mediaItemCount <= 1
+
+                if (bypassed) {
+                    if (overlapping || preCuedForKey != null) resetSecondary(primary)
+                    continue
+                }
+
+                if (overlapping) {
+                    val plan = overlapPlan ?: continue
+                    val currentIdx = primary.currentMediaItemIndex
+                    if (currentIdx != overlapOutIndex || primary.currentPosition < plan.fadeOutStartMs - 1_500L) {
+                        CadenceLog.i("AutoMix", "abort overlap (seek/skip/queue change)")
+                        resetSecondary(primary)
+                        continue
+                    }
+                    if (!primary.playWhenReady) {
+                        if (secondary.playWhenReady) secondary.playWhenReady = false
+                        if (overlapPausedAtMs == 0L) overlapPausedAtMs = android.os.SystemClock.elapsedRealtime()
+                        continue
+                    } else if (overlapPausedAtMs != 0L) {
+                        overlapStartWallMs += (android.os.SystemClock.elapsedRealtime() - overlapPausedAtMs)
+                        overlapPausedAtMs = 0L
+                        secondary.playWhenReady = true
+                    }
+
+                    val elapsed = (android.os.SystemClock.elapsedRealtime() - overlapStartWallMs).coerceAtLeast(0L)
+                    val progress = (elapsed.toFloat() / plan.durationMs.coerceAtLeast(1L).toFloat()).coerceIn(0f, 1f)
+                    val angle = progress * (PI.toFloat() / 2f)
+                    primary.volume = cos(angle)
+                    secondary.volume = sin(angle)
+                    if (plan.speedRatio != 1f) {
+                        val speed = plan.speedRatio + (1f - plan.speedRatio) * progress
+                        secondary.playbackParameters = PlaybackParameters(speed)
+                    }
+
+                    if (progress >= 1f || primary.playbackState == Player.STATE_ENDED) {
+                        swapDecks(primary, secondary, overlapInIndex, onDeckSwapped)
+                        overlapping = false
+                        overlapPlan = null
+                        overlapPausedAtMs = 0L
+                        preCuedForKey = null
+                        cachedKey = null
+                        cachedPlan = null
+                    }
+                    continue
+                }
+
+                if (!primary.isPlaying) continue
+                val outIndex = primary.currentMediaItemIndex
+                val inIndex = primary.nextMediaItemIndex
+                if (outIndex == C.INDEX_UNSET || inIndex == C.INDEX_UNSET || inIndex >= primary.mediaItemCount) continue
+                val outItem = primary.getMediaItemAt(outIndex)
+                val inItem = primary.getMediaItemAt(inIndex)
+                val duration = primary.duration.takeIf { it != C.TIME_UNSET && it > 3_000L } ?: continue
+                val remaining = duration - primary.currentPosition
+                if (remaining > 22_000L) continue
+
+                val key = PlanCacheKey(outItem.mediaId, inItem.mediaId, settings.transitionMode, settings.crossfadeSeconds)
+                if (cachedKey != key && fetchingKey != key) {
+                    fetchingKey = key
+                    scope.launch {
+                        val computed = withContext(Dispatchers.IO) {
+                            computeTransitionPlan(outItem, inItem, duration, settings.transitionMode, settings.crossfadeSeconds)
+                        }
+                        if (fetchingKey == key) {
+                            cachedKey = key
+                            cachedPlan = computed
+                            fetchingKey = null
+                            CadenceLog.i(
+                                "AutoMix",
+                                "plan ${outItem.mediaId}->${inItem.mediaId} kind=${computed.kind} dur=${computed.durationMs}ms fadeOutAt=${computed.fadeOutStartMs}ms speed=${computed.speedRatio} reason=${computed.reason}",
+                            )
+                        }
+                    }
+                }
+
+                val plan = if (cachedKey == key) cachedPlan else null
+                if (plan == null || plan.kind == TransitionKind.GAPLESS || plan.durationMs <= 0L) continue
+
+                if (preCuedForKey != key && primary.currentPosition >= (plan.fadeOutStartMs - 4_000L).coerceAtLeast(0L)) {
+                    preCuedForKey = key
+                    secondary.setMediaItem(inItem, plan.fadeInOffsetMs)
+                    secondary.playWhenReady = false
+                    secondary.volume = 0f
+                    secondary.playbackParameters = PlaybackParameters(plan.speedRatio)
+                    secondary.prepare()
+                }
+
+                if (preCuedForKey == key && primary.currentPosition >= plan.fadeOutStartMs) {
+                    overlapping = true
+                    overlapOutIndex = outIndex
+                    overlapInIndex = inIndex
+                    overlapPlan = plan
+                    overlapStartWallMs = android.os.SystemClock.elapsedRealtime()
+                    overlapPausedAtMs = 0L
+                    secondary.volume = 0f
+                    secondary.playWhenReady = true
+                    CadenceLog.i("AutoMix", "start ${plan.kind} ${outItem.mediaId}->${inItem.mediaId} dur=${plan.durationMs}ms")
+                }
+            }
+        }
+    }
+
+    private suspend fun computeTransitionPlan(
+        outItem: MediaItem,
+        inItem: MediaItem,
+        outDurationMs: Long,
+        mode: TransitionMode,
+        crossfadeSeconds: Int,
+    ): TransitionPlan {
+        val fallbackMs = crossfadeSeconds.coerceIn(1, 12) * 1_000L
+        if (mode == TransitionMode.Crossfade) {
+            return AutoMixPlanner.plan(
+                outAnalysis = null,
+                inAnalysis = null,
+                outDurationMs = outDurationMs,
+                inDurationMs = outDurationMs,
+                sameAlbumConsecutive = false,
+                fallbackCrossfadeMs = fallbackMs,
+            )
+        }
+        val catalog = container.backend.catalog
+        val outTrack = catalog.tracks.firstOrNull { it.track.id == outItem.mediaId }
+        val inTrack = catalog.tracks.firstOrNull { it.track.id == inItem.mediaId }
+        val sameAlbum = outTrack != null && inTrack != null &&
+            outTrack.album.id.isNotBlank() && outTrack.album.id == inTrack.album.id
+        if (sameAlbum) {
+            return AutoMixPlanner.plan(null, null, outDurationMs, outDurationMs, sameAlbumConsecutive = true, fallbackCrossfadeMs = fallbackMs)
+        }
+        val outAnalysis = runCatching { catalog.audioAnalysis(outItem.mediaId) }.getOrNull()
+        val inAnalysis = runCatching { catalog.audioAnalysis(inItem.mediaId) }.getOrNull()
+        val inDurationMs = inTrack?.track?.durationMs?.takeIf { it > 0L } ?: outDurationMs
+        return AutoMixPlanner.plan(
+            outAnalysis = outAnalysis,
+            inAnalysis = inAnalysis,
+            outDurationMs = outDurationMs,
+            inDurationMs = inDurationMs,
+            sameAlbumConsecutive = false,
+            fallbackCrossfadeMs = fallbackMs,
+        )
+    }
+
+    private fun swapDecks(
+        oldPrimary: ExoPlayer,
+        newPrimary: ExoPlayer,
+        targetInIndex: Int,
+        onDeckSwapped: () -> Unit,
+    ) {
+        val count = oldPrimary.mediaItemCount
+        val before = (0 until targetInIndex.coerceAtMost(count)).map(oldPrimary::getMediaItemAt)
+        val after = ((targetInIndex + 1).coerceAtMost(count) until count).map(oldPrimary::getMediaItemAt)
+        val repeatMode = oldPrimary.repeatMode
+        val shuffleEnabled = oldPrimary.shuffleModeEnabled
+
+        oldPrimary.pause()
+        oldPrimary.clearMediaItems()
+        oldPrimary.volume = 1f
+        oldPrimary.playbackParameters = PlaybackParameters.DEFAULT
+
+        newPrimary.volume = 1f
+        newPrimary.playbackParameters = PlaybackParameters.DEFAULT
+        newPrimary.repeatMode = repeatMode
+        newPrimary.shuffleModeEnabled = shuffleEnabled
+        if (before.isNotEmpty()) newPrimary.addMediaItems(0, before)
+        if (after.isNotEmpty()) newPrimary.addMediaItems(after)
+
+        activePlayer = newPrimary
+        secondaryPlayer = oldPrimary
+        session?.setPlayer(newPrimary)
+        onDeckSwapped()
+        CadenceLog.i("AutoMix", "deck swapped -> index=${newPrimary.currentMediaItemIndex} total=${newPrimary.mediaItemCount}")
+    }
+
+    private fun attachDeckQueueListeners(player: ExoPlayer, update: () -> Unit) {
+        player.addListener(object : Player.Listener {
+            override fun onEvents(p: Player, events: Player.Events) {
+                if (p !== activePlayer) return
+                if (events.containsAny(
+                        Player.EVENT_MEDIA_ITEM_TRANSITION, Player.EVENT_TIMELINE_CHANGED,
+                        Player.EVENT_SHUFFLE_MODE_ENABLED_CHANGED, Player.EVENT_REPEAT_MODE_CHANGED,
+                        Player.EVENT_PLAY_WHEN_READY_CHANGED, Player.EVENT_PLAYBACK_STATE_CHANGED,
+                    )
+                ) update()
+            }
+        })
     }
 
     /**
@@ -180,8 +442,9 @@ class PlaybackService : MediaSessionService() {
      * one is completed, and the opening of the next and the previous is prepared as the user's
      * settings ask, so a transition or a skip never waits on the network or on a key.
      */
-    private fun followQueue(player: ExoPlayer, streams: StreamCache) {
+    private fun attachQueueFollower(streams: StreamCache): () -> Unit {
         fun update() {
+            val player = activePlayer ?: return
             fun itemWithScheme(index: Int, scheme: String): String? = index
                 .takeIf { it != C.INDEX_UNSET && it < player.mediaItemCount }
                 ?.let(player::getMediaItemAt)
@@ -230,16 +493,6 @@ class PlaybackService : MediaSessionService() {
                 aacCache.setWindow(webTargets, config.cacheBytes)
             }
         }
-        player.addListener(object : Player.Listener {
-            override fun onEvents(player: Player, events: Player.Events) {
-                if (events.containsAny(
-                        Player.EVENT_MEDIA_ITEM_TRANSITION, Player.EVENT_TIMELINE_CHANGED,
-                        Player.EVENT_SHUFFLE_MODE_ENABLED_CHANGED, Player.EVENT_REPEAT_MODE_CHANGED,
-                        Player.EVENT_PLAY_WHEN_READY_CHANGED, Player.EVENT_PLAYBACK_STATE_CHANGED,
-                    )
-                ) update()
-            }
-        })
         scope.launch {
             container.settings.state
                 .map { it to streamWindowKey(it) }
@@ -253,7 +506,8 @@ class PlaybackService : MediaSessionService() {
         }
         // Leaving Wi-Fi for mobile data (or back) changes how much the window may fill. No player
         // event fires for that, so the network is watched directly; only a change of metered-ness counts.
-        val connectivity = getSystemService(android.net.ConnectivityManager::class.java) ?: return
+        val connectivity = getSystemService(android.net.ConnectivityManager::class.java)
+        if (connectivity == null) return ::update
         var lastMetered: Boolean? = null
         val callback = object : android.net.ConnectivityManager.NetworkCallback() {
             fun check() {
@@ -274,6 +528,7 @@ class PlaybackService : MediaSessionService() {
             connectivity.registerDefaultNetworkCallback(callback, android.os.Handler(android.os.Looper.getMainLooper()))
             networkCallback = callback
         }.onFailure { CadenceLog.e("stream", "cannot watch the network", it) }
+        return ::update
     }
 
     private var networkCallback: android.net.ConnectivityManager.NetworkCallback? = null
@@ -313,8 +568,12 @@ class PlaybackService : MediaSessionService() {
         scope.cancel()
         deviceCallback?.let { cb -> runCatching { getSystemService(android.media.AudioManager::class.java)?.unregisterAudioDeviceCallback(cb) } }
         deviceCallback = null
-        session?.run { player.release(); release() }
+        session?.run { release() }
         session = null
+        activePlayer?.release()
+        activePlayer = null
+        secondaryPlayer?.release()
+        secondaryPlayer = null
         coverLoader?.release()
         coverLoader = null
         super.onDestroy()

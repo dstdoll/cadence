@@ -62,6 +62,8 @@ internal val SETTINGS_INDEX: List<SettingEntry> = listOf(
     SettingEntry(R.string.set_seek_bar, SettingsPage.Appearance, "waveform neon progress wave style player"),
 
     SettingEntry(R.string.set_autoplay, SettingsPage.Playback, "queue similar continue radio"),
+    SettingEntry(R.string.set_transition_mode, SettingsPage.Playback, "gapless crossfade automix beat blend dj"),
+    SettingEntry(R.string.set_crossfade_duration, SettingsPage.Playback, "crossfade automix seconds duration fade"),
     SettingEntry(R.string.set_skip_silence, SettingsPage.Playback, "gaps trim quiet"),
     SettingEntry(R.string.set_resume, SettingsPage.Playback, "restore queue launch start"),
     SettingEntry(R.string.set_haptics, SettingsPage.Playback, "vibration feedback"),

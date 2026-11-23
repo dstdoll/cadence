@@ -162,6 +162,21 @@ internal fun PlaybackPanel(onBack: () -> Unit) {
         item(key = "behaviour") {
             SettingsGroup {
                 SwitchRow(stringResource(R.string.set_autoplay), stringResource(R.string.set_autoplay_sub), s.autoplay) { v -> c.player.setAutoplay(v) }
+                Label(stringResource(R.string.set_transition_mode), stringResource(R.string.set_transition_sub))
+                Connected(
+                    app.cadence.state.settings.TransitionMode.entries,
+                    s.transitionMode,
+                    { stringResource(it.labelRes) },
+                ) { v -> set { it.copy(transitionMode = v) } }
+                if (s.transitionMode != app.cadence.state.settings.TransitionMode.Gapless) {
+                    Label("${stringResource(R.string.set_crossfade_duration)}  ·  ${stringResource(R.string.set_crossfade_seconds, s.crossfadeSeconds)}")
+                    SettingSlider(
+                        value = s.crossfadeSeconds.toFloat(),
+                        valueRange = 1f..12f,
+                        steps = 10,
+                        modifier = Modifier.padding(horizontal = 20.dp),
+                    ) { v -> set { it.copy(crossfadeSeconds = v.toInt().coerceIn(1, 12)) } }
+                }
                 SwitchRow(
                     stringResource(R.string.set_skip_silence), null, s.skipSilence,
                     note = if (s.hiResOutput) stringResource(R.string.set_skip_silence_sub_hires) else null,

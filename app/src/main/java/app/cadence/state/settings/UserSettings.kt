@@ -4,6 +4,12 @@ import androidx.annotation.StringRes
 import app.cadence.R
 import kotlinx.serialization.Serializable
 
+enum class TransitionMode(@StringRes val labelRes: Int) {
+    Gapless(R.string.set_transition_gapless),
+    Crossfade(R.string.set_transition_crossfade),
+    AutoMix(R.string.set_transition_automix),
+}
+
 enum class ColorSource { Wallpaper, Artwork, Custom, Monochrome }
 enum class DarkMode { System, Light, Dark }
 enum class ContrastLevel { Standard, Medium, High }
@@ -77,6 +83,8 @@ data class UserSettings(
     // Playback
     val autoplay: Boolean = true,
     val skipSilence: Boolean = false,
+    val transitionMode: TransitionMode = TransitionMode.Gapless,
+    val crossfadeSeconds: Int = 5,
     val waveStyle: WaveStyle = WaveStyle.Material,
     /** The custom DSP equalizer (biquad peaking bands), applied at the sink so it works in float
      *  output too. Independent of the system [eqEnabled]/[eqBands] above. */

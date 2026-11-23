@@ -395,6 +395,13 @@
     <string name="set_reduce_motion">Reduce motion</string>
     <string name="set_seek_bar">Seek bar</string>
     <string name="set_autoplay">Autoplay</string>
+    <string name="set_transition_mode">Song transitions</string>
+    <string name="set_transition_gapless">Gapless</string>
+    <string name="set_transition_crossfade">Crossfade</string>
+    <string name="set_transition_automix">AutoMix</string>
+    <string name="set_transition_sub">Blend tracks smoothly or match beats automatically (bypassed on bit-perfect USB DAC).</string>
+    <string name="set_crossfade_duration">Crossfade duration</string>
+    <string name="set_crossfade_seconds">%1$d s</string>
     <string name="set_skip_silence">Skip silence</string>
     <string name="set_resume">Resume where you left off</string>
     <string name="set_haptics">Haptics</string>

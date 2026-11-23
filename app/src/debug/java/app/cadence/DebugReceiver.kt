@@ -403,6 +403,39 @@ class DebugReceiver : BroadcastReceiver() {
             }
             return
         }
+        if (intent.action == "app.cadence.DEBUG_AUTOMIX_PLAN") {
+            val outIdArg = intent.getStringExtra("outId")
+            val inIdArg = intent.getStringExtra("inId")
+            val crossfadeSec = intent.getIntExtra("crossfadeSec", 5).coerceIn(1, 12)
+            GlobalScope.launch {
+                runCatching {
+                    val backend = runCatching { appContext.container.backend }.getOrNull() ?: Backend.create(appContext)
+                    val tracks = backend.catalog.tracks
+                    val outTrack = outIdArg?.let { id -> tracks.firstOrNull { it.track.id == id } } ?: tracks.getOrNull(0)
+                    val inTrack = inIdArg?.let { id -> tracks.firstOrNull { it.track.id == id } } ?: tracks.getOrNull(1)
+                    if (outTrack == null || inTrack == null) {
+                        CadenceLog.i("AutoMix", "debug plan skipped: need at least 2 tracks in catalog (size=${tracks.size})")
+                        return@launch
+                    }
+                    val outAnalysis = backend.catalog.audioAnalysis(outTrack.track.id)
+                    val inAnalysis = backend.catalog.audioAnalysis(inTrack.track.id)
+                    val sameAlbum = outTrack.album.id.isNotBlank() && outTrack.album.id == inTrack.album.id
+                    val plan = app.cadence.backend.engine.media.AutoMixPlanner.plan(
+                        outAnalysis = outAnalysis,
+                        inAnalysis = inAnalysis,
+                        outDurationMs = outTrack.track.durationMs.takeIf { it > 0L } ?: 180_000L,
+                        inDurationMs = inTrack.track.durationMs.takeIf { it > 0L } ?: 180_000L,
+                        sameAlbumConsecutive = sameAlbum,
+                        fallbackCrossfadeMs = crossfadeSec * 1_000L,
+                    )
+                    CadenceLog.i(
+                        "AutoMix",
+                        "debug plan ${outTrack.track.id}->${inTrack.track.id} kind=${plan.kind} dur=${plan.durationMs}ms fadeOutAt=${plan.fadeOutStartMs}ms fadeInAt=${plan.fadeInOffsetMs}ms speed=${plan.speedRatio} reason=${plan.reason}",
+                    )
+                }.onFailure { CadenceLog.e("AutoMix", "debug plan failed", it) }
+            }
+            return
+        }
         val query = intent.getStringExtra("q") ?: "daft punk"
         CadenceLog.i("debug", "DEBUG_SEARCH q='$query'")
         val app = context.applicationContext

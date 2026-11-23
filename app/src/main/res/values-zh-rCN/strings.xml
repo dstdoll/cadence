@@ -383,6 +383,13 @@
     <string name="set_reduce_motion">减弱动态效果</string>
     <string name="set_seek_bar">进度条样式</string>
     <string name="set_autoplay">自动播放</string>
+    <string name="set_transition_mode">歌曲过渡</string>
+    <string name="set_transition_gapless">无缝播放</string>
+    <string name="set_transition_crossfade">交叉淡入淡出</string>
+    <string name="set_transition_automix">智能混音</string>
+    <string name="set_transition_sub">平滑混音或自动节拍对齐过渡（独占 USB DAC 模式下自动绕过）。</string>
+    <string name="set_crossfade_duration">淡入淡出时长</string>
+    <string name="set_crossfade_seconds">%1$d 秒</string>
     <string name="set_skip_silence">跳过静音</string>
     <string name="set_resume">恢复上次播放进度</string>
     <string name="set_haptics">触感反馈</string>
