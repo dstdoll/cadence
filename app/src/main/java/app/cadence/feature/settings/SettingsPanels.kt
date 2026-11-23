@@ -365,6 +365,14 @@ internal fun LyricsPanel(onBack: () -> Unit) {
             SettingsGroup {
                 Label("${stringResource(R.string.set_text_size)}  ·  ${(s.lyricsScale * 100).toInt()}%")
                 SettingSlider(s.lyricsScale, 0.75f..1.5f, steps = 5, modifier = Modifier.padding(horizontal = 20.dp)) { v -> set { it.copy(lyricsScale = v) } }
+                Label(stringResource(R.string.set_lyrics_weight))
+                val weightLabels = mapOf(
+                    400 to stringResource(R.string.set_weight_regular),
+                    500 to stringResource(R.string.set_weight_medium),
+                    600 to stringResource(R.string.set_weight_semibold),
+                    800 to stringResource(R.string.set_weight_bold),
+                )
+                Connected(listOf(400, 500, 600, 800), s.lyricsWeight, { weightLabels.getValue(it) }) { v -> set { it.copy(lyricsWeight = v) } }
                 Label(stringResource(R.string.set_alignment))
                 Connected(LyricsAlign.entries, s.lyricsAlign, { stringResource(if (it == LyricsAlign.Center) R.string.set_align_center else R.string.set_align_start) }) { v -> set { it.copy(lyricsAlign = v) } }
                 Label("${stringResource(R.string.set_active_line)}  ·  ${stringResource(R.string.set_from_top, (s.lyricsAnchor * 100).toInt())}")
@@ -375,6 +383,7 @@ internal fun LyricsPanel(onBack: () -> Unit) {
             SettingsGroup {
                 SwitchRow(stringResource(R.string.set_word_highlight), stringResource(R.string.set_word_highlight_sub), s.karaoke) { v -> set { it.copy(karaoke = v) } }
                 SwitchRow(stringResource(R.string.set_depth_blur), stringResource(R.string.set_depth_blur_sub), s.lyricsBlur) { v -> set { it.copy(lyricsBlur = v) } }
+                SwitchRow(stringResource(R.string.set_lyrics_pulse), stringResource(R.string.set_lyrics_pulse_sub), s.lyricsPulse) { v -> set { it.copy(lyricsPulse = v) } }
                 SwitchRow(stringResource(R.string.set_amll_fallback), stringResource(R.string.set_amll_fallback_sub), s.amllLyricsFallback) { v ->
                     app.cadence.backend.lyrics.AmllLyrics.enabled = v
                     set { it.copy(amllLyricsFallback = v) }

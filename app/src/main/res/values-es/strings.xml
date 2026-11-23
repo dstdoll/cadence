@@ -207,6 +207,15 @@
     <string name="dq_select_tracks">Pistas (%1$d / %2$d)</string>
     <string name="set_save_cover_file">Guardar archivo de portada (cover.jpg / cover.png)</string>
     <string name="set_save_cover_file_sub">Guarda una imagen de portada separada dentro de la carpeta del álbum o lista.</string>
+    <string name="set_lyrics_weight">Grosor de fuente</string>
+    <string name="set_weight_regular">Normal</string>
+    <string name="set_weight_medium">Media</string>
+    <string name="set_weight_semibold">Seminegrita</string>
+    <string name="set_weight_bold">Negrita</string>
+    <string name="set_lyrics_pulse">Pulso al ritmo</string>
+    <string name="set_lyrics_pulse_sub">Pulsa suavemente las letras con los graves de la música.</string>
+    <string name="lyrics_export_ttml">Exportar TTML</string>
+    <string name="lyrics_exported_ttml">TTML exportado</string>
     <string name="alac_status_clean">Limpio</string>
     <string name="alac_status_missing_end">Falta marcador END</string>
     <string name="alac_status_dirty_pad">Relleno final sucio</string>

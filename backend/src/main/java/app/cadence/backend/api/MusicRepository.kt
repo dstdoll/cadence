@@ -132,6 +132,9 @@ interface MusicRepository {
     // BACKEND: here go the song's lyrics (synced LRC preferred, plain text accepted, Lyrics.None if absent).
     suspend fun lyrics(track: TrackInfo): Lyrics
 
+    /** Raw TTML XML for a track's lyrics, when available (used for `.ttml` export). */
+    suspend fun rawTtml(trackId: String): String? = null
+
     /**
      * Re-fetches the personalised home feed (recommendations, recently played, mixes). Home calls
      * this on pull-to-refresh. The *sections* are deterministic (identity/order stay put); their

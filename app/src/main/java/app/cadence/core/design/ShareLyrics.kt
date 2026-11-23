@@ -89,12 +89,23 @@ fun ShareLyricsSheet(info: TrackInfo, onDismiss: () -> Unit) {
     }
     val picked = remember { mutableStateListOf<Int>() }
     val chosen = picked.sorted().mapNotNull(lines::getOrNull)
+    val rawTtml by produceState<String?>(null, info.id) { value = c.repository.rawTtml(info.id) }
+    val exportTtmlLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/ttml+xml"),
+    ) { uri ->
+        val xml = rawTtml ?: return@rememberLauncherForActivityResult
+        if (uri == null) return@rememberLauncherForActivityResult
+        runCatching {
+            context.contentResolver.openOutputStream(uri)?.use { it.write(xml.toByteArray(Charsets.UTF_8)) }
+            android.widget.Toast.makeText(context, context.getString(R.string.lyrics_exported_ttml), android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberBottomSheetState(SheetValue.Hidden, setOf(SheetValue.Hidden, SheetValue.Expanded))) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Artwork(info.album.id, info.album.colors, Modifier.size(48.dp), RoundedCornerShape(10.dp), coverUrl = info.album.cover)
-                Column(Modifier.padding(start = 14.dp)) {
+                Column(Modifier.weight(1f).padding(start = 14.dp)) {
                     Text(
                         if (picked.isEmpty()) stringResource(R.string.share_no_lines) else pluralStringResource(R.plurals.lines_selected, picked.size, picked.size),
                         style = MaterialTheme.typography.titleMedium,
@@ -103,6 +114,14 @@ fun ShareLyricsSheet(info: TrackInfo, onDismiss: () -> Unit) {
                         if (picked.size >= MAX_LINES) stringResource(R.string.share_max_lines) else stringResource(R.string.share_tap_lines),
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+                if (!rawTtml.isNullOrBlank()) {
+                    androidx.compose.material3.TextButton(
+                        onClick = {
+                            val safe = info.track.title.replace(Regex("""[\\/:*?"<>|]+"""), "_").ifBlank { info.id }
+                            exportTtmlLauncher.launch("$safe.ttml")
+                        },
+                    ) { Text(stringResource(R.string.lyrics_export_ttml)) }
                 }
             }
             LazyColumn(

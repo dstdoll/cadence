@@ -51,6 +51,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameMillis
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -111,8 +112,15 @@ fun LyricsView(
     modifier: Modifier = Modifier,
     contentColor: Color = MaterialTheme.colorScheme.onSurface,
 ) {
+    val pulseEnabled = settings.lyricsPulse && isPlaying && !LocalReduceMotion.current
+    val wave = app.cadence.LocalContainer.current.wave
+    val pulseScale = if (pulseEnabled) {
+        val cur by wave.levels.collectAsStateWithLifecycle()
+        1f + (cur.hit.coerceIn(0f, 1f) * 0.03f)
+    } else 1f
+    val pulsedModifier = if (pulseEnabled) modifier.graphicsLayer { scaleX = pulseScale; scaleY = pulseScale } else modifier
     when (lyrics) {
-        is Lyrics.Synced -> SyncedLyrics(lyrics.lines, position, isPlaying, onSeek, settings, contentColor, modifier)
+        is Lyrics.Synced -> SyncedLyrics(lyrics.lines, position, isPlaying, onSeek, settings, contentColor, pulsedModifier)
         is Lyrics.Plain -> PlainLyrics(lyrics.text, settings, contentColor, modifier)
         Lyrics.None -> Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(
@@ -252,7 +260,7 @@ private fun LyricLineItem(
     val style = base.copy(
         fontSize = base.fontSize * settings.lyricsScale,
         lineHeight = base.lineHeight * settings.lyricsScale,
-        fontWeight = FontWeight.ExtraBold,
+        fontWeight = FontWeight(settings.lyricsWeight.coerceIn(100, 900)),
         textAlign = align,
         lineBreak = LineBreak.Heading,
     )

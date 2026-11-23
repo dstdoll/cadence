@@ -205,6 +205,15 @@
     <string name="dq_select_tracks">曲目 (%1$d / %2$d)</string>
     <string name="set_save_cover_file">保存封面文件 (cover.jpg / cover.png)</string>
     <string name="set_save_cover_file_sub">在专辑或歌单文件夹内另存一份独立的封面图片。</string>
+    <string name="set_lyrics_weight">字体粗细</string>
+    <string name="set_weight_regular">常规</string>
+    <string name="set_weight_medium">中等</string>
+    <string name="set_weight_semibold">半粗</string>
+    <string name="set_weight_bold">粗体</string>
+    <string name="set_lyrics_pulse">节拍律动</string>
+    <string name="set_lyrics_pulse_sub">随低频鼓点轻微律动歌词视图。</string>
+    <string name="lyrics_export_ttml">导出 TTML</string>
+    <string name="lyrics_exported_ttml">已导出 TTML</string>
     <string name="alac_status_clean">正常</string>
     <string name="alac_status_missing_end">缺少 END 标记</string>
     <string name="alac_status_dirty_pad">尾部填充异常</string>

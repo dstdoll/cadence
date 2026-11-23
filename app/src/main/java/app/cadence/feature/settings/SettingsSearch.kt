@@ -86,10 +86,12 @@ internal val SETTINGS_INDEX: List<SettingEntry> = listOf(
     SettingEntry(R.string.set_clear_cache, SettingsPage.Streaming, "delete free space storage"),
 
     SettingEntry(R.string.set_text_size, SettingsPage.Lyrics, "font scale"),
+    SettingEntry(R.string.set_lyrics_weight, SettingsPage.Lyrics, "font weight bold regular"),
     SettingEntry(R.string.set_alignment, SettingsPage.Lyrics, "left center centre"),
     SettingEntry(R.string.set_active_line, SettingsPage.Lyrics, "anchor scroll"),
     SettingEntry(R.string.set_word_highlight, SettingsPage.Lyrics, "karaoke sync"),
     SettingEntry(R.string.set_depth_blur, SettingsPage.Lyrics, "blur focus"),
+    SettingEntry(R.string.set_lyrics_pulse, SettingsPage.Lyrics, "beat pulse reactive background"),
     SettingEntry(R.string.set_amll_fallback, SettingsPage.Lyrics, "amll ttml db lyrics fallback"),
 
     SettingEntry(R.string.set_files_folders, SettingsPage.Downloads, "location storage"),

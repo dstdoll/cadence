@@ -291,6 +291,9 @@ class RealCatalog(
 
     private val lyricsCache = java.util.concurrent.ConcurrentHashMap<String, Lyrics>()
 
+    override suspend fun rawTtml(trackId: String): String? =
+        engine.lyrics(trackId) ?: app.cadence.backend.lyrics.AmllLyrics.fetchTtml(trackId)
+
     override suspend fun lyrics(track: TrackInfo): Lyrics {
         lyricsCache[track.id]?.let { return it }
         val ttml = engine.lyrics(track.id) ?: app.cadence.backend.lyrics.AmllLyrics.fetchTtml(track.id)

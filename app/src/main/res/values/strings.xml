@@ -209,6 +209,15 @@
     <string name="dq_select_tracks">Tracks (%1$d / %2$d)</string>
     <string name="set_save_cover_file">Save cover file (cover.jpg / cover.png)</string>
     <string name="set_save_cover_file_sub">Write a separate cover image inside the album or playlist folder.</string>
+    <string name="set_lyrics_weight">Font weight</string>
+    <string name="set_weight_regular">Regular</string>
+    <string name="set_weight_medium">Medium</string>
+    <string name="set_weight_semibold">SemiBold</string>
+    <string name="set_weight_bold">Bold</string>
+    <string name="set_lyrics_pulse">Beat-reactive pulse</string>
+    <string name="set_lyrics_pulse_sub">Subtly pulse lyrics with low-frequency beat onsets.</string>
+    <string name="lyrics_export_ttml">Export TTML</string>
+    <string name="lyrics_exported_ttml">TTML exported</string>
     <string name="alac_status_clean">Clean</string>
     <string name="alac_status_missing_end">Missing END marker</string>
     <string name="alac_status_dirty_pad">Dirty trailing padding</string>

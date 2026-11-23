@@ -13,7 +13,7 @@ class DownloadTrackPickerTest {
             DownloadItem("t1", "Song 1", "Artist", "Album", "", null, "album"),
             DownloadItem("t2", "Song 2", "Artist", "Album", "", null, "album"),
         )
-        val req = DownloadRequest.Choose(items, QualityProbeResult(emptyList(), 0, 0), 0, emptyMap())
+        val req = DownloadRequest.Choose(items, QualityProbeResult(emptyList(), 0, 0, 0), 0, emptyMap())
         assertEquals(setOf("t1", "t2"), req.selectedTracks)
         val toggled = req.toggleTrack("t1")
         assertEquals(setOf("t2"), toggled.selectedTracks)
