@@ -22,7 +22,9 @@ import androidx.compose.material.icons.rounded.RepeatOne
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
@@ -91,7 +93,8 @@ fun QueueView(modifier: Modifier = Modifier) {
     }
 
     MaterialTheme(colorScheme = cs.copy(onSurface = text.title, onSurfaceVariant = text.artist, primary = primary)) {
-        LazyColumn(modifier.fillMaxSize()) {
+        CompositionLocalProvider(LocalContentColor provides text.title) {
+            LazyColumn(modifier.fillMaxSize()) {
         item(key = "toggles") {
             // Three equal toggles, the queue's main controls.
             Row(
@@ -185,6 +188,7 @@ fun QueueView(modifier: Modifier = Modifier) {
             }
         }
         item(key = "pad") { Box(Modifier.height(24.dp)) }
+            }
         }
     }
 }
