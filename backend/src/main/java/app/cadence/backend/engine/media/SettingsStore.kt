@@ -18,6 +18,7 @@ data class AppSettings(
     /** "lrc", "ttml", "srt", or "txt". */
     val lyricsFormat: String = "lrc",
     val artworkEmbed: Boolean = true,
+    val saveCoverFile: Boolean = false,
     /** Preset "5000x5000"/"3000x3000"/"1400x1400"/"1000x1000"/"600x600", or "original", or "custom". */
     val artworkSize: String = "1400x1400",
     val artworkCustomPx: Int = 1400,

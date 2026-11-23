@@ -114,6 +114,7 @@ internal val SETTINGS_INDEX: List<SettingEntry> = listOf(
     SettingEntry(R.string.set_write_tags, SettingsPage.DownloadTags, "metadata"),
     SettingEntry(R.string.set_drop_ep_single, SettingsPage.DownloadTags, "ep single suffix clean album name"),
     SettingEntry(R.string.set_embed_cover, SettingsPage.DownloadTags, "artwork image"),
+    SettingEntry(R.string.set_save_cover_file, SettingsPage.DownloadTags, "artwork cover jpg png sidecar folder"),
     SettingEntry(R.string.set_cover_size, SettingsPage.DownloadTags, "artwork resolution"),
     SettingEntry(R.string.set_cover_format, SettingsPage.DownloadTags, "artwork jpeg png"),
     SettingEntry(R.string.set_embed_lyrics, SettingsPage.DownloadTags, "lyrics embedded m4a"),

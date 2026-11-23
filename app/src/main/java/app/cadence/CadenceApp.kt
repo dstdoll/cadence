@@ -92,6 +92,7 @@ internal fun UserSettings.toDownloadPreferences() = DownloadPreferences(
     },
     writeMetadata = writeMetadata,
     embedCover = embedCover,
+    saveCoverFile = saveCoverFile,
     coverSize = coverSize,
     coverFormat = coverFormat,
     embedLyrics = embedLyrics,

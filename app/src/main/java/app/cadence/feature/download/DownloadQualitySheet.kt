@@ -7,7 +7,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.toggleable
@@ -123,17 +126,37 @@ private fun Chooser(r: DownloadRequest.Choose) {
             Text(stringResource(R.string.dq_make_default), modifier = Modifier.padding(start = 12.dp))
         }
     }
+    if (several) {
+        var showTracks by remember { mutableStateOf(false) }
+        TextButton(onClick = { showTracks = !showTracks }, modifier = Modifier.padding(top = 4.dp)) {
+            Text(stringResource(R.string.dq_select_tracks, r.selectedTracks.size, r.items.size))
+        }
+        if (showTracks) {
+            LazyColumn(Modifier.fillMaxWidth().heightIn(max = 220.dp)) {
+                items(r.items, key = { it.trackId }) { item ->
+                    val checked = item.trackId in r.selectedTracks
+                    Row(
+                        Modifier.fillMaxWidth().toggleable(checked, role = Role.Checkbox) { DownloadRequests.toggleTrack(item.trackId) }.padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(checked, onCheckedChange = null)
+                        Text(item.title, style = MaterialTheme.typography.bodyMedium, maxLines = 1, modifier = Modifier.padding(start = 10.dp))
+                    }
+                }
+            }
+        }
+    }
     if (existing.songs > 0) ExistingNotice(existing)
-    Buttons(download = if (existing.songs > 0) R.string.dq_download_again else R.string.dq_download)
+    Buttons(download = if (existing.songs > 0) R.string.dq_download_again else R.string.dq_download, enabled = r.selectedTracks.isNotEmpty())
     Text(stringResource(R.string.dq_change_in_settings), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 10.dp))
 }
 
 @Composable
-private fun Buttons(download: Int) {
+private fun Buttons(download: Int, enabled: Boolean = true) {
     Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
         TextButton(onClick = DownloadRequests::cancel) { Text(stringResource(R.string.dq_cancel)) }
         Spacer(Modifier.size(8.dp))
-        Button(onClick = DownloadRequests::confirm) { Text(stringResource(download)) }
+        Button(onClick = DownloadRequests::confirm, enabled = enabled) { Text(stringResource(download)) }
     }
 }
 

@@ -202,6 +202,9 @@
     <string name="set_check_alac_download_sub">检查已下载的 ALAC 文件中的 escape 帧缺陷并自动修复。</string>
     <string name="set_amll_fallback">AMLL TTML 歌词库回退</string>
     <string name="set_amll_fallback_sub">当 Apple Music 无歌词时从 AMLL 歌词库获取同步歌词。</string>
+    <string name="dq_select_tracks">曲目 (%1$d / %2$d)</string>
+    <string name="set_save_cover_file">保存封面文件 (cover.jpg / cover.png)</string>
+    <string name="set_save_cover_file_sub">在专辑或歌单文件夹内另存一份独立的封面图片。</string>
     <string name="alac_status_clean">正常</string>
     <string name="alac_status_missing_end">缺少 END 标记</string>
     <string name="alac_status_dirty_pad">尾部填充异常</string>

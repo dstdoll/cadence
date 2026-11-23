@@ -24,9 +24,13 @@ sealed interface DownloadRequest {
         val selected: Int,
         val existing: Map<String, List<DownloadRecord>>,
         val makeDefault: Boolean = false,
+        val selectedTracks: Set<String> = items.mapTo(LinkedHashSet()) { it.trackId },
     ) : DownloadRequest {
         val option: QualityOption? get() = probe.options.getOrNull(selected)
         fun select(index: Int) = if (index in probe.options.indices) copy(selected = index) else this
+        fun toggleTrack(trackId: String) = copy(
+            selectedTracks = if (trackId in selectedTracks) selectedTracks - trackId else selectedTracks + trackId,
+        )
     }
 
     /** No picker (the person chose "use the default"), but some of these songs are already downloaded: ask before adding a second file. */

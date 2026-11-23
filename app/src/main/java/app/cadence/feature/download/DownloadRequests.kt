@@ -66,6 +66,7 @@ object DownloadRequests {
 
     fun select(index: Int) = _state.update { (it as? DownloadRequest.Choose)?.select(index) ?: it }
     fun setMakeDefault(on: Boolean) = _state.update { (it as? DownloadRequest.Choose)?.copy(makeDefault = on) ?: it }
+    fun toggleTrack(trackId: String) = _state.update { (it as? DownloadRequest.Choose)?.toggleTrack(trackId) ?: it }
 
     /** Starts the download the sheet is showing (at the picked quality, or the default when there is no picker). */
     fun confirm() {
@@ -77,17 +78,19 @@ object DownloadRequests {
             is DownloadRequest.Loading -> Unit
             is DownloadRequest.Confirm -> DownloadEngine.enqueue(ctx, request.items)
             is DownloadRequest.Choose -> {
+                val chosenItems = request.items.filter { it.trackId in request.selectedTracks }
+                if (chosenItems.isEmpty()) return
                 val option = request.option
                 if (option == null) {
-                    DownloadEngine.enqueue(ctx, request.items)
+                    DownloadEngine.enqueue(ctx, chosenItems)
                 } else {
                     val policy = option.policy()
-                    CadenceLog.i("QUALITY", "picked ${policy.cacheKey()} for ${request.items.size} song(s)${if (request.makeDefault) " and made it the default" else ""}")
+                    CadenceLog.i("QUALITY", "picked ${policy.cacheKey()} for ${chosenItems.size} song(s)${if (request.makeDefault) " and made it the default" else ""}")
                     if (request.makeDefault) {
                         val hadAtmos = request.probe.options.any { it.kind == "atmos" }
                         settings?.update { it.withDefaultFrom(option, hadAtmos, request.probe.isTopLossless(option)) }
                     }
-                    DownloadEngine.enqueue(ctx, request.items.map { it.copy(quality = policy) })
+                    DownloadEngine.enqueue(ctx, chosenItems.map { it.copy(quality = policy) })
                 }
             }
         }

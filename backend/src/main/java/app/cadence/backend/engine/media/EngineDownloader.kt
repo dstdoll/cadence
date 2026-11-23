@@ -262,6 +262,7 @@ object EngineDownloader {
             lyricsSaveFile = prefs.saveLyricsFile,
             lyricsFormat = prefs.lyricsFormat,
             artworkEmbed = prefs.writeMetadata && prefs.embedCover,
+            saveCoverFile = prefs.saveCoverFile,
             artworkSize = prefs.coverSize,
             artworkFormat = prefs.coverFormat,
         )
@@ -486,6 +487,18 @@ object EngineDownloader {
                 content = staged.sidecarLyrics,
                 baseName = staged.fileName,
                 ext = staged.settings.lyricsFormat,
+                relativeDir = staged.relativeDir,
+                folder = staged.folder,
+                treeUri = staged.settings.saveTreeUri,
+            )
+        }
+        val coverBytes = staged.tags.second
+        if (staged.settings.saveCoverFile && coverBytes != null && coverBytes.isNotEmpty()) {
+            val ext = if (staged.tags.third?.contains("png", ignoreCase = true) == true) "png" else staged.settings.artworkFormat
+            TrackPublisher.publishCoverIfAbsent(
+                context = context,
+                bytes = coverBytes,
+                ext = ext,
                 relativeDir = staged.relativeDir,
                 folder = staged.folder,
                 treeUri = staged.settings.saveTreeUri,

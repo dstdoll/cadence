@@ -52,6 +52,40 @@ internal object TrackPublisher {
      * using the same destination order as [publish]: SAF tree, public `MediaStore.Files`, then
      * app-private fallback. Returns the written URI/path, or null on failure (non-fatal).
      */
+    private val coverDirsWritten = java.util.Collections.synchronizedSet(HashSet<String>())
+
+    fun publishCoverIfAbsent(
+        context: Context,
+        bytes: ByteArray,
+        ext: String,
+        relativeDir: String,
+        folder: String,
+        treeUri: String?,
+    ): String? {
+        val cleanExt = if (ext.equals("png", ignoreCase = true)) "png" else "jpg"
+        val fileName = "cover.$cleanExt"
+        val dirKey = "${treeUri.orEmpty()}|$relativeDir|$fileName"
+        if (!coverDirsWritten.add(dirKey)) return null
+        val mime = if (cleanExt == "png") "image/png" else "image/jpeg"
+        if (treeUri != null) {
+            val existing = runCatching {
+                var dir = DocumentFile.fromTreeUri(context, Uri.parse(treeUri)) ?: return@runCatching false
+                for (part in folder.split('/').filter { it.isNotBlank() }) {
+                    dir = dir.findFile(part) ?: return@runCatching false
+                }
+                dir.findFile(fileName) != null
+            }.getOrDefault(false)
+            if (existing) return null
+            publishSidecarToTree(context, treeUri, folder, fileName, mime, bytes)?.let {
+                AppLog.log("DownloadCover", "saved dir=$folder bytes=${bytes.size} format=$cleanExt")
+                return it
+            }
+        }
+        return publishSidecarToMediaStore(context, fileName, mime, relativeDir, bytes)?.also {
+            AppLog.log("DownloadCover", "saved dir=$relativeDir bytes=${bytes.size} format=$cleanExt")
+        }
+    }
+
     fun publishSidecar(
         context: Context,
         content: String,

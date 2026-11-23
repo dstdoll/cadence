@@ -40,6 +40,7 @@ data class DownloadPreferences(
     val albumDate: String = "full",
     val writeMetadata: Boolean = true,
     val embedCover: Boolean = true,
+    val saveCoverFile: Boolean = false,
     val coverSize: String = "1400x1400",
     val coverFormat: String = "jpg",
     val embedLyrics: Boolean = true,

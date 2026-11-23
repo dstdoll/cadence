@@ -56,6 +56,7 @@ data class UserSettings(
     /** Highest accepted ALAC sample rate in Hz; 0 = Auto (no ceiling). */
     val maxSampleRate: Int = 0,
     val embedCover: Boolean = true,
+    val saveCoverFile: Boolean = false,
     val coverSize: String = "1400x1400",
     val coverFormat: String = "jpg",
     val embedLyrics: Boolean = true,

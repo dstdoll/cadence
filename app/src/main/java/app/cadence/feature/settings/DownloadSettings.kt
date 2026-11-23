@@ -511,7 +511,10 @@ internal fun DownloadTagsPanel(onBack: () -> Unit) {
                 SwitchRow(stringResource(R.string.set_embed_cover), null, s.embedCover) { v ->
                     store.update { it.copy(embedCover = v) }
                 }
-                if (s.embedCover) {
+                SwitchRow(stringResource(R.string.set_save_cover_file), stringResource(R.string.set_save_cover_file_sub), s.saveCoverFile) { v ->
+                    store.update { it.copy(saveCoverFile = v) }
+                }
+                if (s.embedCover || s.saveCoverFile) {
                     Label(stringResource(R.string.set_cover_size))
                     ChoiceChips(
                         listOf("600x600", "1000x1000", "1400x1400", "3000x3000", "5000x5000", "original"),
