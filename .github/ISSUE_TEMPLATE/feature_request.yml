@@ -1,0 +1,37 @@
+name: Feature Request
+description: Suggest an improvement, new capability, or UI/UX enhancement
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Playback / Audio / DSP
+        - Downloads / Offline
+        - Catalog / Search / Library
+        - UI / UX / Accessibility
+        - Settings / Diagnostics
+        - Build / Tooling
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / Use Case
+      description: What limitation or workflow is missing or frustrating today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Solution
+      description: Describe the desired behavior, UX, or setting.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives / Trade-offs
+      description: Any alternative approaches, edge cases, or compatibility considerations?

@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Native Error Reference
+    url: https://github.com/dstdoll/cadence/blob/main/native/APPLE_ERRORS.md
+    about: How to read [CXX-THROW], KEY_REJECTED, and FairPlay lines in exported logs

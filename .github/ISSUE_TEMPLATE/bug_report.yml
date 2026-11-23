@@ -1,0 +1,70 @@
+name: Bug Report
+description: Report a crash, playback/download failure, sign-in issue, or UI bug
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please fill in the fields below so maintainers and AI triage tools have everything needed to reproduce and fix the root cause.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of Cadence is affected?
+      options:
+        - Playback / Audio / DSP
+        - Downloads / DRM / FairPlay
+        - Sign-in / Auth / Provisioning
+        - Catalog / Search / Library
+        - UI / Layout / Tablets
+        - Native / Build
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: App Version
+      description: Found in Settings or at the top of your exported log (e.g. `0.2.0-dev.5`)
+      placeholder: "0.2.0-dev.5"
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device & Android Version
+      description: Device model and Android version / SDK (arm64-v8a, Android 10+ / API 29+)
+      placeholder: "e.g. Pixel 8, Android 15 (SDK 35)"
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the actual behavior vs. what you expected.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: Exact steps, track/album/query if relevant, and whether it happens on Wi-Fi vs. mobile data.
+      placeholder: |
+        1. Open ...
+        2. Tap ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Diagnostics Log (`Cadence-logs-*.txt`)
+      description: |
+        In Cadence, open **Settings -> Export log** (saves to `Download/Cadence/Cadence-logs-*.txt`).
+        Paste the summary header and relevant tail lines, or attach the file. Note: logs are redacted, but review before posting.
+      render: text
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context / Screenshots
+      description: Optional screenshots, frequency (always vs. intermittent), or workarounds.
