@@ -43,6 +43,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -277,27 +278,122 @@ internal fun StreamingPanel(onBack: () -> Unit) {
     fun set(f: (UserSettings) -> UserSettings) = c.settings.update(f)
 
     SettingsPanel(stringResource(R.string.set_page_streaming), onBack) {
+        item(key = "cache") {
+            SettingsGroup {
+                SwitchRow(
+                    stringResource(R.string.set_streaming_cache),
+                    stringResource(R.string.set_cache_hint),
+                    s.streamCacheEnabled,
+                ) { v -> set { it.copy(streamCacheEnabled = v) } }
+                SnapStopSlider(
+                    label = cacheLabel(s.streamCacheMb),
+                    value = s.streamCacheMb,
+                    stops = app.cadence.playback.STREAM_CACHE_STOPS_MB,
+                    enabled = s.streamCacheEnabled,
+                ) { v -> set { it.copy(streamCacheMb = v) } }
+                StreamCacheRow()
+            }
+        }
         item(key = "window") {
             SettingsGroup {
-                Label(stringResource(R.string.set_preload_next), stringResource(R.string.set_preload_hint))
-                Connected(listOf(0, 15, 30, 60, -1), s.streamPreloadNextSec, { preloadLabel(it) }) { v -> set { it.copy(streamPreloadNextSec = v) } }
-                Label(stringResource(R.string.set_keep_previous), stringResource(R.string.set_keep_previous_hint))
-                Connected(listOf(0, 15, 30), s.streamPreloadPreviousSec, { preloadLabel(it) }) { v -> set { it.copy(streamPreloadPreviousSec = v) } }
-                Label(stringResource(R.string.set_songs_ahead), stringResource(R.string.set_window_hint))
-                Connected(listOf(0, 100, 250, 500, 1024), s.streamAheadMb, { windowLabel(it) }) { v -> set { it.copy(streamAheadMb = v) } }
-                Label(stringResource(R.string.set_songs_behind))
-                Connected(listOf(0, 100, 250, 500, 1024), s.streamBehindMb, { windowLabel(it) }) { v -> set { it.copy(streamBehindMb = v) } }
+                val cacheOn = s.streamCacheEnabled
+                val nextOn = cacheOn && s.streamPreloadNextSec != 0
+                SwitchRow(
+                    stringResource(R.string.set_preload_next),
+                    stringResource(R.string.set_preload_hint),
+                    s.streamPreloadNextSec != 0,
+                    enabled = cacheOn,
+                ) { v -> set { it.copy(streamPreloadNextSec = if (v) 30 else 0) } }
+                SnapStopSlider(
+                    label = preloadLabel(if (s.streamPreloadNextSec != 0) s.streamPreloadNextSec else 30),
+                    value = if (s.streamPreloadNextSec != 0) s.streamPreloadNextSec else 30,
+                    stops = app.cadence.playback.STREAM_PRELOAD_NEXT_STOPS,
+                    enabled = nextOn,
+                ) { v -> set { it.copy(streamPreloadNextSec = v) } }
+
+                val prevOn = cacheOn && s.streamPreloadPreviousSec != 0
+                SwitchRow(
+                    stringResource(R.string.set_keep_previous),
+                    stringResource(R.string.set_keep_previous_hint),
+                    s.streamPreloadPreviousSec != 0,
+                    enabled = cacheOn,
+                ) { v -> set { it.copy(streamPreloadPreviousSec = if (v) 15 else 0) } }
+                SnapStopSlider(
+                    label = preloadLabel(if (s.streamPreloadPreviousSec != 0) s.streamPreloadPreviousSec else 15),
+                    value = if (s.streamPreloadPreviousSec != 0) s.streamPreloadPreviousSec else 15,
+                    stops = app.cadence.playback.STREAM_PRELOAD_PREV_STOPS,
+                    enabled = prevOn,
+                ) { v -> set { it.copy(streamPreloadPreviousSec = v) } }
+
+                val aheadOn = cacheOn && s.streamAheadMb > 0
+                SwitchRow(
+                    stringResource(R.string.set_songs_ahead),
+                    stringResource(R.string.set_window_hint),
+                    s.streamAheadMb > 0,
+                    enabled = cacheOn,
+                ) { v -> set { it.copy(streamAheadMb = if (v) 512 else 0) } }
+                SnapStopSlider(
+                    label = cacheLabel(if (s.streamAheadMb > 0) s.streamAheadMb else 512),
+                    value = if (s.streamAheadMb > 0) s.streamAheadMb else 512,
+                    stops = app.cadence.playback.STREAM_WINDOW_STOPS_MB,
+                    enabled = aheadOn,
+                ) { v -> set { it.copy(streamAheadMb = v) } }
+
+                val behindOn = cacheOn && s.streamBehindMb > 0
+                SwitchRow(
+                    stringResource(R.string.set_songs_behind),
+                    null,
+                    s.streamBehindMb > 0,
+                    enabled = cacheOn,
+                ) { v -> set { it.copy(streamBehindMb = if (v) 512 else 0) } }
+                SnapStopSlider(
+                    label = cacheLabel(if (s.streamBehindMb > 0) s.streamBehindMb else 512),
+                    value = if (s.streamBehindMb > 0) s.streamBehindMb else 512,
+                    stops = app.cadence.playback.STREAM_WINDOW_STOPS_MB,
+                    enabled = behindOn,
+                ) { v -> set { it.copy(streamBehindMb = v) } }
+
                 SwitchRow(
                     stringResource(R.string.set_fill_mobile),
                     stringResource(R.string.set_fill_mobile_sub),
                     s.streamWindowOnMobile,
+                    enabled = cacheOn && (s.streamAheadMb > 0 || s.streamBehindMb > 0),
                 ) { v -> set { it.copy(streamWindowOnMobile = v) } }
-                Label(stringResource(R.string.set_streaming_cache), stringResource(R.string.set_cache_hint))
-                Connected(listOf(256, 512, 1024, 2048, 4096), s.streamCacheMb, { cacheLabel(it) }) { v -> set { it.copy(streamCacheMb = v) } }
-                StreamCacheRow()
             }
         }
         item(key = "pad") { Spacer(Modifier.height(28.dp)) }
+    }
+}
+
+@Composable
+private fun SnapStopSlider(
+    label: String,
+    value: Int,
+    stops: List<Int>,
+    enabled: Boolean,
+    onSelect: (Int) -> Unit,
+) {
+    val idx = app.cadence.playback.snapStopIndex(value, stops)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp)
+            .let { if (enabled) it else it.then(Modifier.alpha(0.38f)) },
+    ) {
+        Text(
+            text = if (enabled) label else stringResource(R.string.set_off_short),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        SettingSlider(
+            value = idx.toFloat(),
+            valueRange = 0f..stops.lastIndex.toFloat(),
+            steps = (stops.size - 2).coerceAtLeast(0),
+            enabled = enabled,
+        ) { raw ->
+            val snapped = raw.toInt().coerceIn(0, stops.lastIndex)
+            onSelect(stops[snapped])
+        }
     }
 }
 
@@ -319,9 +415,6 @@ internal fun preloadLabel(seconds: Int) = when {
     seconds < 0 -> stringResource(R.string.set_whole)
     else -> "$seconds s"
 }
-
-@Composable
-private fun windowLabel(megabytes: Int) = if (megabytes == 0) stringResource(R.string.set_off_short) else cacheLabel(megabytes)
 
 /** "On" / "Off" under a row that opens a sub-screen. */
 @Composable

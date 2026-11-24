@@ -72,6 +72,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -217,7 +218,11 @@ private fun SettingsRoot(onOpen: (SettingsPage) -> Unit) {
             SettingsNavCard(
                 icon = Icons.Rounded.Storage,
                 title = stringResource(R.string.set_page_streaming),
-                summary = stringResource(R.string.set_sum_streaming, preloadLabel(s.streamPreloadNextSec), cacheLabel(s.streamCacheMb)),
+                summary = stringResource(
+                    R.string.set_sum_streaming,
+                    if (s.streamCacheEnabled) preloadLabel(s.streamPreloadNextSec) else stringResource(R.string.set_off_short),
+                    if (s.streamCacheEnabled) cacheLabel(s.streamCacheMb) else stringResource(R.string.set_off_short),
+                ),
             ) { onOpen(SettingsPage.Streaming) }
         }
         item(key = "lyrics") {
@@ -425,13 +430,22 @@ internal fun <T> Connected(options: List<T>, selected: T, label: @Composable (T)
  * what the user has to see at a glance (a conflict with another setting).
  */
 @Composable
-internal fun SwitchRow(title: String, info: String?, checked: Boolean, note: String? = null, onChange: (Boolean) -> Unit) {
+internal fun SwitchRow(
+    title: String,
+    info: String?,
+    checked: Boolean,
+    note: String? = null,
+    enabled: Boolean = true,
+    onChange: (Boolean) -> Unit,
+) {
     ListItem(
         content = { TitleInfo(title, info) },
         supportingContent = note?.let { { Text(it) } },
-        trailingContent = { Switch(checked, onChange) },
+        trailingContent = { Switch(checked, onChange, enabled = enabled) },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-        modifier = rememberHighlight(title).clickable { onChange(!checked) },
+        modifier = rememberHighlight(title)
+            .let { if (enabled) it else it.then(Modifier.alpha(0.38f)) }
+            .clickable(enabled = enabled) { onChange(!checked) },
     )
 }
 
@@ -457,12 +471,18 @@ internal fun SettingSlider(
     value: Float,
     valueRange: ClosedFloatingPointRange<Float>,
     steps: Int = 0,
+    enabled: Boolean = true,
     modifier: Modifier = Modifier,
     onChange: (Float) -> Unit,
 ) {
     val state = androidx.compose.runtime.remember(steps, valueRange) { androidx.compose.material3.SliderState(value, steps, valueRange) }
     androidx.compose.runtime.LaunchedEffect(value) { if (state.value != value) state.value = value }
-    androidx.compose.material3.Slider(state = state, onValueChange = { state.value = it; onChange(it) }, modifier = modifier)
+    androidx.compose.material3.Slider(
+        state = state,
+        enabled = enabled,
+        onValueChange = { state.value = it; onChange(it) },
+        modifier = modifier,
+    )
 }
 
 /** Seed swatches; the selected one morphs from a circle into a scalloped cookie. */

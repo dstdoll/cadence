@@ -102,6 +102,7 @@ data class UserSettings(
     /** Seconds of the previous song kept ready so "back" starts at once; 0 = off. */
     val streamPreloadPreviousSec: Int = 15,
     /** Disk budget for decrypted streaming audio, in MB. */
+    val streamCacheEnabled: Boolean = true,
     val streamCacheMb: Int = 2048,
     /** Whole songs kept ready after and before the playing one, in MB; 0 = only the preload above. */
     val streamAheadMb: Int = 500,
